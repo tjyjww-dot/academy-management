@@ -349,7 +349,7 @@ export default function CounselingPage() {
                       <div>
                         <p className="text-xs text-gray-600 mb-1">íë¶ëª¨ ì í</p>
                         <p className="font-semibold text-gray-900">
-                          {formatPhoneNumber(selectedRequest.parent.phone)}
+                          {formatPhoneNumber(selectedRequest.parent?.phone)}
                         </p>
                       </div>
                     )}
@@ -357,7 +357,7 @@ export default function CounselingPage() {
                       <div>
                         <p className="text-xs text-gray-600 mb-1">íë¶ëª¨ ì í</p>
                         <p className="font-semibold text-gray-900">
-                          {formatPhoneNumber(studentData.parent.phone)}
+                          {formatPhoneNumber(studentData.parent?.phone)}
                         </p>
                       </div>
                     )}
