@@ -4,7 +4,7 @@ import { getTokenFromCookies, verifyToken } from '@/lib/auth';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify authentication
@@ -26,7 +26,7 @@ export async function PATCH(
 
     const body = await request.json();
     const { isCompleted, completedBy } = body;
-    const taskId = params.id;
+    const { id: taskId } = await params;
 
     // Update task request
     if (isCompleted) {
@@ -71,7 +71,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify authentication
@@ -91,7 +91,7 @@ export async function DELETE(
       );
     }
 
-    const taskId = params.id;
+    const { id: taskId } = await params;
 
     // Delete task request
     await prisma.$executeRawUnsafe(
