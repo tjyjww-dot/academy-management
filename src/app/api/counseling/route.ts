@@ -20,11 +20,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         parent: true,
-        student: {
-          include: {
-            parent: true,
-          },
-        },
+        student: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -82,11 +78,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         parent: true,
-        student: {
-          include: {
-            parent: true,
-          },
-        },
+        student: true,
       },
     });
 
