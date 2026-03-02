@@ -30,10 +30,10 @@ interface Student {
 }
 
 const statusLabels: Record<string, string> = {
-  PENDING: '대기중',
-  CONFIRMED: '확정',
-  COMPLETED: '완료',
-  CANCELLED: '취소',
+  PENDING: 'ëê¸°ì¤',
+  CONFIRMED: 'íì ',
+  COMPLETED: 'ìë£',
+  CANCELLED: 'ì·¨ì',
 };
 
 const statusColors: Record<string, string> = {
@@ -130,6 +130,8 @@ export default function CounselingPage() {
       adminNotes: request.adminNotes || '',
       sessionDate: request.sessionDate || '',
       sessionNotes: request.sessionNotes || '',
+      title: request.title || '',
+      description: request.description || '',
     });
   };
 
@@ -150,7 +152,7 @@ export default function CounselingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             studentId: selectedRequest.studentId,
-            title: formData.title || `${selectedRequest.student.name} 상담`,
+            title: formData.title || `${selectedRequest.student.name} ìë´`,
             description: formData.description || null,
             sessionNotes: formData.sessionNotes || null,
             adminNotes: formData.adminNotes || null,
@@ -172,10 +174,10 @@ export default function CounselingPage() {
             title: '',
             description: '',
           });
-          setMessage('상담 기록이 생성되었습니다');
+          setMessage('ìë´ ê¸°ë¡ì´ ìì±ëììµëë¤');
           setTimeout(() => setMessage(''), 3000);
         } else {
-          setMessage('저장 실패');
+          setMessage('ì ì¥ ì¤í¨');
         }
       } else {
         // Update existing record
@@ -198,14 +200,14 @@ export default function CounselingPage() {
             )
           );
           setSelectedRequest(updatedRequest);
-          setMessage('저장되었습니다');
+          setMessage('ì ì¥ëììµëë¤');
           setTimeout(() => setMessage(''), 3000);
         } else {
-          setMessage('저장 실패');
+          setMessage('ì ì¥ ì¤í¨');
         }
       }
     } catch (error) {
-      setMessage('오류가 발생했습니다');
+      setMessage('ì¤ë¥ê° ë°ìíìµëë¤');
     } finally {
       setSaving(false);
     }
@@ -228,17 +230,17 @@ export default function CounselingPage() {
   };
 
   const statusFilterTabs = [
-    { value: 'ALL', label: '전체' },
-    { value: 'PENDING', label: '대기중' },
-    { value: 'CONFIRMED', label: '확정' },
-    { value: 'COMPLETED', label: '완료' },
-    { value: 'CANCELLED', label: '취소' },
+    { value: 'ALL', label: 'ì ì²´' },
+    { value: 'PENDING', label: 'ëê¸°ì¤' },
+    { value: 'CONFIRMED', label: 'íì ' },
+    { value: 'COMPLETED', label: 'ìë£' },
+    { value: 'CANCELLED', label: 'ì·¨ì' },
   ];
 
   return (
     <div className="min-h-screen bg-gray-100 p-3 sm:p-4 md:p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">상담 관리</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">ìë´ ê´ë¦¬</h1>
 
         {/* Status Filter Tabs */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
@@ -263,9 +265,9 @@ export default function CounselingPage() {
           {/* Requests List */}
           <div className="lg:col-span-1">
             {loading ? (
-              <p className="text-center text-gray-500">로딩 중...</p>
+              <p className="text-center text-gray-500">ë¡ë© ì¤...</p>
             ) : counselingRequests.length === 0 ? (
-              <p className="text-center text-gray-500">상담 요청이 없습니다</p>
+              <p className="text-center text-gray-500">ìë´ ìì²­ì´ ììµëë¤</p>
             ) : (
               <div className="space-y-3">
                 {counselingRequests.map((request) => (
@@ -279,10 +281,10 @@ export default function CounselingPage() {
                     }`}
                   >
                     <h3 className="font-bold text-gray-900 mb-1">{request.title}</h3>
-                    <p className="text-sm text-gray-600">학부모: {request.parent.name}</p>
-                    <p className="text-sm text-gray-600">학생: {request.student.name}</p>
+                    <p className="text-sm text-gray-600">íë¶ëª¨: {request.parent.name}</p>
+                    <p className="text-sm text-gray-600">íì: {request.student.name}</p>
                     <p className="text-xs text-gray-500 mb-2">
-                      요청일: {formatDate(request.createdAt)}
+                      ìì²­ì¼: {formatDate(request.createdAt)}
                     </p>
                     <div className="flex gap-2 items-center">
                       <span
@@ -294,7 +296,7 @@ export default function CounselingPage() {
                       </span>
                       {request.preferredDate && (
                         <span className="text-xs text-gray-600">
-                          희망일: {request.preferredDate}
+                          í¬ë§ì¼: {request.preferredDate}
                         </span>
                       )}
                     </div>
@@ -309,7 +311,7 @@ export default function CounselingPage() {
             {selectedRequest ? (
               <div className="bg-white rounded-lg shadow-md p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  {isNewRecord ? '새 상담 등록' : '상담 요청 상세'}
+                  {isNewRecord ? 'ì ìë´ ë±ë¡' : 'ìë´ ìì²­ ìì¸'}
                 </h2>
 
                 {/* Request Info */}
@@ -318,12 +320,12 @@ export default function CounselingPage() {
                     {!isNewRecord && (
                       <>
                         <div>
-                          <p className="text-xs text-gray-600 mb-1">제목</p>
+                          <p className="text-xs text-gray-600 mb-1">ì ëª©</p>
                           <p className="font-semibold text-gray-900">{selectedRequest.title}</p>
                         </div>
                         {selectedRequest.parent && (
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">학부모</p>
+                            <p className="text-xs text-gray-600 mb-1">íë¶ëª¨</p>
                             <p className="font-semibold text-gray-900">
                               {selectedRequest.parent.name}
                             </p>
@@ -332,20 +334,20 @@ export default function CounselingPage() {
                       </>
                     )}
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">학생</p>
+                      <p className="text-xs text-gray-600 mb-1">íì</p>
                       <p className="font-semibold text-gray-900">
                         {selectedRequest.student.name}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">학생 전화</p>
+                      <p className="text-xs text-gray-600 mb-1">íì ì í</p>
                       <p className="font-semibold text-gray-900">
                         {formatPhoneNumber(selectedRequest.student.phone)}
                       </p>
                     </div>
                     {selectedRequest.parent && (
                       <div>
-                        <p className="text-xs text-gray-600 mb-1">학부모 전화</p>
+                        <p className="text-xs text-gray-600 mb-1">íë¶ëª¨ ì í</p>
                         <p className="font-semibold text-gray-900">
                           {formatPhoneNumber(selectedRequest.parent.phone)}
                         </p>
@@ -353,7 +355,7 @@ export default function CounselingPage() {
                     )}
                     {studentData?.parent?.phone && (
                       <div>
-                        <p className="text-xs text-gray-600 mb-1">학부모 전화</p>
+                        <p className="text-xs text-gray-600 mb-1">íë¶ëª¨ ì í</p>
                         <p className="font-semibold text-gray-900">
                           {formatPhoneNumber(studentData.parent.phone)}
                         </p>
@@ -361,7 +363,7 @@ export default function CounselingPage() {
                     )}
                     {!isNewRecord && (
                       <div>
-                        <p className="text-xs text-gray-600 mb-1">요청일</p>
+                        <p className="text-xs text-gray-600 mb-1">ìì²­ì¼</p>
                         <p className="font-semibold text-gray-900">
                           {formatDate(selectedRequest.createdAt)}
                         </p>
@@ -371,16 +373,16 @@ export default function CounselingPage() {
 
                   {isNewRecord && studentData && (
                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-xs font-semibold text-blue-700 mb-2">📞 연락처 정보</p>
+                      <p className="text-xs font-semibold text-blue-700 mb-2">ð ì°ë½ì² ì ë³´</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <p className="text-xs text-gray-600">학생 연락처</p>
+                          <p className="text-xs text-gray-600">íì ì°ë½ì²</p>
                           <p className="font-semibold text-gray-900 text-sm">
                             {formatPhoneNumber(studentData.phone)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-600">학부모 연락처</p>
+                          <p className="text-xs text-gray-600">íë¶ëª¨ ì°ë½ì²</p>
                           <p className="font-semibold text-gray-900 text-sm">
                             {formatPhoneNumber(studentData.parentPhone || studentData.parent?.phone)}
                           </p>
@@ -391,14 +393,14 @@ export default function CounselingPage() {
 
                   {!isNewRecord && selectedRequest.description && (
                     <div className="mt-4">
-                      <p className="text-xs text-gray-600 mb-1">상담 내용</p>
+                      <p className="text-xs text-gray-600 mb-1">ìë´ ë´ì©</p>
                       <p className="text-gray-900">{selectedRequest.description}</p>
                     </div>
                   )}
 
                   {!isNewRecord && selectedRequest.preferredDate && (
                     <div className="mt-4">
-                      <p className="text-xs text-gray-600 mb-1">희망 날짜</p>
+                      <p className="text-xs text-gray-600 mb-1">í¬ë§ ë ì§</p>
                       <p className="text-gray-900">{selectedRequest.preferredDate}</p>
                     </div>
                   )}
@@ -409,7 +411,7 @@ export default function CounselingPage() {
                   {isNewRecord && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        상담 제목 <span className="text-red-500">*</span>
+                        ìë´ ì ëª© <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -418,7 +420,7 @@ export default function CounselingPage() {
                           setFormData({ ...formData, title: e.target.value })
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
-                        placeholder="상담 제목을 입력하세요"
+                        placeholder="ìë´ ì ëª©ì ìë ¥íì¸ì"
                       />
                     </div>
                   )}
@@ -426,7 +428,7 @@ export default function CounselingPage() {
                   {isNewRecord && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        상담 요청 설명
+                        ìë´ ìì²­ ì¤ëª
                       </label>
                       <textarea
                         value={formData.description}
@@ -435,14 +437,14 @@ export default function CounselingPage() {
                         }
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
-                        placeholder="상담 요청 설명을 입력하세요 (선택사항)"
+                        placeholder="ìë´ ìì²­ ì¤ëªì ìë ¥íì¸ì (ì íì¬í­)"
                       />
                     </div>
                   )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      상태
+                      ìí
                     </label>
                     <select
                       value={formData.status}
@@ -451,16 +453,16 @@ export default function CounselingPage() {
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
                     >
-                      <option value="PENDING">대기중</option>
-                      <option value="CONFIRMED">확정</option>
-                      <option value="COMPLETED">완료</option>
-                      <option value="CANCELLED">취소</option>
+                      <option value="PENDING">ëê¸°ì¤</option>
+                      <option value="CONFIRMED">íì </option>
+                      <option value="COMPLETED">ìë£</option>
+                      <option value="CANCELLED">ì·¨ì</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      상담 일시
+                      ìë´ ì¼ì
                     </label>
                     <input
                       type="datetime-local"
@@ -474,7 +476,7 @@ export default function CounselingPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      상담 내용
+                      ìë´ ë´ì©
                     </label>
                     <textarea
                       value={formData.sessionNotes}
@@ -483,13 +485,13 @@ export default function CounselingPage() {
                       }
                       rows={4}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
-                      placeholder="상담 내용을 입력하세요"
+                      placeholder="ìë´ ë´ì©ì ìë ¥íì¸ì"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      관리자 메모
+                      ê´ë¦¬ì ë©ëª¨
                     </label>
                     <textarea
                       value={formData.adminNotes}
@@ -498,7 +500,7 @@ export default function CounselingPage() {
                       }
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
-                      placeholder="관리자 메모"
+                      placeholder="ê´ë¦¬ì ë©ëª¨"
                     />
                   </div>
 
@@ -507,13 +509,13 @@ export default function CounselingPage() {
                     disabled={saving || (isNewRecord && !formData.title)}
                     className="w-full px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition disabled:opacity-50"
                   >
-                    {saving ? '저장 중...' : isNewRecord ? '상담 등록' : '저장'}
+                    {saving ? 'ì ì¥ ì¤...' : isNewRecord ? 'ìë´ ë±ë¡' : 'ì ì¥'}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md p-6 text-center text-gray-500">
-                상담 요청을 선택하세요
+                ìë´ ìì²­ì ì ííì¸ì
               </div>
             )}
           </div>
