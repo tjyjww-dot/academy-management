@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
           phone: normalizedPhone,
           status: 'ACTIVE',
         },
-        select: { id: true, name: true, school: true, grade: true },
+        select: { id: true, name: true, school: true, grade: true, userId: true },
       });
 
       // 학부모 전화번호 매칭
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           parentPhone: normalizedPhone,
           status: 'ACTIVE',
         },
-        select: { id: true, name: true, school: true, grade: true },
+        select: { id: true, name: true, school: true, grade: true, userId: true },
       });
 
       // 이미 User.phone으로 등록된 학부모 찾기
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
           parentStudents: {
             include: {
               student: {
-                select: { id: true, name: true, school: true, grade: true },
+                select: { id: true, name: true, school: true, grade: true, userId: true },
               },
             },
           },
