@@ -281,7 +281,7 @@ export default function CounselingPage() {
                     }`}
                   >
                     <h3 className="font-bold text-gray-900 mb-1">{request.title}</h3>
-                    <p className="text-sm text-gray-600">íë¶ëª¨: {request.parent.name}</p>
+                    <p className="text-sm text-gray-600">íë¶ëª¨: {request.parent?.name}</p>
                     <p className="text-sm text-gray-600">íì: {request.student.name}</p>
                     <p className="text-xs text-gray-500 mb-2">
                       ìì²­ì¼: {formatDate(request.createdAt)}
@@ -327,7 +327,7 @@ export default function CounselingPage() {
                           <div>
                             <p className="text-xs text-gray-600 mb-1">íë¶ëª¨</p>
                             <p className="font-semibold text-gray-900">
-                              {selectedRequest.parent.name}
+                              {selectedRequest.parent?.name}
                             </p>
                           </div>
                         )}
@@ -349,7 +349,7 @@ export default function CounselingPage() {
                       <div>
                         <p className="text-xs text-gray-600 mb-1">íë¶ëª¨ ì í</p>
                         <p className="font-semibold text-gray-900">
-                          {formatPhoneNumber(selectedRequest.parent.phone)}
+                          {formatPhoneNumber(selectedRequest.parent?.phone)}
                         </p>
                       </div>
                     )}
@@ -357,7 +357,7 @@ export default function CounselingPage() {
                       <div>
                         <p className="text-xs text-gray-600 mb-1">íë¶ëª¨ ì í</p>
                         <p className="font-semibold text-gray-900">
-                          {formatPhoneNumber(studentData.parent.phone)}
+                          {formatPhoneNumber(studentData.parent?.phone)}
                         </p>
                       </div>
                     )}
