@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isPasswordValid = await verifyPassword(password, user.password);
+    const isPasswordValid = await verifyPassword(password, user.password || '');
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: '이메일 또는 비밀번호가 일치하지 않습니다.' },
