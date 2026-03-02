@@ -15,11 +15,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ id: s
       where: { id },
       include: {
         parent: true,
-        student: {
-          include: {
-            parent: true,
-          },
-        },
+        student: true,
       },
     });
 
@@ -61,11 +57,7 @@ export async function PUT(request: NextRequest, props: { params: Promise<{ id: s
       },
       include: {
         parent: true,
-        student: {
-          include: {
-            parent: true,
-          },
-        },
+        student: true,
       },
     });
 
