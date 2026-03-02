@@ -4,7 +4,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "학원 관리 시스템",
   description: "학원 원생 관리 시스템",
-  charset: "utf-8",
 };
 
 export default function RootLayout({
