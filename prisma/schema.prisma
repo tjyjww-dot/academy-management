@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String?  // Google OAuth 사용자는 비밀번호 없음
+  name       String   @default("")
+  role       String   @default("TEACHER") // ADMIN, TEACHER, DESK, PARENT, STUDENT
+  phone      String?
+  image      String?  // 프로필 이미지 (Google 프로필)
+  provider   String   @default("email") // email, google
+  isApproved Boolean  @default(false) // 관리자 승인 여부 (Google 가입 사용자)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  classrooms         Classroom[]
+  parentStudents     ParentStudent[]
+  counselingRequests CounselingRequest[]
+  pushTokens         PushToken[]
+  studentProfile     Student?           // 학생 역할인 경우 Student와 연결
+}
+
+model Student {
+  id               String   @id @default(cuid())
+  studentNumber    String   @unique
+  name             String
+  dateOfBirth      String?
+  phone            String?
+  parentPhone      String?  // 학부모 연락처 (앱 로그인용)
+  school           String?
+  grade            String?
+  status             String   @default("ACTIVE")
+  withdrawalReason   String?  // 퇴원 사유
+  withdrawalDate     DateTime? // 퇴원 일자
+  registrationDate   DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // 학생 로그인 연결 (선택적 - 학생도 앱에 로그인 가능)
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String? @unique
+
+  parentStudents        ParentStudent[]
+  enrollments           Enrollment[]
+  grades                Grade[]
+  attendanceRecords     AttendanceRecord[]
+  assignmentSubmissions AssignmentSubmission[]
+  counselingRequests    CounselingRequest[]
+  payments              Payment[]
+  dailyReports          DailyReport[]
+}
+
+model ParentStudent {
+  id        String  @id @default(cuid())
+  parent    User    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parentId  String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  relation  String  @default("부모")
+
+  @@unique([parentId, studentId])
+}
+
+model Subject {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  code       String      @unique
+  createdAt  DateTime    @default(now())
+  classrooms Classroom[]
+}
+
+model Classroom {
+  id          String   @id @default(cuid())
+  name        String
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  subjectId   String
+  teacher     User     @relation(fields: [teacherId], references: [id])
+  teacherId   String
+  schedule    String?
+  maxCapacity Int      @default(20)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  enrollments       Enrollment[]
+  grades            Grade[]
+  attendanceRecords AttendanceRecord[]
+  assignments       Assignment[]
+  dailyReports      DailyReport[]
+  lectureVideos     LectureVideo[]
+}
+
+model Enrollment {
+  id             String    @id @default(cuid())
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId      String
+  classroom      Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId    String
+  enrollmentDate DateTime  @default(now())
+  status         String    @default("ACTIVE")
+  createdAt      DateTime  @default(now())
+
+  @@unique([studentId, classroomId])
+}
+
+model Grade {
+  id          String    @id @default(cuid())
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId String
+  testName    String
+  score       Float
+  maxScore    Float     @default(100)
+  testDate    String
+  remarks     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AttendanceRecord {
+  id          String    @id @default(cuid())
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId String
+  date        String
+  status      String    @default("PRESENT")
+  checkInTime String?
+  remarks     String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([studentId, classroomId, date])
+}
+
+model Assignment {
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  classroom      Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId    String
+  dueDate        String
+  assignmentDate String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String     @id @default(cuid())
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  status       String     @default("NOT_SUBMITTED")
+  submittedAt  String?
+  score        Float?
+  feedback     String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([assignmentId, studentId])
+}
+
+model CounselingRequest {
+  id              String   @id @default(cuid())
+  parent          User?    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parentId        String?
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId       String
+  title           String
+  description     String?
+  counselingType  String   @default("PHONE") // PHONE(전화상담), VISIT(방문상담)
+  visitMessage    String?  // 방문상담 시 전달사항
+  preferredDate   String?
+  status          String   @default("PENDING")
+  adminNotes      String?
+  sessionDate     String?
+  sessionNotes    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  targetRole  String   @default("ALL")
+  isActive    Boolean  @default(true)
+  publishDate DateTime @default(now())
+  expiryDate  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EntranceTest {
+  id          String   @id @default(cuid())
+  name        String
+  school      String?
+  grade       String?
+  parentPhone String
+  testDate    String
+  testTime    String
+  status      String   @default("SCHEDULED")
+  notes       String?
+  priorLevel      String?  // 선행정도
+  testScore       String?  // 테스트 점수
+  counselingNotes String?  // 상담내용
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  yearMonth     String   // "2026-02" 형식
+  tuitionFee    Int      @default(0) // 수강료
+  specialFee    Int      @default(0) // 특강비
+  otherFee      Int      @default(0) // 기타비용
+  totalFee      Int      @default(0) // 총액 (자동 계산)
+  remarks       String?  // 비고
+  status        String   @default("PENDING") // PENDING, INPUT_DONE, SENT, PAID
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ── 데일리 리포트 (선생님이 학생별로 매일 작성) ──
+model DailyReport {
+  id          String    @id @default(cuid())
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId String
+  date        String    // "2026-02-26"
+  content     String    // 오늘의 학습 내용
+  homework    String?   // 숙제/과제 안내
+  attitude    String?   // 학습 태도 (EXCELLENT, GOOD, NORMAL, NEEDS_IMPROVEMENT)
+  specialNote String?   // 특이사항
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([studentId, classroomId, date])
+}
+
+// ── 강의 영상/링크 (반별 강의 자료) ──
+model LectureVideo {
+  id          String    @id @default(cuid())
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId String
+  title       String
+  description String?
+  videoUrl    String    // YouTube, Vimeo 등 영상 URL
+  videoType   String    @default("YOUTUBE") // YOUTUBE, VIMEO, DIRECT, LINK
+  duration    String?   // "45:00" 형식
+  date        String    // 강의 날짜
+  isPublished Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ── 가입신청 (학부모/학생 앱 또는 외부 신청) ──
+model SignupRequest {
+  id           String   @id @default(cuid())
+  studentName  String   // 학생 이름
+  school       String?  // 학교
+  grade        String?  // 학년
+  parentName   String?  // 학부모 이름
+  parentPhone  String   // 학부모 연락처
+  studentPhone String?  // 학생 연락처
+  message      String?  // 상담 요청사항 / 메모
+  status       String   @default("PENDING") // PENDING(대기), APPROVED(승인), REJECTED(거절)
+  adminNotes   String?  // 관리자 메모
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ── 업무 요청사항 (대시보드) ──
+model TaskRequest {
+  id          String   @id @default(cuid())
+  title       String   // 요청 내용
+  description String?  // 상세 설명
+  createdBy   String   // 요청자 ID
+  createdByName String @default("") // 요청자 이름
+  targetRole  String   // TEACHER, DESK, ADMIN (대상 역할)
+  assigneeId  String?  // 특정 담당자 ID (선택)
+  isCompleted Boolean  @default(false)
+  completedBy String?  // 완료 처리한 사람 ID
+  completedAt DateTime? // 완료 시간
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── 푸시 알림 토큰 (Expo Push Token) ──
+model PushToken {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  token     String   @unique // Expo Push Token
+  platform  String   @default("unknown") // ios, android
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
