@@ -151,7 +151,7 @@ export default function StudentDetailPage() {
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <p className="text-red-600">{error || '원생을 찾을 수 없습니다.'}</p>
-          <Link href="/admin/students">
+          <Link href="/students">
             <button className="mt-4 text-blue-600 hover:text-blue-800">← 원생 목록</button>
           </Link>
         </div>
@@ -162,7 +162,7 @@ export default function StudentDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
-        <Link href="/admin/students">
+        <Link href="/students">
           <button className="mb-6 text-blue-600 hover:text-blue-800 font-medium">
             ← 원생 목록
           </button>
