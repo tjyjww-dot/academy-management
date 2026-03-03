@@ -152,7 +152,7 @@ export default function SignupRequestsPage() {
       const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
-        setWebUsers(data.users);
+        setWebUsers(data);
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
