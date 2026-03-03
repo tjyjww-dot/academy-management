@@ -41,6 +41,11 @@ export async function GET(request: NextRequest) {
           },
         },
         enrollments: {
+          where: {
+            student: {
+              status: { not: 'WITHDRAWN' }
+            }
+          },
           select: {
             id: true,
           },
@@ -98,7 +103,16 @@ export async function POST(request: NextRequest) {
             email: true,
           },
         },
-        enrollments: true,
+        enrollments: {
+          where: {
+            student: {
+              status: { not: 'WITHDRAWN' }
+            }
+          },
+          include: {
+            student: true,
+          },
+        },
       },
     });
 
