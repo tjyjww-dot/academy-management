@@ -119,13 +119,6 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchUsers();
   }, []);
-
-  const handleRoleToggle = (role: string) => {
-    setSelectedRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
-  };
-
   const handleSubmitTaskRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim() || !selectedUserId || !userInfo) {
