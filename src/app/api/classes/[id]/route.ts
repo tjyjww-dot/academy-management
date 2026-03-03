@@ -26,6 +26,11 @@ export async function GET(
           },
         },
         enrollments: {
+          where: {
+            student: {
+              status: { not: 'WITHDRAWN' }
+            }
+          },
           include: {
             student: true,
           },
@@ -91,6 +96,11 @@ export async function PUT(
           },
         },
         enrollments: {
+          where: {
+            student: {
+              status: { not: 'WITHDRAWN' }
+            }
+          },
           include: {
             student: true,
           },
