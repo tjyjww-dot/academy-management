@@ -40,6 +40,8 @@ interface TaskRequest {
   createdBy: string;
   createdByName: string;
   targetRole: string;
+  targetUserId: string | null;
+  targetUserName: string | null;
   isCompleted: boolean;
   completedBy: string | null;
   completedAt: string | null;
@@ -65,7 +67,9 @@ export default function DashboardPage() {
   // Form states
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  // selectedRoles removed - using selectedUserId instead
+  const [users, setUsers] = useState<{id: string; name: string; role: string}[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -99,6 +103,23 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
+  // Fetch registered users
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
   const handleRoleToggle = (role: string) => {
     setSelectedRoles((prev) =>
       prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
@@ -107,7 +128,7 @@ export default function DashboardPage() {
 
   const handleSubmitTaskRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!taskTitle.trim() || selectedRoles.length === 0 || !userInfo) {
+    if (!taskTitle.trim() || !selectedUserId || !userInfo) {
       setSubmitError('제목과 대상을 선택해주세요.');
       return;
     }
@@ -117,28 +138,24 @@ export default function DashboardPage() {
 
     try {
       // Submit each selected role separately
-      for (const role of selectedRoles) {
-        const response = await fetch('/api/task-requests', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: taskTitle,
-            description: taskDescription,
-            targetRole: role,
-            createdBy: userInfo.userId,
-            createdByName: userInfo.name,
-          }),
-        });
+      const response = await fetch('/api/task-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: taskDescription,
+          targetUserId: selectedUserId,
+        }),
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to submit task request');
-        }
+      if (!response.ok) {
+        throw new Error('Failed to create task request');
       }
 
       // Reset form
       setTaskTitle('');
       setTaskDescription('');
-      setSelectedRoles([]);
+      setSelectedUserId('');
 
       // Refresh task requests
       const dashboardResponse = await fetch('/api/dashboard');
@@ -291,170 +308,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── 요청사항 섹션 ── */}
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">📝 요청사항</h2>
-        </div>
-
-        {/* 요청 등록 폼 */}
-        <div className="px-6 py-6 border-b border-gray-200">
-          <form onSubmit={handleSubmitTaskRequest}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                요청 내용 *
-              </label>
-              <input
-                type="text"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                placeholder="요청 제목을 입력해주세요"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                상세 내용
-              </label>
-              <textarea
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                placeholder="추가 설명이 필요하면 입력해주세요"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                대상 역할 선택 *
-              </label>
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedRoles.includes('TEACHER')}
-                    onChange={() => handleRoleToggle('TEACHER')}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">강사(TEACHER)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedRoles.includes('DESK')}
-                    onChange={() => handleRoleToggle('DESK')}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">데스크(DESK)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedRoles.includes('ADMIN')}
-                    onChange={() => handleRoleToggle('ADMIN')}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">관리자(ADMIN)</span>
-                </label>
-              </div>
-            </div>
-
-            {submitError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                {submitError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? '등록 중...' : '요청 등록'}
-            </button>
-          </form>
-        </div>
-
-        {/* 내게 온 요청사항 */}
-        <div className="px-6 py-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">내게 온 요청사항</h3>
-          {taskRequests.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">요청사항이 없습니다.</p>
-          ) : (
-            <div className="space-y-3">
-              {taskRequests.map((task) => (
-                <div
-                  key={task.id}
-                  className={`p-4 border rounded-lg transition-all ${
-                    task.isCompleted
-                      ? 'bg-gray-50 border-gray-200'
-                      : 'bg-blue-50 border-blue-200 hover:shadow-md'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4
-                          className={`font-semibold ${
-                            task.isCompleted
-                              ? 'text-gray-500 line-through'
-                              : 'text-gray-900'
-                          }`}
-                        >
-                          {task.title}
-                        </h4>
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                          {task.targetRole === 'TEACHER'
-                            ? '강사'
-                            : task.targetRole === 'DESK'
-                            ? '데스크'
-                            : '관리자'}
-                        </span>
-                      </div>
-                      {task.description && (
-                        <p
-                          className={`text-sm mb-2 ${
-                            task.isCompleted
-                              ? 'text-gray-400 line-through'
-                              : 'text-gray-600'
-                          }`}
-                        >
-                          {task.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500">
-                        요청자: {task.createdByName} •{' '}
-                        {new Date(task.createdAt).toLocaleDateString('ko-KR', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={task.isCompleted}
-                          onChange={() => handleCompleteTask(task.id)}
-                          className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                        />
-                        <span className="text-sm font-medium text-gray-600">
-                          {task.isCompleted ? '완료됨' : '완료'}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* ── 임박한 입학테스트 ── */}
         <div className="bg-white rounded-lg shadow">
@@ -556,6 +409,150 @@ export default function DashboardPage() {
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-bold text-gray-900">📢 최근 공지사항</h2>
           </div>
+
+      {/* ── 요청사항 섹션 ── */}
+      <div className="bg-white rounded-lg shadow mb-6">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900">📝 요청사항</h2>
+        </div>
+
+        {/* 요청 등록 폼 */}
+        <div className="px-6 py-6 border-b border-gray-200">
+          <form onSubmit={handleSubmitTaskRequest}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                요청 내용 *
+              </label>
+              <input
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="요청 제목을 입력해주세요"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                상세 내용
+              </label>
+              <textarea
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="추가 설명이 필요하면 입력해주세요"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                대상 선택 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">요청 대상을 선택하세요</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.role === 'ADMIN' ? '관리자' : user.role === 'TEACHER' ? '강사' : '데스크'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {submitError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {submitError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? '등록 중...' : '요청 등록'}
+            </button>
+          </form>
+        </div>
+
+        {/* 내게 온 요청사항 */}
+        <div className="px-6 py-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">내게 온 요청사항</h3>
+          {taskRequests.length === 0 ? (
+            <p className="text-center text-gray-500 py-8">요청사항이 없습니다.</p>
+          ) : (
+            <div className="space-y-3">
+              {taskRequests.map((task) => (
+                <div
+                  key={task.id}
+                  className={`p-4 border rounded-lg transition-all ${
+                    task.isCompleted
+                      ? 'bg-gray-50 border-gray-200'
+                      : 'bg-blue-50 border-blue-200 hover:shadow-md'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4
+                          className={`font-semibold ${
+                            task.isCompleted
+                              ? 'text-gray-500 line-through'
+                              : 'text-gray-900'
+                          }`}
+                        >
+                          {task.title}
+                        </h4>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                          {task.targetUserName || (task.targetRole === 'TEACHER' ? '강사' : task.targetRole === 'DESK' ? '데스크' : '관리자')}
+                        </span>
+                      </div>
+                      {task.description && (
+                        <p
+                          className={`text-sm mb-2 ${
+                            task.isCompleted
+                              ? 'text-gray-400 line-through'
+                              : 'text-gray-600'
+                          }`}
+                        >
+                          {task.description}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-500">
+                        요청자: {task.createdByName} •{' '}
+                        {new Date(task.createdAt).toLocaleDateString('ko-KR', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={task.isCompleted}
+                          onChange={() => handleCompleteTask(task.id)}
+                          className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                        <span className="text-sm font-medium text-gray-600">
+                          {task.isCompleted ? '완료됨' : '완료'}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
           <div className="divide-y divide-gray-200">
             {announcements.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
