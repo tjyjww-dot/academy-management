@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateToken } from '@/lib/auth';
 
+const ADMIN_EMAILS = ['tjyjww@gmail.com'];
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
@@ -41,12 +43,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(baseUrl + '/auth/login?error=no_email');
     }
 
+    const isAdminEmail = ADMIN_EMAILS.includes(userInfo.email);
+
     let user = await prisma.user.findUnique({
       where: { email: userInfo.email },
     });
 
     if (!user) {
-      // Check if this is the first user - auto-approve as ADMIN
       const userCount = await prisma.user.count();
       const isFirstUser = userCount === 0;
 
@@ -56,18 +59,30 @@ export async function GET(request: NextRequest) {
           name: userInfo.name || '',
           image: userInfo.picture || null,
           provider: 'google',
-          role: isFirstUser ? 'ADMIN' : 'TEACHER',
-          isApproved: isFirstUser,
+          role: (isFirstUser || isAdminEmail) ? 'ADMIN' : 'TEACHER',
+          isApproved: isFirstUser || isAdminEmail,
         },
       });
-    } else if (user.provider !== 'google') {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          provider: 'google',
-          image: userInfo.picture || user.image,
-        },
-      });
+    } else {
+      // Update existing user: if admin email, ensure approved and ADMIN
+      if (isAdminEmail && (!user.isApproved || user.role !== 'ADMIN')) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isApproved: true,
+            role: 'ADMIN',
+            image: userInfo.picture || user.image,
+          },
+        });
+      } else if (user.provider !== 'google') {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            provider: 'google',
+            image: userInfo.picture || user.image,
+          },
+        });
+      }
     }
 
     if (!user.isApproved) {
