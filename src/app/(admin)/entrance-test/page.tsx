@@ -107,7 +107,7 @@ export default function EntranceTestPage() {
   // ── 새 예약 등록 ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.parentPhone || !form.testDate || !form.testTime) {
+    if (!form.name || !form.parentPhone || (!form.testDate && form.testDate !== '미정') || (!form.testTime && form.testTime !== '미정')) {
       alert('이름, 학부모 연락처, 테스트 날짜, 시간을 입력해주세요.');
       return;
     }
@@ -155,7 +155,7 @@ export default function EntranceTestPage() {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTest) return;
-    if (!editForm.name || !editForm.parentPhone || !editForm.testDate || !editForm.testTime) {
+    if (!editForm.name || !editForm.parentPhone || (!editForm.testDate && editForm.testDate !== '미정') || (!editForm.testTime && editForm.testTime !== '미정')) {
       alert('이름, 학부모 연락처, 테스트 날짜, 시간을 입력해주세요.');
       return;
     }
@@ -229,6 +229,7 @@ export default function EntranceTestPage() {
   });
 
   const formatDate = (dateStr: string) => {
+    if (dateStr === '미정') return '미정';
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
   };
@@ -307,35 +308,69 @@ export default function EntranceTestPage() {
       {/* 테스트 날짜 + 시간 */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            테스트 날짜 <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            name="testDate"
-            value={data.testDate}
-            onChange={onChange}
-            required
-            min={isEdit ? undefined : today}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700">
+              테스트 날짜 <span className="text-red-500">*</span>
+            </label>
+            <label className="flex items-center gap-1 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={data.testDate === '미정'}
+                onChange={(e) => {
+                  const syntheticEvent = { target: { name: 'testDate', value: e.target.checked ? '미정' : '' } } as React.ChangeEvent<HTMLInputElement>;
+                  onChange(syntheticEvent);
+                }}
+                className="rounded"
+              />
+              미정
+            </label>
+          </div>
+          {data.testDate === '미정' ? (
+            <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500">날짜 미정</div>
+          ) : (
+            <input
+              type="date"
+              name="testDate"
+              value={data.testDate}
+              onChange={onChange}
+              min={isEdit ? undefined : today}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            테스트 시간 <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="testTime"
-            value={data.testTime}
-            onChange={onChange}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">시간 선택</option>
-            {TIME_OPTIONS.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700">
+              테스트 시간 <span className="text-red-500">*</span>
+            </label>
+            <label className="flex items-center gap-1 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={data.testTime === '미정'}
+                onChange={(e) => {
+                  const syntheticEvent = { target: { name: 'testTime', value: e.target.checked ? '미정' : '' } } as React.ChangeEvent<HTMLSelectElement>;
+                  onChange(syntheticEvent);
+                }}
+                className="rounded"
+              />
+              미정
+            </label>
+          </div>
+          {data.testTime === '미정' ? (
+            <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500">시간 미정</div>
+          ) : (
+            <select
+              name="testTime"
+              value={data.testTime}
+              onChange={onChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">시간 선택</option>
+              {TIME_OPTIONS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -448,9 +483,9 @@ export default function EntranceTestPage() {
         ) : (
           <div className="space-y-3">
             {filteredTests.map((test) => {
-              const isToday = test.testDate === today;
-              const isSoon = test.testDate > today && test.testDate <= inThreeDays;
-              const isPast = test.testDate < today && test.status === 'SCHEDULED';
+              const isToday = test.testDate !== '미정' && test.testDate === today;
+              const isSoon = test.testDate !== '미정' && test.testDate > today && test.testDate <= inThreeDays;
+              const isPast = test.testDate !== '미정' && test.testDate < today && test.status === 'SCHEDULED';
 
               return (
                 <div
@@ -503,7 +538,7 @@ export default function EntranceTestPage() {
                         <div>
                           <span className="font-medium text-gray-500 block text-xs">테스트 일시</span>
                           <span className="font-semibold text-gray-900">
-                            {formatDate(test.testDate)} {test.testTime}
+                            {test.testDate === '미정' ? '날짜 미정' : formatDate(test.testDate)} {test.testTime === '미정' ? '시간 미정' : test.testTime}
                           </span>
                         </div>
                       </div>
