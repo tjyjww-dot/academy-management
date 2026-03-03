@@ -46,14 +46,18 @@ export async function GET(request: NextRequest) {
     });
 
     if (!user) {
+      // Check if this is the first user - auto-approve as ADMIN
+      const userCount = await prisma.user.count();
+      const isFirstUser = userCount === 0;
+
       user = await prisma.user.create({
         data: {
           email: userInfo.email,
           name: userInfo.name || '',
           image: userInfo.picture || null,
           provider: 'google',
-          role: 'TEACHER',
-          isApproved: false,
+          role: isFirstUser ? 'ADMIN' : 'TEACHER',
+          isApproved: isFirstUser,
         },
       });
     } else if (user.provider !== 'google') {
