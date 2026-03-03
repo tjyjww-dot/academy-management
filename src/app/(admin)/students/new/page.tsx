@@ -73,7 +73,7 @@ export default function NewStudentPage() {
       }
 
       const newStudent = await response.json();
-      router.push(`/admin/students/${newStudent.id}`);
+      router.push(`/students/${newStudent.id}`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -84,7 +84,7 @@ export default function NewStudentPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/admin/students">
+        <Link href="/students">
           <button className="mb-6 text-blue-600 hover:text-blue-800 font-medium">
             ← 원생 목록
           </button>
@@ -219,7 +219,7 @@ export default function NewStudentPage() {
               >
                 {loading ? '등록 중...' : '등록하기'}
               </button>
-              <Link href="/admin/students" className="flex-1">
+              <Link href="/students" className="flex-1">
                 <button
                   type="button"
                   className="w-full px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-medium"
