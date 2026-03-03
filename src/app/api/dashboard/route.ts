@@ -64,27 +64,34 @@ export async function GET(request: NextRequest) {
     ]);
 
     // 임박한 입학테스트 (오늘 이후, SCHEDULED 상태, 날짜+시간 순)
-    // notes, priorLevel, testScore, counselingNotes 필드 포함하여 조회
-    const upcomingTests = await prisma.$queryRawUnsafe(
-      `SELECT id, name, school, grade, parentPhone, testDate, testTime, status, notes, priorLevel, testScore, counselingNotes, createdAt FROM EntranceTest
-       WHERE testDate >= ?
-         AND status = 'SCHEDULED'
-       ORDER BY testDate ASC, testTime ASC
-       LIMIT 5`,
-      today
-    ) as any[];
+    const upcomingTests = await prisma.entranceTest.findMany({
+      where: {
+        testDate: { gte: today },
+        status: 'SCHEDULED',
+      },
+      orderBy: [
+        { testDate: 'asc' },
+        { testTime: 'asc' },
+      ],
+      take: 5,
+    });
 
     // 오늘의 입학테스트 개수
-    const todayTestCount = await prisma.$queryRawUnsafe(
-      `SELECT COUNT(*) as count FROM EntranceTest WHERE testDate = ? AND status = 'SCHEDULED'`,
-      today
-    ) as any[];
+    const todayTestCount = await prisma.entranceTest.count({
+      where: {
+        testDate: today,
+        status: 'SCHEDULED',
+      },
+    });
 
     // Fetch task requests for the user's role (pending ones)
-    const taskRequestsForUser = await prisma.$queryRawUnsafe(
-      `SELECT * FROM TaskRequest WHERE targetRole = ? AND isCompleted = 0 ORDER BY createdAt DESC`,
-      decoded.role
-    ) as any[];
+    const taskRequestsForUser = await prisma.taskRequest.findMany({
+      where: {
+        targetRole: decoded.role,
+        isCompleted: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     return NextResponse.json(
       {
@@ -93,7 +100,7 @@ export async function GET(request: NextRequest) {
           totalClassrooms,
           todayAttendance: todayAttendanceCount,
           pendingCounseling: pendingCounselingCount,
-          todayTests: Number(todayTestCount[0]?.count ?? 0),
+          todayTests: todayTestCount,
         },
         announcements,
         upcomingTests,
