@@ -292,6 +292,8 @@ model TaskRequest {
   createdByName String @default("") // 요청자 이름
   targetRole  String   // TEACHER, DESK, ADMIN (대상 역할)
   assigneeId  String?  // 특정 담당자 ID (선택)
+  targetUserId  String?  // 요청 대상 사용자 ID
+  targetUserName String? // 요청 대상 사용자 이름
   isCompleted Boolean  @default(false)
   completedBy String?  // 완료 처리한 사람 ID
   completedAt DateTime? // 완료 시간
