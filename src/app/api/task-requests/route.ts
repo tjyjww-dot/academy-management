@@ -4,7 +4,6 @@ import { getTokenFromCookies, verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify authentication
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: '유효하지 않은 토큰입니다.' },
+        { error: '인증 토큰이 유효하지 않습니다.' },
         { status: 401 }
       );
     }
@@ -24,39 +23,47 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
     const createdBy = searchParams.get('createdBy');
+    const targetUserId = searchParams.get('targetUserId');
 
     let whereClause = '';
     let params: any[] = [];
 
     if (role) {
-      whereClause = 'WHERE targetRole = ?';
+      whereClause = 'WHERE "targetRole" = $1';
       params.push(role);
+    }
+
+    if (targetUserId) {
+      if (whereClause) {
+        whereClause += ` AND "targetUserId" = $${params.length + 1}`;
+      } else {
+        whereClause = `WHERE "targetUserId" = $1`;
+      }
+      params.push(targetUserId);
     }
 
     if (createdBy) {
       if (whereClause) {
-        whereClause += ' AND createdBy = ?';
+        whereClause += ` AND "createdBy" = $${params.length + 1}`;
       } else {
-        whereClause = 'WHERE createdBy = ?';
+        whereClause = `WHERE "createdBy" = $1`;
       }
       params.push(createdBy);
     }
 
     const taskRequests = await prisma.$queryRawUnsafe(
-      `SELECT * FROM TaskRequest ${whereClause} ORDER BY createdAt DESC`,
+      `SELECT * FROM "TaskRequest" ${whereClause} ORDER BY "createdAt" DESC`,
       ...params
     ) as any[];
 
     return NextResponse.json(
-      {
-        taskRequests,
-      },
+      { taskRequests },
       { status: 200 }
     );
   } catch (error) {
     console.error('Task requests error:', error);
     return NextResponse.json(
-      { error: '업무 요청사항 조회 중 오류가 발생했습니다.' },
+      { error: '요청사항 목록을 불러오는 데 실패했습니다.' },
       { status: 500 }
     );
   }
@@ -64,7 +71,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
@@ -76,46 +82,60 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: '유효하지 않은 토큰입니다.' },
+        { error: '인증 토큰이 유효하지 않습니다.' },
         { status: 401 }
       );
     }
 
     const body = await request.json();
-    const { title, description, targetRole, createdBy, createdByName } = body;
+    const { title, description, targetUserId, targetRole, createdBy, createdByName } = body;
 
-    // Validate required fields
-    if (!title || !targetRole || !createdBy) {
+    if (!title || !createdBy) {
       return NextResponse.json(
-        { error: '필수 입력값이 누락되었습니다.' },
+        { error: '필수 필드가 누락되었습니다.' },
         { status: 400 }
       );
     }
 
-    // Create task request using raw SQL to be consistent with codebase
-    const newTaskRequest = await prisma.$executeRawUnsafe(
-      `INSERT INTO TaskRequest (id, title, description, createdBy, createdByName, targetRole, isCompleted, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      crypto.randomUUID(),
+    // Look up target user name if targetUserId is provided
+    let resolvedTargetUserName = '';
+    let resolvedTargetRole = targetRole || 'TEACHER';
+    if (targetUserId) {
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { name: true, role: true }
+      });
+      if (targetUser) {
+        resolvedTargetUserName = targetUser.name;
+        resolvedTargetRole = targetUser.role;
+      }
+    }
+
+    const id = crypto.randomUUID();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "TaskRequest" ("id", "title", "description", "createdBy", "createdByName", "targetRole", "targetUserId", "targetUserName", "isCompleted", "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      id,
       title,
       description || null,
       createdBy,
       createdByName || '',
-      targetRole,
+      resolvedTargetRole,
+      targetUserId || null,
+      resolvedTargetUserName || null,
       false,
-      new Date().toISOString(),
-      new Date().toISOString()
+      new Date(),
+      new Date()
     );
 
-    // Fetch and return the created task request
     const taskRequest = await prisma.$queryRawUnsafe(
-      `SELECT * FROM TaskRequest WHERE createdBy = ? ORDER BY createdAt DESC LIMIT 1`,
-      createdBy
+      `SELECT * FROM "TaskRequest" WHERE "id" = $1`,
+      id
     ) as any[];
 
     return NextResponse.json(
       {
-        message: '업무 요청사항이 등록되었습니다.',
+        message: '요청사항이 성공적으로 등록되었습니다.',
         taskRequest: taskRequest[0] || null,
       },
       { status: 201 }
@@ -123,7 +143,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Create task request error:', error);
     return NextResponse.json(
-      { error: '업무 요청사항 등록 중 오류가 발생했습니다.' },
+      { error: '요청사항 등록에 실패했습니다.' },
       { status: 500 }
     );
   }
