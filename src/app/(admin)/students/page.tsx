@@ -87,7 +87,7 @@ export default function StudentsPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">원생 관리</h1>
-          <Link href="/admin/students/new">
+          <Link href="/students/new">
             <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
               원생 등록
             </button>
@@ -165,7 +165,7 @@ export default function StudentsPage() {
                         <tr
                           key={student.id}
                           className="border-b hover:bg-gray-50 cursor-pointer transition"
-                          onClick={() => router.push(`/admin/students/${student.id}`)}
+                          onClick={() => router.push(`/students/${student.id}`)}
                         >
                           <td className="px-6 py-4 text-sm text-gray-900">
                             {student.studentNumber}
