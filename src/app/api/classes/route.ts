@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (!subject) {
       subject = await prisma.subject.create({
-        data: { name: classType },
+        data: { name: classType, code: classType },
       });
     }
 
