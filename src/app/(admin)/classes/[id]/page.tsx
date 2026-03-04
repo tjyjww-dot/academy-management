@@ -160,7 +160,7 @@ export default function ClassDetailPage() {
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <p className="text-red-600">{error || '반을 찾을 수 없습니다.'}</p>
-          <Link href="/admin/classes">
+          <Link href="/classes">
             <button className="mt-4 text-blue-600 hover:text-blue-800">← 반 목록</button>
           </Link>
         </div>
@@ -171,7 +171,7 @@ export default function ClassDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
-        <Link href="/admin/classes">
+        <Link href="/classes">
           <button className="mb-6 text-blue-600 hover:text-blue-800 font-medium">
             ← 반 목록
           </button>
@@ -332,7 +332,7 @@ export default function ClassDetailPage() {
                           <tr key={enrollment.id} className="border-b hover:bg-gray-50">
                             <td className="px-4 py-2 text-sm font-medium text-gray-900">
                               <Link
-                                href={`/admin/counseling?studentId=${enrollment.student.id}&studentName=${encodeURIComponent(enrollment.student.name)}`}
+                                href={`/counseling?studentId=${enrollment.student.id}&studentName=${encodeURIComponent(enrollment.student.name)}`}
                                 className="text-blue-600 hover:text-blue-800 hover:underline"
                               >
                                 {enrollment.student.name}
