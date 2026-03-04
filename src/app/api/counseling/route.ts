@@ -10,10 +10,14 @@ export async function GET(request: NextRequest) {
     }
 
     const status = request.nextUrl.searchParams.get('status');
+    const studentId = request.nextUrl.searchParams.get('studentId');
 
     const where: any = {};
     if (status) {
       where.status = status;
+    }
+    if (studentId) {
+      where.studentId = studentId;
     }
 
     const counselingRequests = await prisma.counselingRequest.findMany({
