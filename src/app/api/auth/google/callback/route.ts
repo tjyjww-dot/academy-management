@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const baseUrl = request.nextUrl.origin;
 
   if (!code) {
-    return NextResponse.redirect(baseUrl + '/auth/login?error=no_code');
+    return NextResponse.redirect(baseUrl + '/auth/login?error=no_code')h;
   }
 
   try {
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!user.isApproved) {
-      return NextResponse.redirect(baseUrl + '/auth/login?error=not_approved');
+      return NextResponse.redirect(baseUrl + '/auth/login?error=not_approved&email=' + encodeURIComponent(userInfo.email));
     }
 
     const token = generateToken({
