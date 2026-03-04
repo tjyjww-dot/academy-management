@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role');
     const createdBy = searchParams.get('createdBy');
+    const sent = searchParams.get('sent');
     const targetUserId = searchParams.get('targetUserId');
 
     let whereClause = '';
@@ -42,13 +43,15 @@ export async function GET(request: NextRequest) {
       params.push(targetUserId);
     }
 
-    if (createdBy) {
+    const effectiveCreatedBy = sent === 'true' ? decoded.userId : createdBy;
+
+    if (effectiveCreatedBy) {
       if (whereClause) {
         whereClause += ` AND "createdBy" = $${params.length + 1}`;
       } else {
         whereClause = `WHERE "createdBy" = $1`;
       }
-      params.push(createdBy);
+      params.push(effectiveCreatedBy);
     }
 
     const taskRequests = await prisma.$queryRawUnsafe(
@@ -88,9 +91,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, targetUserId, targetRole, createdBy, createdByName } = body;
+    const { title, description, targetUserId, targetRole } = body;
+    const createdByFromToken = decoded.userId;
+    const createdByNameFromToken = decoded.name || '';
 
-    if (!title || !createdBy) {
+    if (!title) {
       return NextResponse.json(
         { error: '필수 필드가 누락되었습니다.' },
         { status: 400 }
@@ -118,8 +123,8 @@ export async function POST(request: NextRequest) {
       id,
       title,
       description || null,
-      createdBy,
-      createdByName || '',
+      createdByFromToken,
+      createdByNameFromToken,
       resolvedTargetRole,
       targetUserId || null,
       resolvedTargetUserName || null,
