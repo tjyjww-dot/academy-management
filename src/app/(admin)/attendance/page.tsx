@@ -126,7 +126,7 @@ export default function AttendancePage() {
           <div className="text-center py-12 text-gray-500">로딩 중...</div>
         ) : absentRecords.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
-            <div className="text-4xl mb-4">\u2705</div>
+            <div className="text-4xl mb-4">{'\u2705'}</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">결석 학생이 없습니다</h3>
             <p className="text-gray-500">{date} 날짜에 결석으로 체크된 학생이 없습니다.</p>
           </div>
