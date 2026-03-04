@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const baseUrl = request.nextUrl.origin;
 
   if (!code) {
-    return NextResponse.redirect(baseUrl + '/auth/login?error=no_code')h;
+    return NextResponse.redirect(baseUrl + '/auth/login?error=no_code');
   }
 
   try {
