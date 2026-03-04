@@ -3,10 +3,10 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const studentId = params.id;
+    const { id: studentId } = await params;
 
     // Get all grades for this student with classroom info
     const studentGrades = await prisma.$queryRawUnsafe(`
