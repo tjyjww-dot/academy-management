@@ -1,5 +1,87 @@
 'use client';
 
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+
+
+interface TaskRequest {
+  id: string;
+  title: string;
+  description: string | null;
+  createdBy: string;
+  createdByName: string;
+  targetRole: string;
+  targetUserId: string | null;
+  targetUserName: string | null;
+  isCompleted: boolean;
+  completedBy: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+
+interface UserInfo {
+  userId: string;
+  role: string;
+  name: string;
+}
+
+
+export default function RequestsPage() {
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [users, setUsers] = useState<{id: string; name: string; role: string}[]>([]);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
+  const [sentRequests, setSentRequests] = useState<TaskRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+
+  useEffect(() => {
+    const userInfoStr = localStorage.getItem('userInfo');
+    if (userInfoStr) {
+      setUserInfo(JSON.parse(userInfoStr));
+    }
+    fetchUsers();
+    fetchSentRequests();
+  }, []);
+
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(Array.isArray(data) ? data : data.users || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    }
+  };
+
+
+  const fetchSentRequests = async () => {
+    try {
+      const res = await fetch('/api/task-requests?sent=true');
+      if (res.ok) {
+        const data = await res.json();
+        setSentRequests(Array.isArray(data) ? data : data.taskRequests || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch sent requests:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();'use client';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
