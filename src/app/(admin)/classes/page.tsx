@@ -168,7 +168,7 @@ export default function ClassesPage() {
                 <div
                   key={classroom.id}
                   className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition cursor-pointer"
-                  onClick={() => router.push(`/admin/classes/${classroom.id}`)}
+                  onClick={() => router.push(`/classes/${classroom.id}`)}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
