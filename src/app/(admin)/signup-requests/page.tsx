@@ -202,6 +202,22 @@ export default function SignupRequestsPage() {
     }
   };
 
+  // 회원 탈퇴 처리
+  const handleWithdrawUser = async (userId: string, userName: string) => {
+    if (!confirm(`${userName} 회원을 정말 탈퇴시키겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+    try {
+      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setWebUsers(webUsers.filter(u => u.id !== userId));
+        alert('회원이 탈퇴 처리되었습니다.');
+      } else {
+        alert('탈퇴 처리에 실패했습니다.');
+      }
+    } catch (error) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
   // ── 유틸 ─────────────────────────────────────────────────────────
   const formatPhone = (phone: string) => {
     if (phone.length === 11) return `${phone.slice(0, 3)}-${phone.slice(3, 7)}-${phone.slice(7)}`;
@@ -454,6 +470,7 @@ export default function SignupRequestsPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">연락처</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">가입방법</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">가입일</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -478,6 +495,14 @@ export default function SignupRequestsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500">{formatDate(user.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleWithdrawUser(user.id, user.name)}
+                          className="px-3 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 border border-red-200"
+                        >
+                          탈퇴
+                        </button>
+                      </td>
                       </tr>
                     ))
                   )}
