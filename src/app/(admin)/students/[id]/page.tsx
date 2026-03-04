@@ -46,6 +46,7 @@ export default function StudentDetailPage() {
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('basic');
+  const [gradeStats, setGradeStats] = useState<any[]>([]);
   const [editData, setEditData] = useState<Partial<Student>>({});
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [withdrawalReason, setWithdrawalReason] = useState('');
@@ -67,8 +68,21 @@ export default function StudentDetailPage() {
     }
   };
 
+  const fetchGradeStats = async () => {
+    try {
+      const response = await fetch(`/api/students/${studentId}/grade-stats`);
+      if (response.ok) {
+        const data = await response.json();
+        setGradeStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch grade stats:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStudent();
+    fetchGradeStats();
   }, [studentId]);
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -463,54 +477,74 @@ export default function StudentDetailPage() {
             )}
 
             {activeTab === 'grades' && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">성적</h3>
-                {student.grades.length === 0 ? (
-                  <p className="text-gray-500">성적 기록이 없습니다.</p>
-                ) : (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">성적</h3>
+              {gradeStats.length === 0 && student.grades.length === 0 ? (
+                <p className="text-gray-500">성적 기록이 없습니다.</p>
+              ) : (
+                <>
+                  {gradeStats.length > 1 && (() => {
+                    const chartW = 600, chartH = 300;
+                    const pad = { top: 30, right: 30, bottom: 60, left: 50 };
+                    const w = chartW - pad.left - pad.right;
+                    const h = chartH - pad.top - pad.bottom;
+                    const maxVal = Math.max(...gradeStats.map((g: any) => Math.max(g.score, g.classAverage || 0)));
+                    const yMax = Math.ceil(maxVal / 10) * 10 || 100;
+                    const xStep = w / (gradeStats.length - 1);
+                    const sPts = gradeStats.map((g: any, i: number) => 
+                      `${pad.left + i * xStep},${pad.top + h - (g.score / yMax) * h}`
+                    );
+                    const aPts = gradeStats.filter((g: any) => g.classAverage !== null).map((g: any) => {
+                      const oi = gradeStats.indexOf(g);
+                      return `${pad.left + oi * xStep},${pad.top + h - ((g.classAverage||0) / yMax) * h}`;
+                    });
+                    return (
+                      <div className="mb-6 overflow-x-auto">
+                        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full max-w-2xl mx-auto" style={{minWidth:'400px'}}>
+                          {[0,25,50,75,100].map(pct => {
+                            const val = Math.round(yMax * pct / 100);
+                            const y = pad.top + h - (pct/100)*h;
+                            return (<g key={pct}><line x1={pad.left} y1={y} x2={pad.left+w} y2={y} stroke="#e5e7eb" strokeWidth="1"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="#6b7280" fontSize="11">{val}</text></g>);
+                          })}
+                          <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" points={sPts.join(' ')}/>
+                          {sPts.map((pt: string, i: number) => {const [cx,cy]=pt.split(',').map(Number); return <circle key={`s${i}`} cx={cx} cy={cy} r="4" fill="#3b82f6" stroke="white" strokeWidth="2"/>;})}
+                          {aPts.length > 0 && (<><polyline fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" points={aPts.join(' ')}/>{aPts.map((pt: string, i: number) => {const [cx,cy]=pt.split(',').map(Number); return <circle key={`a${i}`} cx={cx} cy={cy} r="3.5" fill="#f59e0b" stroke="white" strokeWidth="1.5"/>;})}</>)}
+                          {gradeStats.map((g: any, i: number) => {const x=pad.left+i*xStep; return (<text key={`x${i}`} x={x} y={chartH-25} textAnchor="middle" fill="#6b7280" fontSize="10" transform={`rotate(-20,${x},${chartH-25})`}>{g.testName}</text>);})}
+                          <circle cx={pad.left} cy={chartH-8} r="4" fill="#3b82f6"/><text x={pad.left+8} y={chartH-4} fill="#374151" fontSize="11">학생 점수</text>
+                          <circle cx={pad.left+80} cy={chartH-8} r="4" fill="#f59e0b"/><text x={pad.left+88} y={chartH-4} fill="#374151" fontSize="11">반 평균</text>
+                        </svg>
+                      </div>
+                    );
+                  })()}
                   <div className="overflow-x-auto -mx-6 sm:mx-0">
                     <table className="w-full min-w-max sm:min-w-full">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
-                            과목
-                          </th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
-                            시험명
-                          </th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
-                            점수
-                          </th>
-                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
-                            시험일
-                          </th>
+                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">과목</th>
+                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">시험명</th>
+                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">점수</th>
+                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">반 평균</th>
+                          <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">시험일</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {student.grades.map((grade) => (
+                        {(gradeStats.length > 0 ? gradeStats : student.grades).map((grade: any) => (
                           <tr key={grade.id} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-2 text-sm text-gray-900">
-                              {grade.classroom.subject.name}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {grade.testName}
-                            </td>
-                            <td className="px-4 py-2 text-sm font-medium text-gray-900">
-                              {grade.score} / {grade.maxScore}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {grade.testDate}
-                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-900">{grade.subjectName || grade.classroom?.subject?.name || '-'}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">{grade.testName}</td>
+                            <td className="px-4 py-2 text-sm font-medium text-gray-900">{grade.score} / {grade.maxScore}</td>
+                            <td className="px-4 py-2 text-sm text-amber-600 font-medium">{grade.classAverage ?? '-'}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">{grade.testDate}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'attendance' && (
+                </>
+              )}
+            </div>
+          )}
+          {activeTab === 'attendance' && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">출결</h3>
                 {student.attendanceRecords.length === 0 ? (
