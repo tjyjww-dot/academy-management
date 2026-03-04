@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
 export default function ClassDetailPage() {
@@ -28,6 +28,10 @@ export default function ClassDetailPage() {
   const [counselingStudent, setCounselingStudent] = useState<any>(null);
   const [counselingNote, setCounselingNote] = useState('');
   const [reportCopied, setReportCopied] = useState<string | null>(null);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
   const fetchDaily = useCallback(async () => {
     try {
       setLoading(true);
@@ -62,6 +66,35 @@ export default function ClassDetailPage() {
   }, [classId, selectedDate]);
 
   useEffect(() => { fetchDaily(); }, [fetchDaily]);
+
+  useEffect(() => {
+    const fetchAllStudents = async () => {
+      try {
+        const res = await fetch('/api/students');
+        if (res.ok) { const data = await res.json(); setAllStudents(data.students || data || []); }
+      } catch {}
+    };
+    fetchAllStudents();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearchDropdown(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const addStudentToClass = async (studentId: string) => {
+    try {
+      const res = await fetch('/api/classes/' + classId + '/enroll', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      });
+      if (res.ok) { alert('원생이 추가되었습니다!'); setStudentSearch(''); setShowSearchDropdown(false); fetchDaily(); }
+      else { const errData = await res.json(); alert(errData.error || '추가 실패'); }
+    } catch { alert('원생 추가에 실패했습니다.'); }
+  };
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -135,75 +168,100 @@ export default function ClassDetailPage() {
   if (!classroom) return <div className="p-8 text-center">데이터가 없습니다</div>;
   const students = classroom.enrollments.map((e: any) => e.student);
 
+  const enrolledIds = new Set(students.map((s: any) => s.id));
+  const filteredSearchStudents = allStudents.filter((s: any) =>
+    !enrolledIds.has(s.id) &&
+    (s.name?.includes(studentSearch) || s.phone?.includes(studentSearch))
+  );
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/classes')} className="text-gray-400 hover:text-white">← 목록</button>
-          <h1 className="text-2xl font-bold">{classroom.name}</h1>
-          <span className="text-gray-400">{classroom.subject?.name}</span>
+          <button onClick={() => router.push('/classes')} className="text-gray-500 hover:text-gray-900 font-medium">← 목록</button>
+          <h1 className="text-3xl font-black text-gray-900">{classroom.name}</h1>
+          <span className="text-gray-600 font-semibold text-lg">{classroom.subject?.name}</span>
+          <div className="relative" ref={searchRef}>
+            <input type="text" placeholder="원생 검색/추가..." value={studentSearch}
+              onChange={(e) => { setStudentSearch(e.target.value); setShowSearchDropdown(e.target.value.length > 0); }}
+              onFocus={() => { if (studentSearch.length > 0) setShowSearchDropdown(true); }}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-900" />
+            {showSearchDropdown && filteredSearchStudents.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-56 max-h-48 overflow-y-auto">
+                {filteredSearchStudents.slice(0, 8).map((s: any) => (
+                  <button key={s.id} onClick={() => addStudentToClass(s.id)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 text-gray-800 flex justify-between items-center">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-xs text-gray-400">{s.phone || ''}</span>
+                  </button>))}
+              </div>)}
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600">◀</button>
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-white" />
-          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600">▶</button>
-          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-500 text-sm">오늘</button>
+          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">◀</button>
+          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-white border border-gray-300 rounded px-3 py-1 text-gray-900" />
+          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">▶</button>
+          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm">오늘</button>
+          <button onClick={handleSave} disabled={saving}
+            className="px-5 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-semibold text-sm ml-2">
+            {saving ? '저장 중...' : '💾 저장'}
+          </button>
         </div>
       </div>
 
       {prevAssignments.length > 0 && (
-        <div className="mb-6 bg-gray-800 rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-3">📚 이전 과제</h2>
+        <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h2 className="text-lg font-semibold mb-3 text-gray-800">📚 이전 과제</h2>
           <div className="space-y-2">
             {prevAssignments.map((a: any) => (
-              <div key={a.id} className="flex justify-between items-center bg-gray-700 rounded p-2 text-sm">
+              <div key={a.id} className="flex justify-between items-center bg-gray-50 border border-gray-100 rounded p-2 text-sm text-gray-800">
                 <span>{a.assignmentDate} - {a.title}</span>
-                <span className="text-gray-400">{a.description}</span>
+                <span className="text-gray-500">{a.description}</span>
               </div>))}
           </div>
         </div>)}
-      <div className="mb-6 bg-gray-800 rounded-lg overflow-x-auto">
+      <div className="mb-6 bg-white border border-gray-200 rounded-lg overflow-x-auto shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-gray-700">
+          <thead className="bg-blue-50 border-b border-blue-100">
             <tr>
-              <th className="p-3 text-left">학생</th>
-              <th className="p-3 text-center">출결</th>
-              <th className="p-3 text-center">메모</th>
-              <th className="p-3 text-center">시험범위</th>
-              <th className="p-3 text-center">점수</th>
-              <th className="p-3 text-center">만점</th>
-              <th className="p-3 text-center">평균/최고/최저</th>
-              <th className="p-3 text-center">과제</th>
-              <th className="p-3 text-center">리포트</th>
+              <th className="p-3 text-left text-gray-700 font-semibold">학생</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">출결</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">메모</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">시험범위</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">점수</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">만점</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">평균/최고/최저</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">과제</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
             </tr>
           </thead>
           <tbody>
             {students.map((s: any) => {
               const stats = getStats(s.id);
               return (
-                <tr key={s.id} className="border-t border-gray-700 hover:bg-gray-750">
+                <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
                   <td className="p-3">
-                    <button onClick={() => { setCounselingStudent(s); setCounselingNote(''); }} className="text-blue-400 hover:text-blue-300 font-medium">{s.name}</button>
+                    <button onClick={() => { setCounselingStudent(s); setCounselingNote(''); }} className="text-blue-600 hover:text-blue-800 font-semibold">{s.name}</button>
                     <div className="text-xs text-gray-400">{s.phone || '-'}</div>
                   </td>
                   <td className="p-3 text-center">
-                    <select value={attendance[s.id]?.status || 'PRESENT'} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: e.target.value } }))} className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs">
+                    <select value={attendance[s.id]?.status || 'PRESENT'} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800">
                       <option value="PRESENT">출석</option><option value="LATE">지각</option><option value="ABSENT">결석</option>
                     </select>
                   </td>
-                  <td className="p-3"><input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs w-20" /></td>
-                  <td className="p-3"><input type="text" placeholder="범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs w-20" /></td>
-                  <td className="p-3"><input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs w-16" /></td>
-                  <td className="p-3"><input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs w-16" /></td>
-                  <td className="p-3 text-center text-xs text-gray-300">{stats.avg} / {stats.max} / {stats.min}</td>
+                  <td className="p-3"><input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>
+                  <td className="p-3"><input type="text" placeholder="범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>
+                  <td className="p-3"><input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>
+                  <td className="p-3"><input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>
+                  <td className="p-3 text-center text-xs text-gray-600">{stats.avg} / {stats.max} / {stats.min}</td>
                   <td className="p-3 text-center">
                     <div className="flex gap-1 justify-center">
                       {['A','B','C','D','X'].map(g => (
-                        <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600')}>{g}</button>))}
+                        <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>))}
                     </div>
                   </td>
                   <td className="p-3 text-center">
-                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs ' + (reportCopied === s.id ? 'bg-green-600' : 'bg-purple-600 hover:bg-purple-500')}>{reportCopied === s.id ? '복사됨!' : '복사'}</button>
+                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? '복사됨!' : '복사'}</button>
                   </td>
                 </tr>);
             })}
@@ -211,47 +269,41 @@ export default function ClassDetailPage() {
         </table>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-semibold mb-3">📝 오늘의 과제</h3>
-          <input type="text" placeholder="과제 제목" value={newAssignmentTitle} onChange={(e) => setNewAssignmentTitle(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 mb-2" />
-          <input type="text" placeholder="과제 설명" value={newAssignmentDesc} onChange={(e) => setNewAssignmentDesc(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h3 className="font-semibold mb-3 text-gray-800">📝 오늘의 과제</h3>
+          <input type="text" placeholder="과제 제목" value={newAssignmentTitle} onChange={(e) => setNewAssignmentTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
+          <input type="text" placeholder="과제 설명" value={newAssignmentDesc} onChange={(e) => setNewAssignmentDesc(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-semibold mb-3">🎥 수업 영상</h3>
-          <input type="text" placeholder="영상 제목" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 mb-2" />
-          <input type="text" placeholder="YouTube 링크" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h3 className="font-semibold mb-3 text-gray-800">🎥 수업 영상</h3>
+          <input type="text" placeholder="영상 제목" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
+          <input type="text" placeholder="YouTube 링크" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">◼ 수업 진도</h3>
-          <textarea value={progressNote} onChange={(e) => setProgressNote(e.target.value)} placeholder="오늘 수업 진도 내용" rows={3} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h3 className="font-semibold mb-2 text-gray-800">◼ 수업 진도</h3>
+          <textarea value={progressNote} onChange={(e) => setProgressNote(e.target.value)} placeholder="오늘 수업 진도 내용" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">📝 숙제</h3>
-          <textarea value={homework} onChange={(e) => setHomework(e.target.value)} placeholder="오늘의 숙제" rows={3} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h3 className="font-semibold mb-2 text-gray-800">📝 숙제</h3>
+          <textarea value={homework} onChange={(e) => setHomework(e.target.value)} placeholder="오늘의 숙제" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-semibold mb-2">📢 공지사항</h3>
-          <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)} placeholder="공지사항" rows={3} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2" />
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h3 className="font-semibold mb-2 text-gray-800">📢 공지사항</h3>
+          <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)} placeholder="공지사항" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
-      </div>
-
-      <div className="flex justify-end mb-6">
-        <button onClick={handleSave} disabled={saving} className="px-8 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded-lg font-semibold text-lg">
-          {saving ? '저장 중...' : '💾 전체 저장'}
-        </button>
       </div>
       {counselingStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">{counselingStudent.name} - 상담 메모</h3>
-            <div className="text-sm text-gray-400 mb-2">학생 전화: {counselingStudent.phone || '-'} | 학번: {counselingStudent.studentNumber || '-'}</div>
-            <textarea value={counselingNote} onChange={(e) => setCounselingNote(e.target.value)} placeholder="상담 내용을 입력하세요..." rows={5} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 mb-4" />
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">{counselingStudent.name} - 상담 메모</h3>
+            <div className="text-sm text-gray-500 mb-2">학생 전화: {counselingStudent.phone || '-'} | 학번: {counselingStudent.studentNumber || '-'}</div>
+            <textarea value={counselingNote} onChange={(e) => setCounselingNote(e.target.value)} placeholder="상담 내용을 입력하세요..." rows={5} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-4" />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setCounselingStudent(null)} className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500">취소</button>
-              <button onClick={handleSaveCounseling} className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500">저장</button>
+              <button onClick={() => setCounselingStudent(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">취소</button>
+              <button onClick={handleSaveCounseling} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">저장</button>
             </div>
           </div>
         </div>)}
