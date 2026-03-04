@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
 @import "tailwindcss";
 
 :root {
@@ -17,4 +18,16 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+/* 모든 입력 필드 글자색을 검정으로 */
+input,
+textarea,
+select {
+  color: #000000 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important;
 }
