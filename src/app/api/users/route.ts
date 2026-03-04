@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
         role: {
           in: ['TEACHER', 'DESK', 'ADMIN'],
         },
-        isApproved: true,
       },
       select: {
         id: true,
