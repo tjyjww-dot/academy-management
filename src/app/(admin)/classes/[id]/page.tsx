@@ -13,8 +13,8 @@ export default function ClassDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [attendance, setAttendance] = useState<Record<string, { status: string; remarks: string }>({});
-  const [grades, setGrades] = useState<Record<string, { score: string; maxScore: string; testName: string }>({});
+  const [attendance, setAttendance] = useState<Record<string, { status: string; remarks: string }>>({});
+  const [grades, setGrades] = useState<Record<string, { score: string; maxScore: string; testName: string }>>({});
   const [gradeHistory, setGradeHistory] = useState<Record<string, any[]>>({});
   const [assignmentGrades, setAssignmentGrades] = useState<Record<string, string>>({});
   const [prevAssignments, setPrevAssignments] = useState<any[]>([]);
