@@ -77,19 +77,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, subjectId, teacherId, schedule, maxCapacity = 20 } = body;
+    const { name, classType, teacherId, schedule, maxCapacity = 20 } = body;
 
-    if (!name || !subjectId || !teacherId) {
+    if (!name || !classType || !teacherId) {
       return NextResponse.json(
-        { error: 'Name, subjectId, and teacherId are required' },
+        { error: 'Name, classType, and teacherId are required' },
         { status: 400 }
       );
+    }
+
+    // Find or create a subject matching the classType name
+    let subject = await prisma.subject.findFirst({
+      where: { name: classType },
+    });
+
+    if (!subject) {
+      subject = await prisma.subject.create({
+        data: { name: classType },
+      });
     }
 
     const classroom = await prisma.classroom.create({
       data: {
         name,
-        subjectId,
+        subjectId: subject.id,
         teacherId,
         schedule,
         maxCapacity,
