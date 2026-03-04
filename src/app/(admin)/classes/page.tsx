@@ -22,11 +22,6 @@ interface Classroom {
   enrollmentCount: number;
 }
 
-interface Subject {
-  id: string;
-  name: string;
-}
-
 interface Teacher {
   id: string;
   name: string;
@@ -36,14 +31,13 @@ interface Teacher {
 export default function ClassesPage() {
   const router = useRouter();
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    subjectId: '',
+    classType: '',
     teacherId: '',
     schedule: '',
     maxCapacity: 20,
@@ -52,22 +46,19 @@ export default function ClassesPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [classRes, subjectsRes, teachersRes] = await Promise.all([
+      const [classRes, teachersRes] = await Promise.all([
         fetch('/api/classes'),
-        fetch('/api/subjects'),
         fetch('/api/teachers'),
       ]);
 
-      if (!classRes.ok || !subjectsRes.ok || !teachersRes.ok) {
+      if (!classRes.ok || !teachersRes.ok) {
         throw new Error('Failed to fetch');
       }
 
       const classData = await classRes.json();
-      const subjectsData = await subjectsRes.json();
       const teachersData = await teachersRes.json();
 
       setClassrooms(classData);
-      setSubjects(subjectsData);
       setTeachers(teachersData);
     } catch (err) {
       setError('데이터를 불러오는데 실패했습니다.');
@@ -92,7 +83,7 @@ export default function ClassesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.subjectId || !formData.teacherId) {
+    if (!formData.name || !formData.classType || !formData.teacherId) {
       alert('필수 항목을 입력해주세요.');
       return;
     }
@@ -109,7 +100,7 @@ export default function ClassesPage() {
       setShowModal(false);
       setFormData({
         name: '',
-        subjectId: '',
+        classType: '',
         teacherId: '',
         schedule: '',
         maxCapacity: 20,
@@ -121,9 +112,9 @@ export default function ClassesPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (confirm(`${name} 반을 삭제하시겠습니까?`)) {
+    if (confirm(name + ' 반을 삭제하시겠습니까?')) {
       try {
-        const response = await fetch(`/api/classes/${id}`, {
+        const response = await fetch('/api/classes/' + id, {
           method: 'DELETE',
         });
         if (!response.ok) throw new Error('Failed to delete');
@@ -168,7 +159,7 @@ export default function ClassesPage() {
                 <div
                   key={classroom.id}
                   className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition cursor-pointer"
-                  onClick={() => router.push(`/classes/${classroom.id}`)}
+                  onClick={() => router.push('/classes/' + classroom.id)}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -177,9 +168,11 @@ export default function ClassesPage() {
                       </h3>
                       <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
-                          <p className="text-sm text-gray-600">과목</p>
+                          <p className="text-sm text-gray-600">반 유형</p>
                           <p className="font-medium text-gray-900">
-                            {classroom.subject.name}
+                            <span className={"inline-block px-2 py-1 rounded text-sm " + (classroom.subject?.name === '맞춤반' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700')}>
+                              {classroom.subject?.name || '-'}
+                            </span>
                           </p>
                         </div>
                         <div>
@@ -240,22 +233,24 @@ export default function ClassesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    과목 *
+                    반 유형 *
                   </label>
-                  <select
-                    name="subjectId"
-                    value={formData.subjectId}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">과목 선택</option>
-                    {subjects.map((subject) => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, classType: '맞춤반' }))}
+                      className={"flex-1 px-4 py-3 rounded-lg border-2 font-medium transition " + (formData.classType === '맞춤반' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400')}
+                    >
+                      맞춤반
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, classType: '정규반' }))}
+                      className={"flex-1 px-4 py-3 rounded-lg border-2 font-medium transition " + (formData.classType === '정규반' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400')}
+                    >
+                      정규반
+                    </button>
+                  </div>
                 </div>
 
                 <div>
