@@ -50,6 +50,7 @@ export default function StudentDetailPage() {
   const [editData, setEditData] = useState<Partial<Student>>({});
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [withdrawalReason, setWithdrawalReason] = useState('');
+  const [counselingRecords, setCounselingRecords] = useState<any[]>([]);
 
   const fetchStudent = async () => {
     try {
@@ -80,9 +81,22 @@ export default function StudentDetailPage() {
     }
   };
 
+  const fetchCounselingRecords = async () => {
+    try {
+      const response = await fetch(`/api/counseling?studentId=${studentId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCounselingRecords(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch counseling records:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStudent();
     fetchGradeStats();
+    fetchCounselingRecords();
   }, [studentId]);
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -365,6 +379,7 @@ export default function StudentDetailPage() {
             {[
               { id: 'basic', label: '기본정보' },
               { id: 'classes', label: '수강반' },
+              { id: 'counseling', label: '상담내역' },
               { id: 'grades', label: '성적' },
               { id: 'attendance', label: '출결' },
             ].map((tab) => (
@@ -471,6 +486,57 @@ export default function StudentDetailPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+            )}
+
+
+            {activeTab === 'counseling' && (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">상담내역</h3>
+                </div>
+                {counselingRecords.length === 0 ? (
+                  <p className="text-gray-500">상담 기록이 없습니다.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {counselingRecords.map((record: any) => (
+                      <div key={record.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              record.type === 'PHONE' ? 'bg-blue-100 text-blue-800' :
+                              record.type === 'VISIT' ? 'bg-green-100 text-green-800' :
+                              record.type === 'ONLINE' ? 'bg-purple-100 text-purple-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {record.type === 'PHONE' ? '전화' :
+                               record.type === 'VISIT' ? '방문' :
+                               record.type === 'ONLINE' ? '온라인' : record.type}
+                            </span>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              record.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                              record.status === 'SCHEDULED' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {record.status === 'COMPLETED' ? '완료' :
+                               record.status === 'SCHEDULED' ? '예정' : '취소'}
+                            </span>
+                          </div>
+                          <span className="text-sm text-gray-500">
+                            {new Date(record.counselingDate).toLocaleDateString('ko-KR')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 font-medium mb-1">{record.title}</p>
+                        {record.content && (
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{record.content}</p>
+                        )}
+                        {record.counselor && (
+                          <p className="text-xs text-gray-400 mt-2">상담자: {record.counselor.name}</p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
