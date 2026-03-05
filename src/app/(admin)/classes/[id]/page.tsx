@@ -20,6 +20,7 @@ export default function ClassDetailPage() {
   const [prevAssignments, setPrevAssignments] = useState<any[]>([]);
   const [newAssignmentTitle, setNewAssignmentTitle] = useState('');
   const [newAssignmentDesc, setNewAssignmentDesc] = useState('');
+  const [perStudentHomework, setPerStudentHomework] = useState<Record<string, string>>({});
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [progressNote, setProgressNote] = useState('');
@@ -34,6 +35,7 @@ export default function ClassDetailPage() {
   const [commonTestName, setCommonTestName] = useState('');
   const [commonMaxScore, setCommonMaxScore] = useState('100');
   const searchRef = useRef<HTMLDivElement>(null);
+
   const fetchDaily = useCallback(async () => {
     try {
       setLoading(true);
@@ -41,9 +43,12 @@ export default function ClassDetailPage() {
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       setClassroom(data.classroom);
+
       const attMap: Record<string, { status: string; remarks: string }> = {};
       const grMap: Record<string, { score: string; maxScore: string; testName: string }> = {};
       const agMap: Record<string, string> = {};
+      const pshMap: Record<string, string> = {};
+
       data.classroom.enrollments.forEach((e: any) => {
         const att = data.attendance.find((a: any) => a.studentId === e.student.id);
         attMap[e.student.id] = { status: att?.status || 'PRESENT', remarks: att?.remarks || '' };
@@ -51,20 +56,52 @@ export default function ClassDetailPage() {
         grMap[e.student.id] = { score: gr?.score?.toString() || '', maxScore: gr?.maxScore?.toString() || '100', testName: gr?.testName || '' };
         const dr = data.dailyReports.find((d: any) => d.studentId === e.student.id);
         agMap[e.student.id] = dr?.attitude || '';
+        pshMap[e.student.id] = dr?.homework || '';
       });
-      setAttendance(attMap); setGrades(grMap); setAssignmentGrades(agMap);
+
+      setAttendance(attMap);
+      setGrades(grMap);
+      setAssignmentGrades(agMap);
+      setPerStudentHomework(pshMap);
+
       const histMap: Record<string, any[]> = {};
-      data.allGrades.forEach((g: any) => { if (!histMap[g.studentId]) histMap[g.studentId] = []; histMap[g.studentId].push(g); });
+      data.allGrades.forEach((g: any) => {
+        if (!histMap[g.studentId]) histMap[g.studentId] = [];
+        histMap[g.studentId].push(g);
+      });
       setGradeHistory(histMap);
       setPrevAssignments(data.prevAssignments || []);
-      if (data.dailyReports.length > 0) { setProgressNote(data.dailyReports[0].content || ''); setHomework(data.dailyReports[0].homework || ''); setAnnouncement(data.dailyReports[0].specialNote || ''); }
-      else { setProgressNote(''); setHomework(''); setAnnouncement(''); }
-      if (data.videos && data.videos.length > 0) { setVideoTitle(data.videos[0].title || ''); setVideoUrl(data.videos[0].videoUrl || ''); }
-      else { setVideoTitle(''); setVideoUrl(''); }
-      if (data.todayAssignments && data.todayAssignments.length > 0) { setNewAssignmentTitle(data.todayAssignments[0].title || ''); setNewAssignmentDesc(data.todayAssignments[0].description || ''); }
-      else { setNewAssignmentTitle(''); setNewAssignmentDesc(''); }
-    } catch (err) { setError('Failed to load data'); }
-    finally { setLoading(false); }
+
+      if (data.dailyReports.length > 0) {
+        setProgressNote(data.dailyReports[0].content || '');
+        setHomework(data.dailyReports[0].homework || '');
+        setAnnouncement(data.dailyReports[0].specialNote || '');
+      } else {
+        setProgressNote('');
+        setHomework('');
+        setAnnouncement('');
+      }
+
+      if (data.videos && data.videos.length > 0) {
+        setVideoTitle(data.videos[0].title || '');
+        setVideoUrl(data.videos[0].videoUrl || '');
+      } else {
+        setVideoTitle('');
+        setVideoUrl('');
+      }
+
+      if (data.todayAssignments && data.todayAssignments.length > 0) {
+        setNewAssignmentTitle(data.todayAssignments[0].title || '');
+        setNewAssignmentDesc(data.todayAssignments[0].description || '');
+      } else {
+        setNewAssignmentTitle('');
+        setNewAssignmentDesc('');
+      }
+    } catch (err) {
+      setError('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   }, [classId, selectedDate]);
 
   useEffect(() => { fetchDaily(); }, [fetchDaily]);
@@ -73,7 +110,10 @@ export default function ClassDetailPage() {
     const fetchAllStudents = async () => {
       try {
         const res = await fetch('/api/students');
-        if (res.ok) { const data = await res.json(); setAllStudents(data.students || data || []); }
+        if (res.ok) {
+          const data = await res.json();
+          setAllStudents(data.students || data || []);
+        }
       } catch {}
     };
     fetchAllStudents();
@@ -90,11 +130,19 @@ export default function ClassDetailPage() {
   const addStudentToClass = async (studentId: string) => {
     try {
       const res = await fetch('/api/classes/' + classId + '/enroll', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId }),
       });
-      if (res.ok) { alert('원생이 추가되었습니다!'); setStudentSearch(''); setShowSearchDropdown(false); fetchDaily(); }
-      else { const errData = await res.json(); alert(errData.error || '추가 실패'); }
+      if (res.ok) {
+        alert('원생이 추가되었습니다!');
+        setStudentSearch('');
+        setShowSearchDropdown(false);
+        fetchDaily();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || '추가 실패');
+      }
     } catch { alert('원생 추가에 실패했습니다.'); }
   };
 
@@ -102,11 +150,14 @@ export default function ClassDetailPage() {
     if (!confirm(studentName + ' 학생을 이 반에서 제거하시겠습니까?')) return;
     try {
       const res = await fetch('/api/classes/' + classId + '/enroll', {
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId }),
       });
-      if (res.ok) { alert('제거되었습니다.'); fetchDaily(); }
-      else { alert('제거 실패'); }
+      if (res.ok) {
+        alert('제거되었습니다.');
+        fetchDaily();
+      } else { alert('제거 실패'); }
     } catch { alert('제거에 실패했습니다.'); }
   };
 
@@ -114,22 +165,45 @@ export default function ClassDetailPage() {
     try {
       setSaving(true);
       const isCustom = classroom?.subject?.name === '맞춤반';
-      const attendanceData = Object.entries(attendance).map(([studentId, val]) => ({ studentId, status: val.status, remarks: val.remarks }));
+
+      const attendanceData = Object.entries(attendance).map(([studentId, val]) => ({
+        studentId, status: val.status, remarks: val.remarks
+      }));
+
       const gradesData = Object.entries(grades).map(([studentId, val]) => {
         if (!isCustom) {
           return { studentId, score: val.score, maxScore: commonMaxScore, testName: commonTestName };
         }
         return { studentId, score: val.score, maxScore: val.maxScore, testName: val.testName || '' };
       });
-      const assignmentGradesArr = Object.entries(assignmentGrades).map(([studentId, grade]) => ({ studentId, grade }));
+
+      const assignmentGradesArr = Object.entries(assignmentGrades).map(([studentId, grade]) => ({
+        studentId, grade
+      }));
+
+      const perStudentHomeworkArr = isCustom
+        ? Object.entries(perStudentHomework).map(([studentId, hw]) => ({ studentId, homework: hw }))
+        : null;
+
       const res = await fetch('/api/classes/' + classId + '/daily', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: selectedDate, attendanceData, gradesData, assignmentGrades: assignmentGradesArr,
-          newAssignment: newAssignmentTitle ? { title: newAssignmentTitle, description: newAssignmentDesc } : null,
-          videoData: videoUrl ? { title: videoTitle, videoUrl } : null, progressNote, homework, announcement }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedDate,
+          attendanceData,
+          gradesData,
+          assignmentGrades: assignmentGradesArr,
+          newAssignment: (newAssignmentTitle && !isCustom) ? { title: newAssignmentTitle, description: newAssignmentDesc } : null,
+          videoData: videoUrl ? { title: videoTitle, videoUrl } : null,
+          progressNote,
+          homework: isCustom ? '' : homework,
+          announcement,
+          perStudentHomework: perStudentHomeworkArr,
+        }),
       });
       if (!res.ok) throw new Error('Failed');
-      alert('저장되었습니다!'); fetchDaily();
+      alert('저장되었습니다!');
+      fetchDaily();
     } catch { alert('저장에 실패했습니다.'); }
     finally { setSaving(false); }
   };
@@ -152,30 +226,41 @@ export default function ClassDetailPage() {
     const ms = isCustom ? (g?.maxScore || '-') : (commonMaxScore || '-');
     const dateObj = new Date(selectedDate + 'T00:00:00');
     const dateStr = dateObj.getFullYear() + '년 ' + (dateObj.getMonth() + 1) + '월 ' + dateObj.getDate() + '일';
+    const hwText = isCustom ? (perStudentHomework[student.id] || '-') : (homework || '-');
+
     return '[수학탐구] ' + student.name + ' 학생 수업 리포트\n' +
       '📅 ' + dateStr + '\n\n' +
       '⭐ 오늘의 테스트\n' +
       '- 시험 범위 : ' + tn + '\n' +
       '- 점수 : ' + (g?.score || '-') + ' / ' + ms + '\n' +
-      (isCustom ? '' : '- 평균 : ' + currentAvg + ' / 최고점 : ' + currentMax + ' / 최저점 : ' + currentMin + '\n') + '\n' +
+      (isCustom ? '' : '- 평균 : ' + currentAvg + ' / 최고점 : ' + currentMax + ' / 최저점 : ' + currentMin + '\n') +
+      '\n' +
       '📚 과제 완성도\n' +
       '- 등급 : ' + ag + '\n' +
-      ' (A: 완벽 / B: 양호 / C: 보통 / D: 미흡 / X: 미제출)\n\n' +
+      '  (A: 완벽 / B: 양호 / C: 보통 / D: 미흡 / X: 미제출)\n\n' +
       '◼ 오늘 수업 진도\n' +
       '- ' + (progressNote || '-') + '\n\n' +
       '🎥 오늘 수업 영상\n' +
       '- 제목 : ' + (videoTitle || '-') + '\n' +
       '- 링크 : ' + (videoUrl || '-') + '\n\n' +
       '📝 오늘의 숙제\n' +
-      '- ' + (homework || '-') + '\n\n' +
+      '- ' + hwText + '\n\n' +
       '📢 공지사항\n' +
       '- ' + (announcement || '-');
   };
 
   const copyReport = async (student: any) => {
     const report = generateReport(student);
-    try { await navigator.clipboard.writeText(report); }
-    catch { const ta = document.createElement('textarea'); ta.value = report; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+    try {
+      await navigator.clipboard.writeText(report);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = report;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     setReportCopied(student.id);
     setTimeout(() => setReportCopied(null), 2000);
   };
@@ -183,23 +268,33 @@ export default function ClassDetailPage() {
   const handleSaveCounseling = async () => {
     if (!counselingStudent || !counselingNote.trim()) return;
     try {
-      await fetch('/api/counseling', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId: counselingStudent.id, title: selectedDate + ' 상담 메모',
-          description: counselingNote, counselingType: 'TEACHER_INITIATED' }) });
+      await fetch('/api/counseling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: counselingStudent.id,
+          title: selectedDate + ' 상담 메모',
+          description: counselingNote,
+          counselingType: 'TEACHER_INITIATED'
+        })
+      });
       alert('상담 메모가 저장되었습니다.');
-      setCounselingStudent(null); setCounselingNote('');
+      setCounselingStudent(null);
+      setCounselingNote('');
     } catch { alert('상담 저장 실패'); }
   };
+
   if (loading) return <div className="p-8 text-center">로딩 중...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
   if (!classroom) return <div className="p-8 text-center">데이터가 없습니다</div>;
+
   const students = classroom.enrollments.map((e: any) => e.student);
   const isCustomClass = classroom.subject?.name === '맞춤반';
   const enrolledIds = new Set(students.map((s: any) => s.id));
   const filteredSearchStudents = allStudents.filter((s: any) =>
-    !enrolledIds.has(s.id) &&
-    (s.name?.includes(studentSearch) || s.phone?.includes(studentSearch))
+    !enrolledIds.has(s.id) && (s.name?.includes(studentSearch) || s.phone?.includes(studentSearch))
   );
+
   const currentScores = students.map((s: any) => grades[s.id]?.score).filter(Boolean).map(Number);
   const currentAvg = currentScores.length ? (currentScores.reduce((a: number, b: number) => a + b, 0) / currentScores.length).toFixed(1) : '-';
   const currentMax = currentScores.length ? Math.max(...currentScores).toString() : '-';
@@ -220,8 +315,7 @@ export default function ClassDetailPage() {
             {showSearchDropdown && filteredSearchStudents.length > 0 && (
               <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-56 max-h-48 overflow-y-auto">
                 {filteredSearchStudents.slice(0, 8).map((s: any) => (
-                  <button key={s.id} onClick={() => addStudentToClass(s.id)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 text-gray-800 flex justify-between items-center">
+                  <button key={s.id} onClick={() => addStudentToClass(s.id)} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 text-gray-800 flex justify-between items-center">
                     <span className="font-medium">{s.name}</span>
                     <span className="text-xs text-gray-400">{s.phone || ''}</span>
                   </button>))}
@@ -233,8 +327,7 @@ export default function ClassDetailPage() {
           <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-white border border-gray-300 rounded px-3 py-1 text-gray-900" />
           <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">▶</button>
           <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm">오늘</button>
-          <button onClick={handleSave} disabled={saving}
-            className="px-5 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-semibold text-sm ml-2">
+          <button onClick={handleSave} disabled={saving} className="px-5 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-semibold text-sm ml-2">
             {saving ? '저장 중...' : '💾 저장'}
           </button>
         </div>
@@ -282,6 +375,7 @@ export default function ClassDetailPage() {
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">시험범위</th>}
               <th className="p-3 text-center text-gray-700 font-semibold">점수</th>
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">만점</th>}
+              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">과제내용</th>}
               <th className="p-3 text-center text-gray-700 font-semibold">과제</th>
               <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
             </tr>
@@ -296,7 +390,8 @@ export default function ClassDetailPage() {
                       <button onClick={() => { setCounselingStudent(s); setCounselingNote(''); }} className="text-blue-600 hover:text-blue-800 font-semibold">{s.name}</button>
                       <button onClick={() => removeStudentFromClass(s.id, s.name)} className="text-red-400 hover:text-red-600 text-xs ml-1" title="반에서 제거">✖</button>
                     </div>
-                    <div className="text-xs text-gray-400">{s.phone || '-'}</div>
+                    <div className="text-xs text-gray-400">학생 {s.phone || '-'}</div>
+                    <div className="text-xs text-gray-400">학부모 {s.parentPhone || '-'}</div>
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex gap-1 justify-center">
@@ -309,6 +404,9 @@ export default function ClassDetailPage() {
                   {isCustomClass && <td className="p-3"><input type="text" placeholder="범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>}
                   <td className="p-3"><input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>
                   {isCustomClass && <td className="p-3"><input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>}
+                  {isCustomClass && (
+                    <td className="p-3"><input type="text" placeholder="과제 내용 입력" value={perStudentHomework[s.id] || ''} onChange={(e) => setPerStudentHomework(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-28" /></td>
+                  )}
                   <td className="p-3 text-center">
                     <div className="flex gap-1 justify-center">
                       {['A','B','C','D','X'].map(g => (
@@ -323,12 +421,15 @@ export default function ClassDetailPage() {
           </tbody>
         </table>
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-3 text-gray-800">📝 오늘의 과제</h3>
-          <input type="text" placeholder="과제 제목" value={newAssignmentTitle} onChange={(e) => setNewAssignmentTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
-          <input type="text" placeholder="과제 설명" value={newAssignmentDesc} onChange={(e) => setNewAssignmentDesc(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
-        </div>
+        {!isCustomClass && (
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <h3 className="font-semibold mb-3 text-gray-800">📝 오늘의 과제</h3>
+            <input type="text" placeholder="과제 제목" value={newAssignmentTitle} onChange={(e) => setNewAssignmentTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
+            <input type="text" placeholder="과제 설명" value={newAssignmentDesc} onChange={(e) => setNewAssignmentDesc(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+          </div>
+        )}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="font-semibold mb-3 text-gray-800">🎥 수업 영상</h3>
           <input type="text" placeholder="영상 제목" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
@@ -343,13 +444,14 @@ export default function ClassDetailPage() {
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="font-semibold mb-2 text-gray-800">📝 숙제</h3>
-          <textarea value={homework} onChange={(e) => setHomework(e.target.value)} placeholder="오늘의 숙제" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+          <textarea value={homework} onChange={(e) => setHomework(e.target.value)} placeholder={isCustomClass ? '맞춤반은 위 테이블에서 학생별로 입력하세요' : '오늘의 숙제'} rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" disabled={isCustomClass} />
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h3 className="font-semibold mb-2 text-gray-800">📢 공지사항</h3>
           <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)} placeholder="공지사항" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
       </div>
+
       {counselingStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
