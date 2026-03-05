@@ -82,7 +82,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">ë¡ë© ì¤...</p>
+        <p className="text-gray-600">로딩 중...</p>
       </div>
     );
   }
@@ -90,29 +90,29 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">ëìë³´ë</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">대시보드</h1>
 
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-blue-500">
-              <p className="text-sm text-gray-600">ì´ ììì</p>
+              <p className="text-sm text-gray-600">총 원생수</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-green-500">
-              <p className="text-sm text-gray-600">ì´ ë°ì</p>
+              <p className="text-sm text-gray-600">총 반수</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalClassrooms}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-purple-500">
-              <p className="text-sm text-gray-600">ì¤ë ì¶ì</p>
+              <p className="text-sm text-gray-600">오늘 출석</p>
               <p className="text-2xl font-bold text-gray-900">{stats.todayAttendance}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-orange-500">
-              <p className="text-sm text-gray-600">ìë´ ëê¸°</p>
+              <p className="text-sm text-gray-600">상담 대기</p>
               <p className="text-2xl font-bold text-gray-900">{stats.pendingCounseling}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-red-500">
-              <p className="text-sm text-gray-600">ì¤ë íì¤í¸</p>
+              <p className="text-sm text-gray-600">오늘 테스트</p>
               <p className="text-2xl font-bold text-gray-900">{stats.todayTests}</p>
             </div>
           </div>
@@ -121,11 +121,11 @@ export default function DashboardPage() {
         {/* Announcements - Full Width Top */}
         <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">ð¢ ê³µì§ì¬í­</h2>
-            <Link href="/notifications" className="text-sm text-blue-600 hover:text-blue-800">ì ì²´ ë³´ê¸° â</Link>
+            <h2 className="text-lg font-bold text-gray-900">📢 공지사항</h2>
+            <Link href="/notifications" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
           </div>
           {announcements.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">ê³µì§ì¬í­ì´ ììµëë¤.</p>
+            <p className="text-gray-500 text-center py-4">공지사항이 없습니다.</p>
           ) : (
             <div className="space-y-3">
               {announcements.map((a) => (
@@ -148,11 +148,11 @@ export default function DashboardPage() {
           {/* Upcoming Tests */}
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">ð ìë°í ìííì¤í¸</h2>
-              <Link href="/entrance-test" className="text-sm text-blue-600 hover:text-blue-800">ì ì²´ ë³´ê¸° â</Link>
+              <h2 className="text-lg font-bold text-gray-900">📋 임박한 입학테스트</h2>
+              <Link href="/entrance-test" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
             </div>
             {upcomingTests.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">ìì ë ìííì¤í¸ê° ììµëë¤.</p>
+              <p className="text-gray-500 text-center py-4">예정된 입학테스트가 없습니다.</p>
             ) : (
               <div className="space-y-3">
                 {upcomingTests.map((test) => (
@@ -180,11 +180,11 @@ export default function DashboardPage() {
           {/* Received Requests */}
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">ð¨ ë°ì ìì²­ì¬í­</h2>
-              <Link href="/requests" className="text-sm text-blue-600 hover:text-blue-800">ìì²­ ë³´ë´ê¸° â</Link>
+              <h2 className="text-lg font-bold text-gray-900">📨 받은 요청사항</h2>
+              <Link href="/requests" className="text-sm text-blue-600 hover:text-blue-800">요청 보내기 →</Link>
             </div>
             {taskRequests.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">ìì²­ì¬í­ì´ ììµëë¤.</p>
+              <p className="text-gray-500 text-center py-4">요청사항이 없습니다.</p>
             ) : (
               <div className="space-y-3">
                 {taskRequests.map((tr) => (
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                         <p className="text-sm text-gray-500 mt-1">{tr.description}</p>
                       )}
                       <p className="text-xs text-gray-400 mt-1">
-                        {tr.createdByName} Â· {new Date(tr.createdAt).toLocaleDateString('ko-KR')}
+                        {tr.createdByName} · {new Date(tr.createdAt).toLocaleDateString('ko-KR')}
                       </p>
                     </div>
                   </div>
