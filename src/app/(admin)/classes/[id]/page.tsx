@@ -25,6 +25,7 @@ export default function ClassDetailPage() {
   const [videoUrl, setVideoUrl] = useState('');
   const [progressNote, setProgressNote] = useState('');
   const [homework, setHomework] = useState('');
+  const [prevAssignmentForHomework, setPrevAssignmentForHomework] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [counselingStudent, setCounselingStudent] = useState<any>(null);
   const [counselingNote, setCounselingNote] = useState('');
@@ -71,6 +72,7 @@ export default function ClassDetailPage() {
       });
       setGradeHistory(histMap);
       setPrevAssignments(data.prevAssignments || []);
+      setPrevAssignmentForHomework(data.prevAssignmentForHomework || '');
 
       if (data.dailyReports.length > 0) {
         setProgressNote(data.dailyReports[0].content || '');
@@ -135,19 +137,19 @@ export default function ClassDetailPage() {
         body: JSON.stringify({ studentId }),
       });
       if (res.ok) {
-        alert('원생이 추가되었습니다!');
+        alert('ììì´ ì¶ê°ëììµëë¤!');
         setStudentSearch('');
         setShowSearchDropdown(false);
         fetchDaily();
       } else {
         const errData = await res.json();
-        alert(errData.error || '추가 실패');
+        alert(errData.error || 'ì¶ê° ì¤í¨');
       }
-    } catch { alert('원생 추가에 실패했습니다.'); }
+    } catch { alert('ìì ì¶ê°ì ì¤í¨íìµëë¤.'); }
   };
 
   const removeStudentFromClass = async (studentId: string, studentName: string) => {
-    if (!confirm(studentName + ' 학생을 이 반에서 제거하시겠습니까?')) return;
+    if (!confirm(studentName + ' íìì ì´ ë°ìì ì ê±°íìê² ìµëê¹?')) return;
     try {
       const res = await fetch('/api/classes/' + classId + '/enroll', {
         method: 'DELETE',
@@ -155,16 +157,16 @@ export default function ClassDetailPage() {
         body: JSON.stringify({ studentId }),
       });
       if (res.ok) {
-        alert('제거되었습니다.');
+        alert('ì ê±°ëììµëë¤.');
         fetchDaily();
-      } else { alert('제거 실패'); }
-    } catch { alert('제거에 실패했습니다.'); }
+      } else { alert('ì ê±° ì¤í¨'); }
+    } catch { alert('ì ê±°ì ì¤í¨íìµëë¤.'); }
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      const isCustom = classroom?.subject?.name === '맞춤반';
+      const isCustom = classroom?.subject?.name === 'ë§ì¶¤ë°';
 
       const attendanceData = Object.entries(attendance).map(([studentId, val]) => ({
         studentId, status: val.status, remarks: val.remarks
@@ -202,9 +204,9 @@ export default function ClassDetailPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed');
-      alert('저장되었습니다!');
+      alert('ì ì¥ëììµëë¤!');
       fetchDaily();
-    } catch { alert('저장에 실패했습니다.'); }
+    } catch { alert('ì ì¥ì ì¤í¨íìµëë¤.'); }
     finally { setSaving(false); }
   };
 
@@ -221,31 +223,31 @@ export default function ClassDetailPage() {
   const generateReport = (student: any) => {
     const g = grades[student.id];
     const ag = assignmentGrades[student.id] || '-';
-    const isCustom = classroom?.subject?.name === '맞춤반';
+    const isCustom = classroom?.subject?.name === 'ë§ì¶¤ë°';
     const tn = isCustom ? (g?.testName || '-') : (commonTestName || '-');
     const ms = isCustom ? (g?.maxScore || '-') : (commonMaxScore || '-');
     const dateObj = new Date(selectedDate + 'T00:00:00');
-    const dateStr = dateObj.getFullYear() + '년 ' + (dateObj.getMonth() + 1) + '월 ' + dateObj.getDate() + '일';
-    const hwText = isCustom ? (perStudentHomework[student.id] || '-') : (homework || '-');
+    const dateStr = dateObj.getFullYear() + 'ë ' + (dateObj.getMonth() + 1) + 'ì ' + dateObj.getDate() + 'ì¼';
+    const hwText = isCustom ? (perStudentHomework[student.id] || '-') : (homework || prevAssignmentForHomework || '-');
 
-    return '[수학탐구] ' + student.name + ' 학생 수업 리포트\n' +
-      '📅 ' + dateStr + '\n\n' +
-      '⭐ 오늘의 테스트\n' +
-      '- 시험 범위 : ' + tn + '\n' +
-      '- 점수 : ' + (g?.score || '-') + ' / ' + ms + '\n' +
-      (isCustom ? '' : '- 평균 : ' + currentAvg + ' / 최고점 : ' + currentMax + ' / 최저점 : ' + currentMin + '\n') +
+    return '[ìííêµ¬] ' + student.name + ' íì ìì ë¦¬í¬í¸\n' +
+      'ð ' + dateStr + '\n\n' +
+      'â­ ì¤ëì íì¤í¸\n' +
+      '- ìí ë²ì : ' + tn + '\n' +
+      '- ì ì : ' + (g?.score || '-') + ' / ' + ms + '\n' +
+      (isCustom ? '' : '- íê·  : ' + currentAvg + ' / ìµê³ ì  : ' + currentMax + ' / ìµì ì  : ' + currentMin + '\n') +
       '\n' +
-      '📚 과제 완성도\n' +
-      '- 등급 : ' + ag + '\n' +
-      '  (A: 완벽 / B: 양호 / C: 보통 / D: 미흡 / X: 미제출)\n\n' +
-      '◼ 오늘 수업 진도\n' +
+      'ð ê³¼ì  ìì±ë\n' +
+      '- ë±ê¸ : ' + ag + '\n' +
+      '  (A: ìë²½ / B: ìí¸ / C: ë³´íµ / D: ë¯¸í¡ / X: ë¯¸ì ì¶)\n\n' +
+      'â¼ ì¤ë ìì ì§ë\n' +
       '- ' + (progressNote || '-') + '\n\n' +
-      '🎥 오늘 수업 영상\n' +
-      '- 제목 : ' + (videoTitle || '-') + '\n' +
-      '- 링크 : ' + (videoUrl || '-') + '\n\n' +
-      '📝 오늘의 숙제\n' +
+      'ð¥ ì¤ë ìì ìì\n' +
+      '- ì ëª© : ' + (videoTitle || '-') + '\n' +
+      '- ë§í¬ : ' + (videoUrl || '-') + '\n\n' +
+      'ð ì¤ëì ìì \n' +
       '- ' + hwText + '\n\n' +
-      '📢 공지사항\n' +
+      'ð¢ ê³µì§ì¬í­\n' +
       '- ' + (announcement || '-');
   };
 
@@ -273,23 +275,23 @@ export default function ClassDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           studentId: counselingStudent.id,
-          title: selectedDate + ' 상담 메모',
+          title: selectedDate + ' ìë´ ë©ëª¨',
           description: counselingNote,
           counselingType: 'TEACHER_INITIATED'
         })
       });
-      alert('상담 메모가 저장되었습니다.');
+      alert('ìë´ ë©ëª¨ê° ì ì¥ëììµëë¤.');
       setCounselingStudent(null);
       setCounselingNote('');
-    } catch { alert('상담 저장 실패'); }
+    } catch { alert('ìë´ ì ì¥ ì¤í¨'); }
   };
 
-  if (loading) return <div className="p-8 text-center">로딩 중...</div>;
+  if (loading) return <div className="p-8 text-center">ë¡ë© ì¤...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
-  if (!classroom) return <div className="p-8 text-center">데이터가 없습니다</div>;
+  if (!classroom) return <div className="p-8 text-center">ë°ì´í°ê° ììµëë¤</div>;
 
   const students = classroom.enrollments.map((e: any) => e.student);
-  const isCustomClass = classroom.subject?.name === '맞춤반';
+  const isCustomClass = classroom.subject?.name === 'ë§ì¶¤ë°';
   const enrolledIds = new Set(students.map((s: any) => s.id));
   const filteredSearchStudents = allStudents.filter((s: any) =>
     !enrolledIds.has(s.id) && (s.name?.includes(studentSearch) || s.phone?.includes(studentSearch))
@@ -304,11 +306,11 @@ export default function ClassDetailPage() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/classes')} className="text-gray-500 hover:text-gray-900 font-medium">← 목록</button>
+          <button onClick={() => router.push('/classes')} className="text-gray-500 hover:text-gray-900 font-medium">â ëª©ë¡</button>
           <h1 className="text-3xl font-black text-gray-900">{classroom.name}</h1>
           <span className={isCustomClass ? 'px-3 py-1 rounded-full text-sm font-bold bg-purple-100 text-purple-700' : 'px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700'}>{classroom.subject?.name}</span>
           <div className="relative" ref={searchRef}>
-            <input type="text" placeholder="원생 검색/추가..." value={studentSearch}
+            <input type="text" placeholder="ìì ê²ì/ì¶ê°..." value={studentSearch}
               onChange={(e) => { setStudentSearch(e.target.value); setShowSearchDropdown(e.target.value.length > 0); }}
               onFocus={() => { if (studentSearch.length > 0) setShowSearchDropdown(true); }}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-900" />
@@ -323,12 +325,12 @@ export default function ClassDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">◀</button>
+          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">â</button>
           <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-white border border-gray-300 rounded px-3 py-1 text-gray-900" />
-          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">▶</button>
-          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm">오늘</button>
+          <button onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">â¶</button>
+          <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm">ì¤ë</button>
           <button onClick={handleSave} disabled={saving} className="px-5 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-semibold text-sm ml-2">
-            {saving ? '저장 중...' : '💾 저장'}
+            {saving ? 'ì ì¥ ì¤...' : 'ð¾ ì ì¥'}
           </button>
         </div>
       </div>
@@ -337,17 +339,17 @@ export default function ClassDetailPage() {
         <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-6 flex-wrap">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-semibold text-gray-700">시험범위:</label>
-              <input type="text" placeholder="범위 입력" value={commonTestName} onChange={(e) => setCommonTestName(e.target.value)} className="bg-white border border-gray-300 rounded px-3 py-1.5 text-sm text-gray-800 w-40" />
+              <label className="text-sm font-semibold text-gray-700">ìíë²ì:</label>
+              <input type="text" placeholder="ë²ì ìë ¥" value={commonTestName} onChange={(e) => setCommonTestName(e.target.value)} className="bg-white border border-gray-300 rounded px-3 py-1.5 text-sm text-gray-800 w-40" />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm font-semibold text-gray-700">총점:</label>
+              <label className="text-sm font-semibold text-gray-700">ì´ì :</label>
               <input type="number" placeholder="100" value={commonMaxScore} onChange={(e) => setCommonMaxScore(e.target.value)} className="bg-white border border-gray-300 rounded px-3 py-1.5 text-sm text-gray-800 w-20" />
             </div>
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-gray-600">평균: <strong className="text-blue-600">{currentAvg}</strong></span>
-              <span className="text-gray-600">최고: <strong className="text-red-600">{currentMax}</strong></span>
-              <span className="text-gray-600">최저: <strong className="text-green-600">{currentMin}</strong></span>
+              <span className="text-gray-600">íê· : <strong className="text-blue-600">{currentAvg}</strong></span>
+              <span className="text-gray-600">ìµê³ : <strong className="text-red-600">{currentMax}</strong></span>
+              <span className="text-gray-600">ìµì : <strong className="text-green-600">{currentMin}</strong></span>
             </div>
           </div>
         </div>
@@ -355,7 +357,7 @@ export default function ClassDetailPage() {
 
       {prevAssignments.length > 0 && (
         <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h2 className="text-lg font-semibold mb-3 text-gray-800">📚 이전 과제</h2>
+          <h2 className="text-lg font-semibold mb-3 text-gray-800">ð ì´ì  ê³¼ì </h2>
           <div className="space-y-2">
             {prevAssignments.map((a: any) => (
               <div key={a.id} className="flex justify-between items-center bg-gray-50 border border-gray-100 rounded p-2 text-sm text-gray-800">
@@ -369,15 +371,15 @@ export default function ClassDetailPage() {
         <table className="w-full text-sm">
           <thead className="bg-blue-50 border-b border-blue-100">
             <tr>
-              <th className="p-3 text-left text-gray-700 font-semibold">학생</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">출결</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">메모</th>
-              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">시험범위</th>}
-              <th className="p-3 text-center text-gray-700 font-semibold">점수</th>
-              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">만점</th>}
-              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">과제내용</th>}
-              <th className="p-3 text-center text-gray-700 font-semibold">과제</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
+              <th className="p-3 text-left text-gray-700 font-semibold">íì</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">ì¶ê²°</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">ë©ëª¨</th>
+              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">ìíë²ì</th>}
+              <th className="p-3 text-center text-gray-700 font-semibold">ì ì</th>
+              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">ë§ì </th>}
+              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">ê³¼ì ë´ì©</th>}
+              <th className="p-3 text-center text-gray-700 font-semibold">ê³¼ì </th>
+              <th className="p-3 text-center text-gray-700 font-semibold">ë¦¬í¬í¸</th>
             </tr>
           </thead>
           <tbody>
@@ -388,24 +390,24 @@ export default function ClassDetailPage() {
                   <td className="p-3">
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setCounselingStudent(s); setCounselingNote(''); }} className="text-blue-600 hover:text-blue-800 font-semibold">{s.name}</button>
-                      <button onClick={() => removeStudentFromClass(s.id, s.name)} className="text-red-400 hover:text-red-600 text-xs ml-1" title="반에서 제거">✖</button>
+                      <button onClick={() => removeStudentFromClass(s.id, s.name)} className="text-red-400 hover:text-red-600 text-xs ml-1" title="ë°ìì ì ê±°">â</button>
                     </div>
-                    <div className="text-xs text-gray-400">학생 {s.phone || '-'}</div>
-                    <div className="text-xs text-gray-400">학부모 {s.parentPhone || '-'}</div>
+                    <div className="text-xs text-gray-400">íì {s.phone || '-'}</div>
+                    <div className="text-xs text-gray-400">íë¶ëª¨ {s.parentPhone || '-'}</div>
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex gap-1 justify-center">
-                      <button onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: 'PRESENT' } }))} className={'px-2 py-1 rounded text-xs font-bold ' + (attendance[s.id]?.status === 'PRESENT' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-100 border border-gray-200')}>출석</button>
-                      <button onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: 'LATE' } }))} className={'px-2 py-1 rounded text-xs font-bold ' + (attendance[s.id]?.status === 'LATE' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 border border-gray-200')}>지각</button>
-                      <button onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: 'ABSENT' } }))} className={'px-2 py-1 rounded text-xs font-bold ' + (attendance[s.id]?.status === 'ABSENT' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100 border border-gray-200')}>결석</button>
+                      <button onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: 'PRESENT' } }))} className={'px-2 py-1 rounded text-xs font-bold ' + (attendance[s.id]?.status === 'PRESENT' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-100 border border-gray-200')}>ì¶ì</button>
+                      <button onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: 'LATE' } }))} className={'px-2 py-1 rounded text-xs font-bold ' + (attendance[s.id]?.status === 'LATE' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 border border-gray-200')}>ì§ê°</button>
+                      <button onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: 'ABSENT' } }))} className={'px-2 py-1 rounded text-xs font-bold ' + (attendance[s.id]?.status === 'ABSENT' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100 border border-gray-200')}>ê²°ì</button>
                     </div>
                   </td>
-                  <td className="p-3"><input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>
-                  {isCustomClass && <td className="p-3"><input type="text" placeholder="범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>}
-                  <td className="p-3"><input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>
+                  <td className="p-3"><input type="text" placeholder="ë©ëª¨" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>
+                  {isCustomClass && <td className="p-3"><input type="text" placeholder="ë²ì" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-20" /></td>}
+                  <td className="p-3"><input type="number" placeholder="ì ì" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>
                   {isCustomClass && <td className="p-3"><input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-16" /></td>}
                   {isCustomClass && (
-                    <td className="p-3"><input type="text" placeholder="과제 내용 입력" value={perStudentHomework[s.id] || ''} onChange={(e) => setPerStudentHomework(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-28" /></td>
+                    <td className="p-3"><input type="text" placeholder="ê³¼ì  ë´ì© ìë ¥" value={perStudentHomework[s.id] || ''} onChange={(e) => setPerStudentHomework(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 w-28" /></td>
                   )}
                   <td className="p-3 text-center">
                     <div className="flex gap-1 justify-center">
@@ -414,7 +416,7 @@ export default function ClassDetailPage() {
                     </div>
                   </td>
                   <td className="p-3 text-center">
-                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? '복사됨!' : '복사'}</button>
+                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? 'ë³µì¬ë¨!' : 'ë³µì¬'}</button>
                   </td>
                 </tr>);
             })}
@@ -425,42 +427,47 @@ export default function ClassDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {!isCustomClass && (
           <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-            <h3 className="font-semibold mb-3 text-gray-800">📝 오늘의 과제</h3>
-            <input type="text" placeholder="과제 제목" value={newAssignmentTitle} onChange={(e) => setNewAssignmentTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
-            <input type="text" placeholder="과제 설명" value={newAssignmentDesc} onChange={(e) => setNewAssignmentDesc(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+            <h3 className="font-semibold mb-3 text-gray-800">ð ì¤ëì ê³¼ì </h3>
+            <input type="text" placeholder="ê³¼ì  ì ëª©" value={newAssignmentTitle} onChange={(e) => setNewAssignmentTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
+            <input type="text" placeholder="ê³¼ì  ì¤ëª" value={newAssignmentDesc} onChange={(e) => setNewAssignmentDesc(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
           </div>
         )}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-3 text-gray-800">🎥 수업 영상</h3>
-          <input type="text" placeholder="영상 제목" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
-          <input type="text" placeholder="YouTube 링크" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+          <h3 className="font-semibold mb-3 text-gray-800">ð¥ ìì ìì</h3>
+          <input type="text" placeholder="ìì ì ëª©" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-2" />
+          <input type="text" placeholder="YouTube ë§í¬" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-2 text-gray-800">◼ 수업 진도</h3>
-          <textarea value={progressNote} onChange={(e) => setProgressNote(e.target.value)} placeholder="오늘 수업 진도 내용" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+          <h3 className="font-semibold mb-2 text-gray-800">â¼ ìì ì§ë</h3>
+          <textarea value={progressNote} onChange={(e) => setProgressNote(e.target.value)} placeholder="ì¤ë ìì ì§ë ë´ì©" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+          {!homework && prevAssignmentForHomework && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+              📌 지난 수업 과제: {prevAssignmentForHomework}
+            </div>
+          )}
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-2 text-gray-800">📝 숙제</h3>
-          <textarea value={homework} onChange={(e) => setHomework(e.target.value)} placeholder={isCustomClass ? '맞춤반은 위 테이블에서 학생별로 입력하세요' : '오늘의 숙제'} rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" disabled={isCustomClass} />
+          <h3 className="font-semibold mb-2 text-gray-800">ð ìì </h3>
+          <textarea value={homework} onChange={(e) => setHomework(e.target.value)} placeholder={isCustomClass ? 'ë§ì¶¤ë°ì ì íì´ë¸ìì íìë³ë¡ ìë ¥íì¸ì' : 'ì¤ëì ìì '} rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" disabled={isCustomClass} />
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-2 text-gray-800">📢 공지사항</h3>
-          <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)} placeholder="공지사항" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+          <h3 className="font-semibold mb-2 text-gray-800">ð¢ ê³µì§ì¬í­</h3>
+          <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)} placeholder="ê³µì§ì¬í­" rows={3} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
         </div>
       </div>
 
       {counselingStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900">{counselingStudent.name} - 상담 메모</h3>
-            <div className="text-sm text-gray-500 mb-2">학생 전화: {counselingStudent.phone || '-'} | 학번: {counselingStudent.studentNumber || '-'}</div>
-            <textarea value={counselingNote} onChange={(e) => setCounselingNote(e.target.value)} placeholder="상담 내용을 입력하세요..." rows={5} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-4" />
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">{counselingStudent.name} - ìë´ ë©ëª¨</h3>
+            <div className="text-sm text-gray-500 mb-2">íì ì í: {counselingStudent.phone || '-'} | íë²: {counselingStudent.studentNumber || '-'}</div>
+            <textarea value={counselingNote} onChange={(e) => setCounselingNote(e.target.value)} placeholder="ìë´ ë´ì©ì ìë ¥íì¸ì..." rows={5} className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800 mb-4" />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setCounselingStudent(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">취소</button>
-              <button onClick={handleSaveCounseling} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">저장</button>
+              <button onClick={() => setCounselingStudent(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">ì·¨ì</button>
+              <button onClick={handleSaveCounseling} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">ì ì¥</button>
             </div>
           </div>
         </div>)}
