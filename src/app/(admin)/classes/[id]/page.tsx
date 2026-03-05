@@ -146,16 +146,18 @@ export default function ClassDetailPage() {
 
   const generateReport = (student: any) => {
     const g = grades[student.id];
-    const stats = getStats(student.id);
     const ag = assignmentGrades[student.id] || '-';
     const isCustom = classroom?.subject?.name === '맞춤반';
     const tn = isCustom ? (g?.testName || '-') : (commonTestName || '-');
     const ms = isCustom ? (g?.maxScore || '-') : (commonMaxScore || '-');
-    return '[수학탐구] ' + student.name + ' 학생 수업 리포트\n\n' +
+    const dateObj = new Date(selectedDate + 'T00:00:00');
+    const dateStr = dateObj.getFullYear() + '년 ' + (dateObj.getMonth() + 1) + '월 ' + dateObj.getDate() + '일';
+    return '[수학탐구] ' + student.name + ' 학생 수업 리포트\n' +
+      '📅 ' + dateStr + '\n\n' +
       '⭐ 오늘의 테스트\n' +
       '- 시험 범위 : ' + tn + '\n' +
       '- 점수 : ' + (g?.score || '-') + ' / ' + ms + '\n' +
-      (isCustom ? '' : '- 최고점 : ' + stats.max + ' / 최저점 : ' + stats.min + '\n') + '\n' +
+      (isCustom ? '' : '- 평균 : ' + currentAvg + ' / 최고점 : ' + currentMax + ' / 최저점 : ' + currentMin + '\n') + '\n' +
       '📚 과제 완성도\n' +
       '- 등급 : ' + ag + '\n' +
       ' (A: 완벽 / B: 양호 / C: 보통 / D: 미흩 / X: 미제출)\n\n' +
