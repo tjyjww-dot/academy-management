@@ -160,7 +160,7 @@ export default function ClassDetailPage() {
       (isCustom ? '' : '- 평균 : ' + currentAvg + ' / 최고점 : ' + currentMax + ' / 최저점 : ' + currentMin + '\n') + '\n' +
       '📚 과제 완성도\n' +
       '- 등급 : ' + ag + '\n' +
-      ' (A: 완벽 / B: 양호 / C: 보통 / D: 미흩 / X: 미제출)\n\n' +
+      ' (A: 완벽 / B: 양호 / C: 보통 / D: 미흡 / X: 미제출)\n\n' +
       '◼ 오늘 수업 진도\n' +
       '- ' + (progressNote || '-') + '\n\n' +
       '🎥 오늘 수업 영상\n' +
