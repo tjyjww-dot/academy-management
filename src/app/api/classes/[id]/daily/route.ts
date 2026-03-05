@@ -12,7 +12,7 @@ async function getUser() {
   } catch { return null; }
 }
 
-// GET: 특정 날짜의 모든 데일리 데이터 가져오기
+// GET: í¹ì  ë ì§ì ëª¨ë  ë°ì¼ë¦¬ ë°ì´í° ê°ì ¸ì¤ê¸°
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,9 +46,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       prisma.dailyReport.findMany({ where: { classroomId, date } }),
     ]);
 
+
+    // 이전 수업의 "오늘의 과제"를 숙제로 표시
+    let prevAssignmentForHomework = '';
+    const todayHasHomework = dailyReports.some((dr) => dr.homework && dr.homework.trim() !== '');
+    if (!todayHasHomework) {
+      const latestPrevAssignment = await prisma.assignment.findFirst({
+        where: { classroomId, assignmentDate: { lt: date } },
+        orderBy: { assignmentDate: 'desc' },
+      });
+      if (latestPrevAssignment) {
+        prevAssignmentForHomework = latestPrevAssignment.title +
+          (latestPrevAssignment.description ? ' - ' + latestPrevAssignment.description : '');
+      }
+    }
+
     return NextResponse.json({
       classroom, attendance, grades, allGrades,
       todayAssignments, prevAssignments, videos, dailyReports, date,
+      prevAssignmentForHomework,
     });
   } catch (error) {
     console.error('Daily fetch error:', error);
@@ -56,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-// POST: 데일리 세션 데이터 일괄 저장
+// POST: ë°ì¼ë¦¬ ì¸ì ë°ì´í° ì¼ê´ ì ì¥
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -66,7 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework } = body;
 
   try {
-    // 1. 출결 저장
+    // 1. ì¶ê²° ì ì¥
     if (attendanceData && Array.isArray(attendanceData)) {
       for (const att of attendanceData) {
         await prisma.attendanceRecord.upsert({
@@ -89,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // 2. 성적 저장
+    // 2. ì±ì  ì ì¥
     if (gradesData && Array.isArray(gradesData)) {
       for (const g of gradesData) {
         if (g.score !== undefined && g.score !== null && g.score !== '') {
@@ -102,7 +118,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               data: {
                 score: parseFloat(g.score),
                 maxScore: parseFloat(g.maxScore) || 100,
-                testName: g.testName || '일일테스트',
+                testName: g.testName || 'ì¼ì¼íì¤í¸',
               },
             });
           } else {
@@ -113,7 +129,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 testDate: date,
                 score: parseFloat(g.score),
                 maxScore: parseFloat(g.maxScore) || 100,
-                testName: g.testName || '일일테스트',
+                testName: g.testName || 'ì¼ì¼íì¤í¸',
               },
             });
           }
@@ -121,7 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // 3. 데일리 리포트 저장 (학생별 - 과제등급은 attitude에 저장)
+    // 3. ë°ì¼ë¦¬ ë¦¬í¬í¸ ì ì¥ (íìë³ - ê³¼ì ë±ê¸ì attitudeì ì ì¥)
     const enrollments = await prisma.enrollment.findMany({
       where: { classroomId, status: 'ACTIVE' }
     });
@@ -133,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // 맞춤반 학생별 과제내용 맵
+    // ë§ì¶¤ë° íìë³ ê³¼ì ë´ì© ë§µ
     const pshMap: Record<string, string> = {};
     if (perStudentHomework && Array.isArray(perStudentHomework)) {
       for (const psh of perStudentHomework) {
@@ -168,7 +184,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    // 4. 새 과제 생성
+    // 4. ì ê³¼ì  ìì±
     if (newAssignment && newAssignment.title) {
       await prisma.assignment.create({
         data: {
@@ -181,7 +197,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    // 5. 강의 영상 저장
+    // 5. ê°ì ìì ì ì¥
     if (videoData && videoData.videoUrl) {
       const existingVideo = await prisma.lectureVideo.findFirst({
         where: { classroomId, date }
