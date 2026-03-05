@@ -11,7 +11,7 @@ interface DashboardStats {
   todayTests: number;
 }
 
-interface Announcement {
+interface Announcement {h
   id: string;
   title: string;
   content: string;
