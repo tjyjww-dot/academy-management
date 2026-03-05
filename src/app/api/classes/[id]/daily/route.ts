@@ -40,16 +40,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       prisma.attendanceRecord.findMany({ where: { classroomId, date } }),
       prisma.grade.findMany({ where: { classroomId, testDate: date } }),
       prisma.grade.findMany({ where: { classroomId }, orderBy: { createdAt: 'desc' } }),
-      prisma.assignment.findMany({
-        where: { classroomId, assignmentDate: date },
-        include: { submissions: true }
-      }),
-      prisma.assignment.findMany({
-        where: { classroomId, NOT: { assignmentDate: date } },
-        orderBy: { assignmentDate: 'desc' },
-        take: 5,
-        include: { submissions: true }
-      }),
+      prisma.assignment.findMany({ where: { classroomId, assignmentDate: date }, include: { submissions: true } }),
+      prisma.assignment.findMany({ where: { classroomId, NOT: { assignmentDate: date } }, orderBy: { assignmentDate: 'desc' }, take: 5, include: { submissions: true } }),
       prisma.lectureVideo.findMany({ where: { classroomId, date } }),
       prisma.dailyReport.findMany({ where: { classroomId, date } }),
     ]);
@@ -71,10 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id: classroomId } = await params;
   const body = await req.json();
-  const {
-    date, attendanceData, gradesData, assignmentGrades,
-    newAssignment, videoData, progressNote, homework, announcement
-  } = body;
+  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework } = body;
 
   try {
     // 1. 출결 저장
@@ -83,13 +72,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await prisma.attendanceRecord.upsert({
           where: {
             studentId_classroomId_date: {
-              studentId: att.studentId, classroomId, date,
+              studentId: att.studentId,
+              classroomId,
+              date,
             }
           },
           update: { status: att.status, remarks: att.remarks || '' },
           create: {
-            studentId: att.studentId, classroomId, date,
-            status: att.status, remarks: att.remarks || '',
+            studentId: att.studentId,
+            classroomId,
+            date,
+            status: att.status,
+            remarks: att.remarks || '',
           },
         });
       }
@@ -114,7 +108,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           } else {
             await prisma.grade.create({
               data: {
-                studentId: g.studentId, classroomId, testDate: date,
+                studentId: g.studentId,
+                classroomId,
+                testDate: date,
                 score: parseFloat(g.score),
                 maxScore: parseFloat(g.maxScore) || 100,
                 testName: g.testName || '일일테스트',
@@ -137,23 +133,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
+    // 맞춤반 학생별 과제내용 맵
+    const pshMap: Record<string, string> = {};
+    if (perStudentHomework && Array.isArray(perStudentHomework)) {
+      for (const psh of perStudentHomework) {
+        pshMap[psh.studentId] = psh.homework;
+      }
+    }
+
     for (const enr of enrollments) {
       await prisma.dailyReport.upsert({
         where: {
           studentId_classroomId_date: {
-            studentId: enr.studentId, classroomId, date,
+            studentId: enr.studentId,
+            classroomId,
+            date,
           }
         },
         update: {
           content: progressNote || '',
-          homework: homework || '',
+          homework: pshMap[enr.studentId] || homework || '',
           attitude: agMap[enr.studentId] || '',
           specialNote: announcement || '',
         },
         create: {
-          studentId: enr.studentId, classroomId, date,
+          studentId: enr.studentId,
+          classroomId,
+          date,
           content: progressNote || '',
-          homework: homework || '',
+          homework: pshMap[enr.studentId] || homework || '',
           attitude: agMap[enr.studentId] || '',
           specialNote: announcement || '',
         },
@@ -200,4 +208,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('Daily save error:', error);
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
-            }
+}
