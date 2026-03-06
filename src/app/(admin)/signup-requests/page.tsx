@@ -85,6 +85,8 @@ export default function SignupRequestsPage() {
   const [selectedRole, setSelectedRole] = useState<string>('TEACHER');
   const [processingUser, setProcessingUser] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   useEffect(() => {
     fetchRequests();
@@ -152,7 +154,7 @@ export default function SignupRequestsPage() {
       const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
-        setWebUsers(data);
+        setWebUsers(data.users);
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
@@ -202,19 +204,39 @@ export default function SignupRequestsPage() {
     }
   };
 
-  // 회원 탈퇴 처리
-  const handleWithdrawUser = async (userId: string, userName: string) => {
-    if (!confirm(`${userName} 회원을 정말 탈퇴시키겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+  // ── 이름 수정 ──────────────────────────────────────────────────
+  const handleStartEditName = (user: WebUser) => {
+    setEditingUserId(user.id);
+    setEditingName(user.name || '');
+  };
+
+  const handleCancelEditName = () => {
+    setEditingUserId(null);
+    setEditingName('');
+  };
+
+  const handleSaveUserName = async () => {
+    if (!editingUserId || editingName.trim().length === 0) {
+      alert('이름을 입력해주세요.');
+      return;
+    }
     try {
-      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/users/${editingUserId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editingName.trim() }),
+      });
       if (res.ok) {
-        setWebUsers(webUsers.filter(u => u.id !== userId));
-        alert('회원이 탈퇴 처리되었습니다.');
+        setEditingUserId(null);
+        setEditingName('');
+        fetchWebUsers();
       } else {
-        alert('탈퇴 처리에 실패했습니다.');
+        const errData = await res.json();
+        alert(errData.error || '이름 변경에 실패했습니다.');
       }
-    } catch (error) {
-      alert('오류가 발생했습니다.');
+    } catch (err) {
+      console.error('Failed to update user name:', err);
+      alert('이름 변경에 실패했습니다.');
     }
   };
 
@@ -470,7 +492,6 @@ export default function SignupRequestsPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">연락처</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">가입방법</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">가입일</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -481,7 +502,33 @@ export default function SignupRequestsPage() {
                   ) : (
                     filteredApprovedUsers.map((user) => (
                       <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-900">{user.name || '-'}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {editingUserId === user.id ? (
+                            <input
+                              type="text"
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveUserName();
+                                if (e.key === 'Escape') handleCancelEditName();
+                              }}
+                              onBlur={handleSaveUserName}
+                              autoFocus
+                              className="w-full border border-blue-400 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="flex items-center gap-1.5 group">
+                              {user.name || '-'}
+                              <button
+                                onClick={() => handleStartEditName(user)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-all"
+                                title="이름 수정"
+                              >
+                                ✏️
+                              </button>
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-600">{user.email}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${roleColor[user.role] || 'bg-gray-100 text-gray-600'}`}>
@@ -495,14 +542,6 @@ export default function SignupRequestsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500">{formatDate(user.createdAt)}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleWithdrawUser(user.id, user.name)}
-                          className="px-3 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 border border-red-200"
-                        >
-                          탈퇴
-                        </button>
-                      </td>
                       </tr>
                     ))
                   )}
