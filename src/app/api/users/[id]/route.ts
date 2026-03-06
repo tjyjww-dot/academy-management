@@ -4,8 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
 /**
- * PATCH /api/users/[id] - 회원 승인 / 역할 변경
- * body: { isApproved?: boolean, role?: string }
+ * PATCH /api/users/[id] - 회원 승인 / 역할 변경 / 이름 수정
+ * body: { isApproved?: boolean, role?: string, name?: string }
  */
 export async function PATCH(
   request: NextRequest,
@@ -25,7 +25,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { isApproved, role } = body;
+    const { isApproved, role, name } = body;
 
     // role 유효성 검사
     const validRoles = ['ADMIN', 'TEACHER', 'DESK'];
@@ -36,9 +36,18 @@ export async function PATCH(
       );
     }
 
+    // name 유효성 검사
+    if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
+      return NextResponse.json(
+        { error: '이름은 비어있을 수 없습니다.' },
+        { status: 400 }
+      );
+    }
+
     const updateData: Record<string, unknown> = {};
     if (typeof isApproved === 'boolean') updateData.isApproved = isApproved;
     if (role) updateData.role = role;
+    if (typeof name === 'string' && name.trim().length > 0) updateData.name = name.trim();
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
