@@ -252,14 +252,14 @@ export default function ClassDetailPage() {
 
   const generateReport = (student: any) => {
     const g = grades[student.id];
-    const stats = getStats(student.id);
+    // 반 전체 통계: avgScore, highScore, lowScore 사용
     const ag = assignmentGrades[student.id] || '-';
     const am = assignmentMemos[student.id] || '';
     return '[수학탐구] ' + student.name + ' 학생 수업 리포트\n\n' +
       '\u2B50 오늘의 테스트\n' +
       '- 시험 범위 : ' + (g?.testName || '-') + '\n' +
       '- 점수 : ' + (g?.score || '-') + ' / ' + (g?.maxScore || '-') + '\n' +
-      '- 최고점 : ' + stats.max + ' / 최저점 : ' + stats.min + '\n\n' +
+      '- 평균 : ' + avgScore + ' / 최고점 : ' + highScore + ' / 최저점 : ' + lowScore + '\n\n' +
       '\uD83D\uDCDA 과제 완성도\n' +
       '- 등급 : ' + ag + '\n' +
       ' (A: 완벽 / B: 양호 / C: 보통 / D: 미흡 / X: 미제출)\n' +
