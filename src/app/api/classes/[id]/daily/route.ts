@@ -85,6 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // 1. ì¶ê²° ì ì¥
     if (attendanceData && Array.isArray(attendanceData)) {
       for (const att of attendanceData) {
+                  if (!att.status) continue; // skip empty attendance
         await prisma.attendanceRecord.upsert({
           where: {
             studentId_classroomId_date: {
