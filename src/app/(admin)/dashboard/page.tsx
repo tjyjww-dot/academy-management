@@ -94,7 +94,7 @@ export default function DashboardPage() {
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-blue-500">
               <p className="text-sm text-gray-600">총 원생수</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
@@ -106,10 +106,6 @@ export default function DashboardPage() {
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-purple-500">
               <p className="text-sm text-gray-600">오늘 출석</p>
               <p className="text-2xl font-bold text-gray-900">{stats.todayAttendance}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-t-4 border-orange-500">
-              <p className="text-sm text-gray-600">상담 대기</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.pendingCounseling}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-red-500">
               <p className="text-sm text-gray-600">오늘 테스트</p>
