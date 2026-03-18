@@ -516,8 +516,25 @@ export default function StudentDetailPage() {
             {activeTab === 'counseling' && (
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">상담내역</h3>
+                <h3 className="text-lg font-semibold text-gray-900">상담내역</h3>
+                <button onClick={() => setShowCounselingForm(!showCounselingForm)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                  {showCounselingForm ? "취소" : "+ 상담 추가"}
+                </button>
+              </div>
+              {showCounselingForm && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3">
+                  <input type="text" placeholder="상담 제목" value={counselingForm.title} onChange={(e) => setCounselingForm({...counselingForm, title: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <textarea placeholder="상담 내용" value={counselingForm.description} onChange={(e) => setCounselingForm({...counselingForm, description: e.target.value})} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  <div className="flex gap-2">
+                    <select value={counselingForm.counselingType} onChange={(e) => setCounselingForm({...counselingForm, counselingType: e.target.value})} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                      <option value="PHONE">전화상담</option>
+                      <option value="VISIT">방문상담</option>
+                      <option value="ONLINE">온라인상담</option>
+                    </select>
+                    <button onClick={handleCounselingSubmit} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">저장</button>
+                  </div>
                 </div>
+              )}
                 {counselingRecords.length === 0 ? (
                   <p className="text-gray-500">상담 기록이 없습니다.</p>
                 ) : (
