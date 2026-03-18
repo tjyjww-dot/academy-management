@@ -51,6 +51,9 @@ export default function StudentDetailPage() {
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [withdrawalReason, setWithdrawalReason] = useState('');
   const [counselingRecords, setCounselingRecords] = useState<any[]>([]);
+  const [showCounselingForm, setShowCounselingForm] = useState(false);
+  const [counselingForm, setCounselingForm] = useState({ title: '', description: '', counselingType: 'PHONE' });
+  const [attendanceMonth, setAttendanceMonth] = useState(() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); });
 
   const fetchStudent = async () => {
     try {
@@ -98,6 +101,24 @@ export default function StudentDetailPage() {
     fetchGradeStats();
     fetchCounselingRecords();
   }, [studentId]);
+
+  
+  const handleCounselingSubmit = async () => {
+    if (!counselingForm.title.trim()) { alert('상담 제목을 입력해주세요.'); return; }
+    try {
+      const res = await fetch('/api/counseling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, ...counselingForm }),
+      });
+      if (res.ok) {
+        alert('상담 기록이 저장되었습니다.');
+        setCounselingForm({ title: '', description: '', counselingType: 'PHONE' });
+        setShowCounselingForm(false);
+        fetchCounselingRecords();
+      }
+    } catch { alert('저장 실패'); }
+  };
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
