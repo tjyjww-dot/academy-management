@@ -1,18 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { verifyToken, getTokenFromCookies } from '@/lib/auth';
 
 // GET: 월별 수납 목록 조회
 export async function GET(request: NextRequest) {
   try {
+    const token = getTokenFromCookies(request);
+    const decoded = token ? verifyToken(token) : null;
+    if (!decoded) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const yearMonth = searchParams.get('yearMonth') || new Date().toISOString().slice(0, 7);
     const search = searchParams.get('search') || '';
+
+    // 강사(TEACHER)인 경우 자기 반 학생만 필터링
+    let teacherStudentIds: string[] | null = null;
+    if (decoded.role === 'TEACHER') {
+      const teacherClassrooms = await prisma.classroom.findMany({
+        where: { teacherId: decoded.userId },
+        include: {
+          enrollments: {
+            where: { status: 'ACTIVE' },
+            select: { studentId: true },
+          },
+        },
+      });
+      teacherStudentIds = [...new Set(
+        teacherClassrooms.flatMap(c => c.enrollments.map(e => e.studentId))
+      )];
+    }
 
     // 현재 재원 중인 학생 목록
     const activeStudents = await prisma.student.findMany({
       where: {
         status: 'ACTIVE',
         ...(search ? { name: { contains: search } } : {}),
+        ...(teacherStudentIds ? { id: { in: teacherStudentIds } } : {}),
       },
       orderBy: { name: 'asc' },
     });
@@ -24,17 +49,15 @@ export async function GET(request: NextRequest) {
         student: {
           status: 'ACTIVE',
           ...(search ? { name: { contains: search } } : {}),
+          ...(teacherStudentIds ? { id: { in: teacherStudentIds } } : {}),
         },
       },
-      include: {
-        student: true,
-      },
+      include: { student: true },
       orderBy: { student: { name: 'asc' } },
     });
 
     // 수납 기록이 없는 학생도 포함하여 반환
     const paymentMap = new Map(payments.map((p: any) => [p.studentId, p]));
-
     const result = activeStudents.map((student: any) => {
       const payment = paymentMap.get(student.id);
       return {
@@ -50,7 +73,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: result, yearMonth });
   } catch (error) {
     console.error('Failed to fetch payments:', error);
-    return NextResponse.json({ error: '수납 정보를 불러오는데 실패했습니다.' }, { status: 500 });
+    return NextResponse.json(
+      { error: '수납 정보를 불러오는데 실패했습니다.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -61,12 +87,14 @@ export async function POST(request: NextRequest) {
     const { studentId, yearMonth, tuitionFee, specialFee, otherFee, remarks, status } = body;
 
     if (!studentId || !yearMonth) {
-      return NextResponse.json({ error: '학생 ID와 연월은 필수입니다.' }, { status: 400 });
+      return NextResponse.json(
+        { error: '학생 ID와 연월은 필수입니다.' },
+        { status: 400 }
+      );
     }
 
     const totalFee = (tuitionFee || 0) + (specialFee || 0) + (otherFee || 0);
 
-    // 이미 존재하는 기록이 있는지 확인
     const existing = await prisma.payment.findFirst({
       where: { studentId, yearMonth },
     });
@@ -104,6 +132,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(payment);
   } catch (error) {
     console.error('Failed to save payment:', error);
-    return NextResponse.json({ error: '수납 정보 저장에 실패했습니다.' }, { status: 500 });
+    return NextResponse.json(
+      { error: '수납 정보 저장에 실패했습니다.' },
+      { status: 500 }
+    );
   }
 }
