@@ -70,7 +70,9 @@ export default function AssignmentsPage() {
     try {
       const res = await fetch(`/api/assignments?classroomId=${classroomId}`);
       const data = await res.json();
-      setAssignments(data);
+      // Sort by latest date
+      const sorted = Array.isArray(data) ? data.sort((a: any, b: any) => b.assignmentDate.localeCompare(a.assignmentDate)) : data;
+      setAssignments(sorted);
     } catch (error) {
       console.error('Failed to fetch assignments:', error);
     } finally {
@@ -97,7 +99,7 @@ export default function AssignmentsPage() {
 
       if (res.ok) {
         const newAssignment = await res.json();
-        setAssignments([...assignments, newAssignment]);
+        setAssignments([...assignments, newAssignment].sort((a, b) => b.assignmentDate.localeCompare(a.assignmentDate)));
         setFormData({
           title: '',
           description: '',
