@@ -29,6 +29,8 @@ export default function ClassDetailPage() {
   const [announcement, setAnnouncement] = useState('');
   const [counselingStudent, setCounselingStudent] = useState<any>(null);
   const [counselingNote, setCounselingNote] = useState('');
+  const [perStudentHomeworkMap, setPerStudentHomeworkMap] = useState<Record<string, string>>({});
+  const [perStudentProgressMap, setPerStudentProgressMap] = useState<Record<string, string>>({});
   const [reportCopied, setReportCopied] = useState<string | null>(null);
 
   // 시험 관련 state
@@ -290,6 +292,18 @@ export default function ClassDetailPage() {
     }
     setReportCopied(student.id);
     setTimeout(() => setReportCopied(null), 2000);
+
+    // Send push notification to parents
+    try {
+      await fetch('/api/classes/' + classId + '/daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedDate,
+          sendPushNotification: { studentId: student.id, studentName: student.name },
+        }),
+      });
+    } catch (e) { console.error('Push notification send error:', e); }
   };
 
   const handleSaveCounseling = async () => {
@@ -483,6 +497,8 @@ export default function ClassDetailPage() {
               <th className="p-3 text-center text-gray-700 font-semibold">점수</th>
               <th className="p-3 text-center text-gray-700 font-semibold">과제</th>
               <th className="p-3 text-center text-gray-700 font-semibold">과제 메모</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">개별숙제</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">개별진도</th>
               <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
             </tr>
           </thead>
