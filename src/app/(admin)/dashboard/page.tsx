@@ -79,13 +79,6 @@ export default function DashboardPage() {
     }
   };
 
-  const saveCalendarId = () => {
-    if (typeof window !== 'undefined') localStorage.setItem('gcal-id', calendarId);
-    setShowCalendarSettings(false);
-  };
-
-  const calendarSrc = calendarId ? 'https://calendar.google.com/calendar/embed?src=' + encodeURIComponent(calendarId) + '&ctz=Asia/Seoul&mode=WEEK&showTitle=0&showNav=1&showPrint=0&showTabs=0' : '';
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
