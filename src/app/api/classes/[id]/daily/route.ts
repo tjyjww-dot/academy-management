@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id: classroomId } = await params;
   const body = await req.json();
-  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, sendPushNotification } = body;
+  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, perStudentProgress, sendPushNotification } = body;
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -123,10 +123,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         for (const psh of perStudentHomework) { pshMap[psh.studentId] = psh.homework; }
       }
 
+      const pspMap: Record<string, string> = {};
+      if (perStudentProgress && Array.isArray(perStudentProgress)) {
+        for (const psp of perStudentProgress) {
+          pspMap[psp.studentId] = psp.progress;
+        }
+      }
+
       for (const enr of enrollments) {
         await tx.dailyReport.upsert({
           where: { studentId_classroomId_date: { studentId: enr.studentId, classroomId, date } },
-          update: { content: progressNote || '', homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
+          update: { content: pspMap[enr.studentId] || progressNote || '', homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
           create: { studentId: enr.studentId, classroomId, date, content: progressNote || '', homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
         });
       }
