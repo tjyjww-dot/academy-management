@@ -5,7 +5,8 @@ import { verifyToken, getTokenFromCookies } from '@/lib/auth';
 export async function GET(request: NextRequest) {
   try {
     const token = getTokenFromCookies(request);
-    if (!token || !verifyToken(token)) {
+    const decoded = token ? verifyToken(token) : null;
+    if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -29,6 +30,11 @@ export async function GET(request: NextRequest) {
       whereClause.subjectId = subjectId;
     }
 
+    // 강사(TEACHER)는 자기 반만 볼 수 있도록 필터링
+    if (decoded.role === 'TEACHER') {
+      whereClause.teacherId = decoded.userId;
+    }
+
     const classrooms = await prisma.classroom.findMany({
       where: whereClause,
       include: {
@@ -41,11 +47,7 @@ export async function GET(request: NextRequest) {
           },
         },
         enrollments: {
-          where: {
-            student: {
-              status: { not: 'WITHDRAWN' }
-            }
-          },
+          where: { student: { status: { not: 'WITHDRAWN' } } },
           select: {
             id: true,
           },
@@ -90,7 +92,6 @@ export async function POST(request: NextRequest) {
     let subject = await prisma.subject.findFirst({
       where: { name: classType },
     });
-
     if (!subject) {
       subject = await prisma.subject.create({
         data: { name: classType, code: classType },
@@ -115,11 +116,7 @@ export async function POST(request: NextRequest) {
           },
         },
         enrollments: {
-          where: {
-            student: {
-              status: { not: 'WITHDRAWN' }
-            }
-          },
+          where: { student: { status: { not: 'WITHDRAWN' } } },
           include: {
             student: true,
           },
