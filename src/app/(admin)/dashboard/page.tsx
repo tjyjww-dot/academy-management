@@ -43,8 +43,6 @@ export default function DashboardPage() {
   const [upcomingTests, setUpcomingTests] = useState<EntranceTest[]>([]);
   const [taskRequests, setTaskRequests] = useState<TaskRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [calendarId, setCalendarId] = useState('');
-  const [showCalendarSettings, setShowCalendarSettings] = useState(false);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -64,8 +62,6 @@ export default function DashboardPage() {
       }
     };
     fetchDashboard();
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('gcal-id') : null;
-    if (saved) setCalendarId(saved);
   }, []);
 
   const handleToggleComplete = async (id: string, isCompleted: boolean) => {
@@ -222,26 +218,17 @@ export default function DashboardPage() {
  
 {/* Google Calendar */}
         <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h2 className="text-base sm:text-lg font-bold text-gray-900">Google Calendar</h2>
-            <button onClick={() => setShowCalendarSettings(!showCalendarSettings)} className="text-xs sm:text-sm text-blue-600 hover:text-blue-800">{showCalendarSettings ? "Close" : "Settings"}</button>
+          <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Google Calendar</h2>
+          <div className="w-full overflow-hidden rounded-lg" style={{ height: "clamp(500px, 60vw, 800px)" }}>
+            <iframe
+              src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0"
+              style={{ border: 0, width: "100%", height: "100%" }}
+              frameBorder="0"
+              scrolling="no"
+            />
           </div>
-          {showCalendarSettings && (
-            <div className="mb-4 flex flex-col sm:flex-row gap-2">
-              <input type="text" value={calendarId} onChange={(e) => setCalendarId(e.target.value)} placeholder="Google Calendar ID (e.g. xxx@group.calendar.google.com)" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <button onClick={saveCalendarId} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Save</button>
-            </div>
-          )}
-          {calendarSrc ? (
-            <div className="w-full overflow-hidden rounded-lg" style={{ height: "clamp(400px, 50vw, 700px)" }}>
-              <iframe src={calendarSrc} style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no" />
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400 text-sm">Click Settings to add your Google Calendar ID</div>
-          )}
         </div>
-
-             </div>
+</div>
     </div>
   );
 }
