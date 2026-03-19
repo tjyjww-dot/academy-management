@@ -53,6 +53,8 @@ export default function StudentDetailPage() {
   const [counselingRecords, setCounselingRecords] = useState<any[]>([]);
   const [showCounselingForm, setShowCounselingForm] = useState(false);
   const [counselingForm, setCounselingForm] = useState({ title: '', description: '', counselingType: 'PHONE' });
+  const [editingCounselingId, setEditingCounselingId] = useState<string | null>(null);
+  const [editCounselingForm, setEditCounselingForm] = useState({ title: '', description: '', counselingType: 'PHONE' });
   const [attendanceMonth, setAttendanceMonth] = useState(() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); });
 
   const fetchStudent = async () => {
@@ -120,6 +122,20 @@ export default function StudentDetailPage() {
     } catch { alert('저장 실패'); }
   };
 
+  const handleCounselingUpdate = async (id: string) => {
+    if (!editCounselingForm.title.trim()) { alert('상담 제목을 입력해주세요.'); return; }
+    try {
+      const res = await fetch('/api/counseling', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...editCounselingForm }) });
+      if (res.ok) { alert('상담 기록이 수정되었습니다.'); setEditingCounselingId(null); fetchCounselingRecords(); }
+    } catch { alert('수정 실패'); }
+  };
+  const handleCounselingDelete = async (id: string) => {
+    if (!confirm('이 상담 기록을 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch('/api/counseling?id=' + id, { method: 'DELETE' });
+      if (res.ok) { alert('삭제되었습니다.'); fetchCounselingRecords(); }
+    } catch { alert('삭제 실패'); }
+  };
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setEditData((prev) => ({
@@ -540,45 +556,44 @@ export default function StudentDetailPage() {
                 ) : (
                   <div className="space-y-4">
                     {counselingRecords.map((record: any) => (
-                      <div key={record.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              record.type === 'PHONE' ? 'bg-blue-100 text-blue-800' :
-                              record.type === 'VISIT' ? 'bg-green-100 text-green-800' :
-                              record.type === 'ONLINE' ? 'bg-purple-100 text-purple-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {record.type === 'PHONE' ? '전화' :
-                               record.type === 'VISIT' ? '방문' :
-                               record.type === 'ONLINE' ? '온라인' : record.type}
-                            </span>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              record.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                              record.status === 'SCHEDULED' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {record.status === 'COMPLETED' ? '완료' :
-                               record.status === 'SCHEDULED' ? '예정' : '취소'}
-                            </span>
+                    <div key={record.id} className="border rounded-lg p-4">
+                      {editingCounselingId === record.id ? (
+                        <div className="space-y-3">
+                          <input type="text" value={editCounselingForm.title} onChange={(e) => setEditCounselingForm({...editCounselingForm, title: e.target.value})} placeholder="상담 제목" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                          <textarea value={editCounselingForm.description} onChange={(e) => setEditCounselingForm({...editCounselingForm, description: e.target.value})} placeholder="상담 내용" rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                          <div className="flex gap-2">
+                            <select value={editCounselingForm.counselingType} onChange={(e) => setEditCounselingForm({...editCounselingForm, counselingType: e.target.value})} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                              <option value="PHONE">전화상담</option><option value="VISIT">방문상담</option><option value="ONLINE">온라인상담</option><option value="TEACHER_INITIATED">선생님 메모</option>
+                            </select>
+                            <button onClick={() => handleCounselingUpdate(record.id)} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">저장</button>
+                            <button onClick={() => setEditingCounselingId(null)} className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-400">취소</button>
                           </div>
-                          <span className="text-sm text-gray-500">
-                            {new Date(record.counselingDate).toLocaleDateString('ko-KR')}
-                          </span>
                         </div>
-                        <p className="text-sm text-gray-700 font-medium mb-1">{record.title}</p>
-                        {record.content && (
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap">{record.content}</p>
-                        )}
-                        {record.counselor && (
-                          <p className="text-xs text-gray-400 mt-2">상담자: {record.counselor.name}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                      ) : (
+                        <>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={'px-2 py-1 rounded text-xs font-medium ' + (record.counselingType === 'PHONE' ? 'bg-blue-100 text-blue-800' : record.counselingType === 'VISIT' ? 'bg-green-100 text-green-800' : record.counselingType === 'ONLINE' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800')}>
+                                {record.counselingType === 'PHONE' ? '전화' : record.counselingType === 'VISIT' ? '방문' : record.counselingType === 'ONLINE' ? '온라인' : record.counselingType === 'TEACHER_INITIATED' ? '메모' : record.counselingType}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">{new Date(record.createdAt).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                              <button onClick={() => { setEditingCounselingId(record.id); setEditCounselingForm({ title: record.title || '', description: record.description || '', counselingType: record.counselingType || 'PHONE' }); }} className="text-blue-500 hover:text-blue-700 text-xs font-medium">수정</button>
+                              <button onClick={() => handleCounselingDelete(record.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">삭제</button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium mb-1">{record.title}</p>
+                          {record.description && (<p className="text-sm text-gray-600 whitespace-pre-wrap">{record.description}</p>)}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
+        )}
 
             {activeTab === 'grades' && (
             <div>
