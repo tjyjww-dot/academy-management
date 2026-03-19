@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "학원 관리 시스템",
-  description: "학원 원생 관리 시스템",
+  title: "수학탐구",
+  description: "수학탐구 학원 관리",
 };
 
 export default function RootLayout({
