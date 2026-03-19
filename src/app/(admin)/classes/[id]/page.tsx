@@ -509,7 +509,7 @@ export default function ClassDetailPage() {
         <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h2 className="text-lg font-semibold mb-3 text-gray-800">{'\uD83D\uDCDA'} 이전 과제</h2>
           <div className="space-y-2">
-            {prevAssignments.map((a: any, idx: number) => (
+            {prevAssignments.slice(0, 1).map((a: any, idx: number) => (
               <div key={a.id || idx} className="flex justify-between items-center bg-gray-50 border border-gray-100 rounded p-2 text-sm text-gray-800">
                 <span>{a.assignmentDate} - {a.title}</span>
                 {a.description && <span className="text-gray-500">{a.description}</span>}
