@@ -525,12 +525,11 @@ export default function ClassDetailPage() {
           <thead className="bg-blue-50 border-b border-blue-100">
             <tr>
               <th className="p-3 text-left text-gray-700 font-semibold">학생</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">출결</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">메모</th>
-              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">시험범위</th>}
-              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '점수/총점' : '점수'}</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">과제</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">과제 메모</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '출결/메모' : '출결'}</th>
+              {!isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">메모</th>}
+              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '시험범위/점수' : '점수'}</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '과제/메모' : '과제'}</th>
+              {!isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">과제 메모</th>}
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">숙제</th>}
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">진도</th>}
               <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
@@ -551,54 +550,82 @@ export default function ClassDetailPage() {
                       <div className="text-xs text-gray-400">학부모 {classroom.enrollments.find((e: any) => e.student.id === s.id)?.student?.parentPhone}</div>
                     )}
                   </td>
-                  <td className="p-3 text-center">
-                    <div className="flex gap-1 justify-center">
-                      {[
-                        { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
-                        { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
-                        { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
-                      ].map(opt => (
-                        <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-24 text-gray-800" />
-                  </td>
-                  {isCustomClass && (
+                  {isCustomClass ? (
                     <td className="p-3">
-                      <input type="text" placeholder="시험범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-24 text-gray-800" />
+                      <div className="flex gap-1 justify-center mb-1">
+                        {[
+                          { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
+                          { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
+                          { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
+                        ].map(opt => (
+                          <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
+                        ))}
+                      </div>
+                      <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
                     </td>
+                  ) : (
+                    <>
+                      <td className="p-3 text-center">
+                        <div className="flex gap-1 justify-center">
+                          {[
+                            { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
+                            { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
+                            { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
+                          ].map(opt => (
+                            <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-32 text-gray-800" />
+                      </td>
+                    </>
                   )}
-                  <td className="p-3">
-                    <div className="flex gap-1 items-center">
+                  {isCustomClass ? (
+                    <td className="p-3">
+                      <input type="text" placeholder="시험범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full mb-1 text-gray-800" />
+                      <div className="flex gap-1 items-center">
+                        <input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-14 text-gray-800" />
+                        <span className="text-gray-400 text-xs">/</span>
+                        <input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-14 text-gray-800" />
+                      </div>
+                    </td>
+                  ) : (
+                    <td className="p-3">
                       <input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-16 text-gray-800" />
-                      {isCustomClass && (
-                        <>
-                          <span className="text-gray-400 text-xs">/</span>
-                          <input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-14 text-gray-800" />
-                        </>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-3 text-center">
-                    <div className="flex gap-1 justify-center">
-                      {['A','B','C','D','X'].map(g => (
-                        <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-24 text-gray-800" />
-                  </td>
+                    </td>
+                  )}
+                  {isCustomClass ? (
+                    <td className="p-3">
+                      <div className="flex gap-1 justify-center mb-1">
+                        {['A','B','C','D','X'].map(g => (
+                          <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
+                        ))}
+                      </div>
+                      <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
+                    </td>
+                  ) : (
+                    <>
+                      <td className="p-3 text-center">
+                        <div className="flex gap-1 justify-center">
+                          {['A','B','C','D','X'].map(g => (
+                            <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-28 text-gray-800" />
+                      </td>
+                    </>
+                  )}
                   {isCustomClass && (
                     <td className="p-3">
-                      <input type="text" placeholder="숙제 입력" value={perStudentHomeworkMap[s.id] || ''} onChange={(e) => setPerStudentHomeworkMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-28 text-gray-800" />
+                      <input type="text" placeholder="숙제 입력" value={perStudentHomeworkMap[s.id] || ''} onChange={(e) => setPerStudentHomeworkMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
                     </td>
                   )}
                   {isCustomClass && (
                     <td className="p-3">
-                      <input type="text" placeholder="진도 입력" value={perStudentProgressMap[s.id] || ''} onChange={(e) => setPerStudentProgressMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-28 text-gray-800" />
+                      <input type="text" placeholder="진도 입력" value={perStudentProgressMap[s.id] || ''} onChange={(e) => setPerStudentProgressMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
                     </td>
                   )}
                   <td className="p-3 text-center">
