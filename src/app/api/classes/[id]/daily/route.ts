@@ -46,20 +46,69 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       prisma.dailyReport.findMany({ where: { classroomId, date } }),
     ]);
 
+    // 이전 날짜의 DailyReport에서 숙제 가져오기 (중복 제거)
+    const prevDailyHomework = await prisma.dailyReport.findMany({
+      where: {
+        classroomId,
+        date: { lt: date },
+        homework: { not: '' },
+      },
+      orderBy: { date: 'desc' },
+      take: 20,
+      distinct: ['date'],
+      select: { date: true, homework: true },
+    });
+
+    // DailyReport 숙제를 이전 과제 형식으로 변환하여 prevAssignments에 병합
+    const homeworkAsAssignments = prevDailyHomework
+      .filter((dr: any) => dr.homework && dr.homework.trim() !== '')
+      .reduce((acc: any[], dr: any) => {
+        // 같은 날짜의 숙제가 여러 개일 수 있으므로 날짜별로 중복 제거
+        if (!acc.find((a: any) => a.assignmentDate === dr.date && a.title === dr.homework)) {
+          acc.push({
+            id: 'hw-' + dr.date,
+            assignmentDate: dr.date,
+            title: dr.homework,
+            description: '',
+          });
+        }
+        return acc;
+      }, []);
+
+    // Assignment와 DailyReport 숙제를 합친 후 날짜순 정렬
+    const allPrevItems = [...prevAssignments.map((a: any) => ({
+      id: a.id,
+      assignmentDate: a.assignmentDate,
+      title: a.title,
+      description: a.description,
+    })), ...homeworkAsAssignments]
+      .sort((a: any, b: any) => b.assignmentDate.localeCompare(a.assignmentDate))
+      .slice(0, 5);
+
     let prevAssignmentForHomework = '';
     const todayHasHomework = dailyReports.some((dr) => dr.homework && dr.homework.trim() !== '');
     if (!todayHasHomework) {
-      const latestPrevAssignment = await prisma.assignment.findFirst({
-        where: { classroomId, assignmentDate: { lt: date } },
-        orderBy: { assignmentDate: 'desc' },
+      // 먼저 가장 최근 DailyReport의 숙제를 확인
+      const latestPrevHomework = await prisma.dailyReport.findFirst({
+        where: { classroomId, date: { lt: date }, homework: { not: '' } },
+        orderBy: { date: 'desc' },
       });
-      if (latestPrevAssignment) {
-        prevAssignmentForHomework = latestPrevAssignment.title + (latestPrevAssignment.description ? ' - ' + latestPrevAssignment.description : '');
+      if (latestPrevHomework && latestPrevHomework.homework?.trim()) {
+        prevAssignmentForHomework = latestPrevHomework.homework;
+      } else {
+        // DailyReport에 없으면 Assignment에서 가져오기
+        const latestPrevAssignment = await prisma.assignment.findFirst({
+          where: { classroomId, assignmentDate: { lt: date } },
+          orderBy: { assignmentDate: 'desc' },
+        });
+        if (latestPrevAssignment) {
+          prevAssignmentForHomework = latestPrevAssignment.title + (latestPrevAssignment.description ? ' - ' + latestPrevAssignment.description : '');
+        }
       }
     }
 
     return NextResponse.json({
-      classroom, attendance, grades, allGrades, todayAssignments, prevAssignments,
+      classroom, attendance, grades, allGrades, todayAssignments, prevAssignments: allPrevItems,
       videos, dailyReports, date, prevAssignmentForHomework,
     });
   } catch (error) {
