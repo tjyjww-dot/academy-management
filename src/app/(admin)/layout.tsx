@@ -189,7 +189,7 @@ export default function AdminLayout({
         <div className="flex flex-col h-full">
           {/* Logo/Title */}
           <div className="px-6 py-6 border-b border-gray-800">
-            <h2 className="text-2xl font-bold">학원 관리</h2>
+            <h2 className="text-2xl font-bold">수학탐구</h2>
           </div>
 
           {/* Navigation Links */}
