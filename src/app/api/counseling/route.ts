@@ -95,3 +95,59 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+export async function PUT(request: NextRequest) {
+  try {
+    const token = getTokenFromCookies(request);
+    if (!token || !verifyToken(token)) {
+      return NextResponse.json({ error: '인증되지 않음' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, title, description, counselingType, status } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID 필수' }, { status: 400 });
+    }
+
+    const updated = await prisma.counselingRequest.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(counselingType !== undefined && { counselingType }),
+        ...(status !== undefined && { status }),
+      },
+      include: { parent: true, student: true },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Counseling PUT error:', error);
+    return NextResponse.json({ error: '상담 수정 실패' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = getTokenFromCookies(request);
+    if (!token || !verifyToken(token)) {
+      return NextResponse.json({ error: '인증되지 않음' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID 필수' }, { status: 400 });
+    }
+
+    await prisma.counselingRequest.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Counseling DELETE error:', error);
+    return NextResponse.json({ error: '상담 삭제 실패' }, { status: 500 });
+  }
+}
