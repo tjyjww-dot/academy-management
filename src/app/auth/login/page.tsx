@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -9,140 +8,25 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
   const email = searchParams.get('email');
+  const [loginTab, setLoginTab] = useState<'parent' | 'staff'>('parent');
+  const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [phoneLoading, setPhoneLoading] = useState(false);
+  const [phoneStep, setPhoneStep] = useState<'PHONE' | 'SELECT'>('PHONE');
+  const [students, setStudents] = useState<any[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [studentName, setStudentName] = useState('');
   const [realName, setRealName] = useState('');
   const [nameSubmitted, setNameSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    const callSeed = async () => {
-      try {
-        await fetch('/api/seed', { method: 'POST' });
-      } catch (err) {
-        console.log('Seed call completed or not needed');
-      }
-    };
-    callSeed();
-  }, []);
-
-  const getErrorMessage = (errorCode: string | null) => {
-    switch (errorCode) {
-      case 'no_code': return '구글 인증 코드를 받지 못했습니다.';
-      case 'token_failed': return '구글 인증 토큰 발급에 실패했습니다.';
-      case 'no_email': return '구글 계정에서 이메일을 가져올 수 없습니다.';
-      case 'not_approved': return null;
-      case 'callback_failed': return '로그인 처리 중 오류가 발생했습니다.';
-      default: return null;
-    }
-  };
-
-  const errorMessage = getErrorMessage(error);
-
-  const handleGoogleLogin = () => {
-    window.location.href = '/api/auth/google';
-  };
-
-  const handleNameSubmit = async () => {
-    if (!realName.trim() || !email) return;
-    setIsSubmitting(true);
-    try {
-      const res = await fetch('/api/auth/update-name', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: realName.trim() }),
-      });
-      if (res.ok) {
-        setNameSubmitted(true);
-      }
-    } catch (err) {
-      console.error('Failed to update name:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (error === 'not_approved' && email && !nameSubmitted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full space-y-6 p-8 bg-white rounded-lg shadow-md">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">수학탐구</h1>
-            <p className="mt-2 text-gray-600">회원 가입 신청</p>
-          </div>
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded">
-            구글 로그인이 완료되었습니다. 실명을 입력해주세요.
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
-            <input type="text" value={email} disabled className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">실명</label>
-            <input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="실명을 입력해주세요" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()} />
-          </div>
-          <button onClick={handleNameSubmit} disabled={!realName.trim() || isSubmitting} className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
-            {isSubmitting ? '처리 중...' : '가입 신청'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (error === 'not_approved' && nameSubmitted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full space-y-6 p-8 bg-white rounded-lg shadow-md">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">수학탐구</h1>
-            <p className="mt-2 text-gray-600">학원 관리 시스템</p>
-          </div>
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-            가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.
-          </div>
-          <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white hover:bg-gray-50 transition-colors">
-            <span className="text-gray-700 font-medium">다시 로그인 시도</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">수학탐구</h1>
-          <p className="mt-2 text-gray-600">학원 관리 시스템</p>
-        </div>
-        {errorMessage && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {errorMessage}
-          </div>
-        )}
-        <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white hover:bg-gray-50 transition-colors">
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.12" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53" />
-          </svg>
-          <span className="text-gray-700 font-medium">Google로 로그인</span>
-        </button>
-        <p className="text-center text-sm text-gray-500">
-          승인된 구글 계정으로만 로그인할 수 있습니다.
-        </p>
-      </div>
-    </div>
-  );
+  useEffect(() => { fetch('/api/seed', { method: 'POST' }).catch(() => {}); }, []);
+  const formatPhone = (v: string) => { const n = v.replace(/[^0-9]/g, ''); if (n.length <= 3) return n; if (n.length <= 7) return n.slice(0,3)+'-'+n.slice(3); return n.slice(0,3)+'-'+n.slice(3,7)+'-'+n.slice(7,11); };
+  const handlePhoneSubmit = async () => { if (!phone.trim()) { setPhoneError('\uc804\ud654\ubc88\ud638\ub97c \uc785\ub825\ud574\uc8fc\uc138\uc694.'); return; } setPhoneLoading(true); setPhoneError(''); try { const res = await fetch('/api/auth/phone-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone.replace(/-/g, '') }) }); const data = await res.json(); if (!res.ok) { setPhoneError(data.error); return; } if (data.step === 'SELECT_STUDENT') { setStudents(data.students); setPhoneStep('SELECT'); } } catch { setPhoneError('\uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.'); } finally { setPhoneLoading(false); } };
+  const handleStudentLogin = async () => { if (!selectedStudent || !studentName.trim()) { setPhoneError('\ud559\uc0dd \uc774\ub984\uc744 \uc785\ub825\ud574\uc8fc\uc138\uc694.'); return; } setPhoneLoading(true); setPhoneError(''); try { const res = await fetch('/api/auth/phone-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone.replace(/-/g, ''), studentId: selectedStudent.id, studentName: studentName.trim(), loginType: selectedStudent.loginAs }) }); const data = await res.json(); if (!res.ok) { setPhoneError(data.error); return; } if (data.step === 'LOGIN_SUCCESS') { router.push(data.user.role === 'PARENT' || data.user.role === 'STUDENT' ? '/parent' : '/dashboard'); } } catch { setPhoneError('\ub85c\uadf8\uc778\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.'); } finally { setPhoneLoading(false); } };
+  const handleGoogleLogin = () => { window.location.href = '/api/auth/google'; };
+  const handleNameSubmit = async () => { if (!realName.trim() || !email) return; setIsSubmitting(true); try { const res = await fetch('/api/auth/update-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name: realName.trim() }) }); if (res.ok) setNameSubmitted(true); } catch {} finally { setIsSubmitting(false); } };
+  if (error === 'not_approved' && email && !nameSubmitted) { return (<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="max-w-md w-full space-y-6 p-8 bg-white rounded-lg shadow-md"><div className="text-center"><h1 className="text-3xl font-bold text-gray-900">\uc218\ud559\ud0d0\uad6c</h1><p className="mt-2 text-gray-600">\uc9c1\uc6d0 \uac00\uc785 \uc2e0\uccad</p></div><input type="text" value={email} disabled className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-500" /><input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="\uc2e4\uba85\uc744 \uc785\ub825\ud574\uc8fc\uc138\uc694" className="w-full px-3 py-2 border rounded-lg" onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()} /><button onClick={handleNameSubmit} disabled={!realName.trim() || isSubmitting} className="w-full py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-400">{isSubmitting ? '\ucc98\ub9ac \uc911...' : '\uac00\uc785 \uc2e0\uccad'}</button></div></div>); }
+  if (error === 'not_approved' && nameSubmitted) { return (<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="max-w-md w-full space-y-6 p-8 bg-white rounded-lg shadow-md"><h1 className="text-3xl font-bold text-gray-900 text-center">\uc218\ud559\ud0d0\uad6c</h1><div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-sm">\uac00\uc785 \uc2e0\uccad\uc774 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4.</div></div></div>); }
+  return (<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="max-w-md w-full p-8 bg-white rounded-lg shadow-md"><div className="text-center mb-6"><h1 className="text-3xl font-bold text-gray-900">\uc218\ud559\ud0d0\uad6c</h1></div><div className="flex mb-6 bg-gray-100 rounded-lg p-1"><button onClick={() => { setLoginTab('parent'); setPhoneError(''); }} className={'flex-1 py-2.5 rounded-md text-sm font-semibold transition ' + (loginTab === 'parent' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500')}>\ud559\ubd80\ubaa8 \xb7 \ud559\uc0dd</button><button onClick={() => { setLoginTab('staff'); setPhoneError(''); }} className={'flex-1 py-2.5 rounded-md text-sm font-semibold transition ' + (loginTab === 'staff' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500')}>\uc9c1\uc6d0</button></div>{phoneError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">{phoneError}</div>}{loginTab === 'parent' && <div className="space-y-4">{phoneStep === 'PHONE' && <><div><label className="block text-sm font-medium text-gray-700 mb-1">\uc804\ud654\ubc88\ud638</label><input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="010-0000-0000" maxLength={13} className="w-full px-4 py-3 border rounded-lg text-lg" onKeyDown={(e) => e.key === 'Enter' && handlePhoneSubmit()} /><p className="mt-1 text-xs text-gray-500">\ud559\uc6d0\uc5d0 \ub4f1\ub85d\ub41c \uc804\ud654\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694</p></div><button onClick={handlePhoneSubmit} disabled={phoneLoading} className="w-full py-3 bg-blue-600 text-white rounded-lg disabled:bg-gray-400 font-medium">{phoneLoading ? '\ud655\uc778 \uc911...' : '\ub85c\uadf8\uc778'}</button></>}{phoneStep === 'SELECT' && <><p className="text-sm text-gray-600 mb-2">\ud559\uc0dd\uc744 \uc120\ud0dd\ud558\uace0 \uc774\ub984\uc744 \uc785\ub825\ud574\uc8fc\uc138\uc694</p><div className="space-y-2">{students.map((s: any) => <button key={s.id} onClick={() => { setSelectedStudent(s); setStudentName(''); }} className={'w-full p-3 border rounded-lg text-left ' + (selectedStudent?.id === s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200')}><div className="font-medium">{s.name}</div></button>)}</div>{selectedStudent && <input type="text" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="\ud559\uc0dd \uc804\uccb4 \uc774\ub984" className="w-full px-4 py-3 border rounded-lg mt-2" onKeyDown={(e) => e.key === 'Enter' && handleStudentLogin()} />}<div className="flex gap-2 mt-3"><button onClick={() => setPhoneStep('PHONE')} className="flex-1 py-3 border rounded-lg">\ub4a4\ub85c</button><button onClick={handleStudentLogin} disabled={!selectedStudent||!studentName.trim()||phoneLoading} className="flex-1 py-3 bg-blue-600 text-white rounded-lg disabled:bg-gray-400">{phoneLoading?'...':'\ub85c\uadf8\uc778'}</button></div></>}</div>}{loginTab === 'staff' && <div className="space-y-4"><button onClick={handleGoogleLogin} className="w-full flex items-center justify-center gap-3 px-4 py-3 border rounded-lg bg-white hover:bg-gray-50"><svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.12"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53"/></svg><span className="text-gray-700 font-medium">Google\ub85c \ub85c\uadf8\uc778</span></button><p className="text-center text-xs text-gray-500">\uc2b9\uc778\ub41c \uad6c\uae00 \uacc4\uc815\uc73c\ub85c\ub9cc \ub85c\uadf8\uc778</p></div>}</div></div>);
 }
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">로딩 중...</div>
-      </div>
-    }>
-      <LoginContent />
-    </Suspense>
-  );
-}
+export default function LoginPage() { return (<Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="text-gray-500">\ub85c\ub529 \uc911...</div></div>}><LoginContent /></Suspense>); }
