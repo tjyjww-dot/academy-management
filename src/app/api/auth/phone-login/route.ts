@@ -257,6 +257,15 @@ function createLoginResponse(token: string, user: any) {
     },
   });
 
+  // auth-token 쿠키 설정 (30일 유지 - 자동 로그인)
+  response.cookies.set('auth-token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60,
+    path: '/',
+  });
+
   response.headers.set('Access-Control-Allow-Origin', '*');
   response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   response.headers.set(
