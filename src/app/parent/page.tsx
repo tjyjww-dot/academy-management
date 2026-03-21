@@ -7,13 +7,12 @@ export default function ParentPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('report');
+  const [tab, setTab] = useState('homework');
   const [memos, setMemos] = useState<any[]>([]);
   const [newMemo, setNewMemo] = useState('');
   const [showCounselForm, setShowCounselForm] = useState(false);
   const [counselType, setCounselType] = useState('PHONE');
   const [counselDesc, setCounselDesc] = useState('');
-  const [expandedReport, setExpandedReport] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/parent/data')
@@ -29,14 +28,25 @@ export default function ParentPage() {
 
   const sendMemo = async () => {
     if (!newMemo.trim() || !data?.students?.[0]) return;
-    await fetch('/api/parent/memo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: data.students[0].id, content: newMemo }) });
+    await fetch('/api/parent/memo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId: data.students[0].id, content: newMemo })
+    });
     setNewMemo('');
     fetchMemos(data.students[0].id);
   };
 
   const submitCounsel = async () => {
     if (!data?.students?.[0]) return;
-    await fetch('/api/counseling', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId: data.students[0].id, title: counselType === 'PHONE' ? '전화상담 요청' : '방문상담 요청', description: counselDesc, counselingType: counselType }) });
+    await fetch('/api/counseling', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId: data.students[0].id,
+        title: counselType === 'PHONE' ? '전화상담 요청' : '방문상담 요청',
+        description: counselDesc,
+        counselingType: counselType
+      })
+    });
     alert('상담 요청이 접수되었습니다.');
     setShowCounselForm(false);
     setCounselDesc('');
@@ -66,12 +76,13 @@ export default function ParentPage() {
   const s = data.students?.[0];
 
   const tabs = [
-    {id:'report',label:'리포트',icon:'📋'},
+    {id:'homework',label:'숙제',icon:'📝'},
+    {id:'notice',label:'공지',icon:'📢'},
     {id:'grades',label:'성적',icon:'📊'},
     {id:'attendance',label:'출결',icon:'📅'},
     {id:'video',label:'수업영상',icon:'🎬'},
     {id:'counsel',label:'상담요청',icon:'💬'},
-    {id:'memo',label:'메모',icon:'📝'}
+    {id:'memo',label:'메모',icon:'💭'}
   ];
 
   // Chart rendering function
@@ -88,7 +99,6 @@ export default function ParentPage() {
     const getY = (val: number) => padT + chartH - (val / yMax) * chartH;
     const scoreLine = chartData.map((g: any, i: number) => `${i === 0 ? 'M' : 'L'}${getX(i)},${getY(g.score)}`).join(' ');
     const avgLine = chartData.filter((g: any) => g.classAverage != null).map((g: any, i: number) => `${i === 0 ? 'M' : 'L'}${getX(chartData.indexOf(g))},${getY(g.classAverage)}`).join(' ');
-
     return (
       <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm mb-4 overflow-x-auto">
         <div className="flex items-center justify-between mb-3">
@@ -124,7 +134,7 @@ export default function ParentPage() {
         <div className="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-lg font-bold" style={{background:'linear-gradient(to right,#2563eb,#4f46e5)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>수학탐구</h1>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{data.user.name} 학부모</span>
+            <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{data.user.name.replace(/\s*학부모\s*$/, '')} {data.user.role === 'PARENT' ? '학부모' : '학생'}</span>
             <button onClick={handleLogout} className="text-xs text-slate-400 hover:text-red-500 transition-colors px-2 py-1">로그아웃</button>
           </div>
         </div>
@@ -158,23 +168,51 @@ export default function ParentPage() {
 
       <div className="max-w-lg mx-auto px-4 py-4 pb-8">
 
-        {tab==='report'&&(<div className="space-y-3">
-          <h2 className="text-base font-bold text-slate-800 px-1">데일리 리포트</h2>
-          {data.dailyReports.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">최근 리포트가 없습니다.</p></div>):(
-            data.dailyReports.map((r:any)=>(
-              <div key={r.id} onClick={()=>setExpandedReport(expandedReport===r.id?null:r.id)} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer" style={{WebkitTapHighlightColor:'transparent'}}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"/><span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span></div>
+        {tab==='homework'&&(<div className="space-y-3">
+          <h2 className="text-base font-bold text-slate-800 px-1">숙제</h2>
+          {data.dailyReports.filter((r:any) => r.homework).length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">숙제가 없습니다.</p></div>
+          ):(
+            data.dailyReports.filter((r:any) => r.homework).map((r:any)=>(
+              <div key={r.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"/>
+                    <span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span>
+                  </div>
                   <span className="text-xs text-slate-400">{r.date}</span>
                 </div>
-                {expandedReport===r.id&&(
-                  <div className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
-                    {r.content&&(<div className="bg-slate-50 rounded-xl p-3"><p className="text-xs font-semibold text-blue-500 mb-1">수업진도</p><p className="text-sm text-slate-700 leading-relaxed">{r.content}</p></div>)}
-                    {r.homework&&(<div className="rounded-xl p-3" style={{background:'#fffbeb'}}><p className="text-xs font-semibold mb-1" style={{color:'#d97706'}}>숙제</p><p className="text-sm text-slate-700 font-medium leading-relaxed">{r.homework}</p></div>)}
-                    {r.specialNote&&(<div className="rounded-xl p-3" style={{background:'#fff1f2'}}><p className="text-xs font-semibold mb-1" style={{color:'#e11d48'}}>알림</p><p className="text-sm text-slate-700 leading-relaxed">{r.specialNote}</p></div>)}
+                <div className="rounded-xl p-3" style={{background:'#fffbeb'}}>
+                  <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{r.homework}</p>
+                </div>
+                {r.content && (
+                  <div className="mt-2 rounded-xl p-3 bg-slate-50">
+                    <p className="text-xs font-semibold text-blue-500 mb-1">수업진도</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{r.content}</p>
                   </div>
                 )}
-                {expandedReport!==r.id&&(r.content||r.homework||r.specialNote)&&(<p className="text-xs text-slate-400 mt-2">탭하여 상세보기 ›</p>)}
+              </div>
+            ))
+          )}
+        </div>)}
+
+        {tab==='notice'&&(<div className="space-y-3">
+          <h2 className="text-base font-bold text-slate-800 px-1">공지</h2>
+          {data.dailyReports.filter((r:any) => r.specialNote).length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">공지가 없습니다.</p></div>
+          ):(
+            data.dailyReports.filter((r:any) => r.specialNote).map((r:any)=>(
+              <div key={r.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"/>
+                    <span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span>
+                  </div>
+                  <span className="text-xs text-slate-400">{r.date}</span>
+                </div>
+                <div className="rounded-xl p-3" style={{background:'#fff1f2'}}>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{r.specialNote}</p>
+                </div>
               </div>
             ))
           )}
@@ -183,7 +221,9 @@ export default function ParentPage() {
         {tab==='grades'&&(<div className="space-y-4">
           <h2 className="text-base font-bold text-slate-800 px-1">성적</h2>
           {renderGradeChart()}
-          {data.grades.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">성적 기록이 없습니다.</p></div>):(
+          {data.grades.length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">성적 기록이 없습니다.</p></div>
+          ):(
             <div className="space-y-2">{data.grades.map((g:any)=>{const pct=g.maxScore>0?Math.round((g.score/g.maxScore)*100):0;return(
               <div key={g.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
@@ -199,7 +239,9 @@ export default function ParentPage() {
 
         {tab==='attendance'&&(<div className="space-y-4">
           <h2 className="text-base font-bold text-slate-800 px-1">출결</h2>
-          {data.attendance.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">출결 기록이 없습니다.</p></div>):(
+          {data.attendance.length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">출결 기록이 없습니다.</p></div>
+          ):(
             <div className="space-y-2">{data.attendance.map((a:any)=>(
               <div key={a.id} className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm flex justify-between items-center">
                 <div><p className="text-sm font-medium text-slate-700">{a.date}</p><p className="text-xs text-slate-400">{a.classroom?.subject?.name}</p></div>
@@ -214,7 +256,9 @@ export default function ParentPage() {
 
         {tab==='video'&&(<div className="space-y-3">
           <h2 className="text-base font-bold text-slate-800 px-1">수업 영상</h2>
-          {data.videos.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">영상이 없습니다.</p></div>):(
+          {data.videos.length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">영상이 없습니다.</p></div>
+          ):(
             data.videos.map((v:any)=>{const yi=getYtId(v.videoUrl);return(
               <div key={v.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
                 {yi?(<iframe className="w-full aspect-video" src={'https://www.youtube.com/embed/'+yi} allowFullScreen/>):(<a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="block p-4 text-blue-600 hover:bg-blue-50 transition-colors">🔗 {v.videoUrl}</a>)}
@@ -250,9 +294,12 @@ export default function ParentPage() {
         {tab==='memo'&&(<div className="space-y-3">
           <h2 className="text-base font-bold text-slate-800 px-1">메모</h2>
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3 max-h-96 overflow-y-auto">
-            {memos.length===0?(<div className="py-8 text-center"><p className="text-slate-400 text-sm">메모가 없습니다</p></div>):(
+            {memos.length===0?(
+              <div className="py-8 text-center"><p className="text-slate-400 text-sm">메모가 없습니다</p></div>
+            ):(
               memos.map((m:any)=>(
-                <div key={m.id} className={"px-4 py-3 rounded-2xl max-w-[85%] "+(m.isFromParent?'ml-auto text-white':'mr-auto text-slate-700')} style={m.isFromParent?{background:'linear-gradient(135deg,#3b82f6,#4f46e5)'}:{background:'#f1f5f9'}}>
+                <div key={m.id} className={"px-4 py-3 rounded-2xl max-w-[85%] "+(m.isFromParent?'ml-auto text-white':'mr-auto text-slate-700')}
+                  style={m.isFromParent?{background:'linear-gradient(135deg,#3b82f6,#4f46e5)'}:{background:'#f1f5f9'}}>
                   <p className="text-sm leading-relaxed">{m.content}</p>
                   <p className={"text-xs mt-1.5 "+(m.isFromParent?'opacity-70':'text-slate-400')}>{m.author?.name}</p>
                 </div>
