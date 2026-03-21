@@ -614,10 +614,10 @@ export default function StudentDetailPage() {
                     const w = chartW - pad.left - pad.right;
                     const h = chartH - pad.top - pad.bottom;
                     const maxVal = Math.max(...gradeStats.map((g: any) => Math.max(g.score, g.classAverage || 0)));
-                    const yMax = Math.ceil(maxVal / 10) * 10 || 100;
+                    const yMax = 100;
                     const xStep = w / (gradeStats.length - 1);
                     const sPts = gradeStats.map((g: any, i: number) => 
-                      `${pad.left + i * xStep},${pad.top + h - (g.score / yMax) * h}`
+                      `${pad.left + i * xStep},${pad.top + h - ((g.maxScore > 0 ? g.score / g.maxScore * 100 : g.score) / yMax) * h}`
                     );
                     const aPts = gradeStats.filter((g: any) => g.classAverage !== null).map((g: any) => {
                       const oi = gradeStats.indexOf(g);
@@ -629,7 +629,7 @@ export default function StudentDetailPage() {
                           {[0,25,50,75,100].map(pct => {
                             const val = Math.round(yMax * pct / 100);
                             const y = pad.top + h - (pct/100)*h;
-                            return (<g key={pct}><line x1={pad.left} y1={y} x2={pad.left+w} y2={y} stroke="#e5e7eb" strokeWidth="1"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="#6b7280" fontSize="11">{val}</text></g>);
+                            return (<g key={pct}><line x1={pad.left} y1={y} x2={pad.left+w} y2={y} stroke="#e5e7eb" strokeWidth="1"/><text x={pad.left-8} y={y+4} textAnchor="end" fill="#6b7280" fontSize="11">{val}%</text></g>);
                           })}
                           <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" points={sPts.join(' ')}/>
                           {sPts.map((pt: string, i: number) => {const [cx,cy]=pt.split(',').map(Number); return <circle key={`s${i}`} cx={cx} cy={cy} r="4" fill="#3b82f6" stroke="white" strokeWidth="2"/>;})}
