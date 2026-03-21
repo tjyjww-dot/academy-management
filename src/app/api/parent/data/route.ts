@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 async function getUser() {
   const cookieStore = await cookies();
-  const token = cookieStore.get('auth-token');
+  const token = cookieStore.get('auth-token') || cookieStore.get('auth-token-js');
   if (!token) return null;
   try {
     const payload = JSON.parse(Buffer.from(token.value.split('.')[1], 'base64').toString());
