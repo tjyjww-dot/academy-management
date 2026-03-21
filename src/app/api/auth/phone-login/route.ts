@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
 
     // 전화번호 정규화 (하이픈 제거)
     const normalizedPhone = phone.replace(/[-\s]/g, '');
+    // 하이픈 포함 형태도 만들기 (010-1234-5678)
+    const formattedPhone = normalizedPhone.length === 11 ? normalizedPhone.slice(0,3) + '-' + normalizedPhone.slice(3,7) + '-' + normalizedPhone.slice(7) : normalizedPhone;
 
     // ── Step 1: 전화번호로 학생 검색 ──
     if (!studentId) {
