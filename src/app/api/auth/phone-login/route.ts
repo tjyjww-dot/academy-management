@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       // 학생 본인 전화번호 매칭
       const studentsByPhone = await prisma.student.findMany({
         where: {
-          phone: normalizedPhone,
+          OR: [{ phone: normalizedPhone }, { phone: formattedPhone }],
           status: 'ACTIVE',
         },
         select: { id: true, name: true, school: true, grade: true, userId: true },
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       // 학부모 전화번호 매칭
       const studentsByParentPhone = await prisma.student.findMany({
         where: {
-          parentPhone: normalizedPhone,
+          OR: [{ parentPhone: normalizedPhone }, { parentPhone: formattedPhone }],
           status: 'ACTIVE',
         },
         select: { id: true, name: true, school: true, grade: true, userId: true },
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       // ── 학부모 로그인 ──
       // 기존 학부모 계정 찾기 (전화번호 기준)
       let user = await prisma.user.findFirst({
-        where: { phone: normalizedPhone, role: 'PARENT' },
+        where: { OR: [{ phone: normalizedPhone }, { phone: formattedPhone }], role: 'PARENT' },
       });
 
       if (!user) {
