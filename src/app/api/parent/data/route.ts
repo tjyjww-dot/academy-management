@@ -67,10 +67,10 @@ export async function GET(req: NextRequest) {
     const gradesWithAvg = await Promise.all(grades.map(async (g: any) => {
       const allGrades = await prisma.grade.findMany({
         where: { classroomId: g.classroomId, testName: g.testName, testDate: g.testDate },
-        select: { score: true }
+        select: { score: true, maxScore: true }
       });
       const avg = allGrades.length > 0
-        ? Math.round(allGrades.reduce((sum: number, gr: any) => sum + gr.score, 0) / allGrades.length * 10) / 10
+        ? Math.round(allGrades.reduce((sum: number, gr: any) => sum + (gr.score / (gr.maxScore || 100)) * 100, 0) / allGrades.length * 10) / 10
         : g.score;
       return { ...g, classAverage: avg };
     }));

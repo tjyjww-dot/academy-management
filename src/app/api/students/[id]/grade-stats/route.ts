@@ -24,7 +24,7 @@ export async function GET(
     const gradesWithAvg = await Promise.all(
       studentGrades.map(async (grade: any) => {
         const avgResult = await prisma.$queryRawUnsafe(`
-          SELECT AVG(score) as avg_score, COUNT(*) as student_count
+          SELECT AVG(score/"maxScore"*100) as avg_score, COUNT(*) as student_count
           FROM "Grade"
           WHERE "classroomId" = $1
             AND "testName" = $2
