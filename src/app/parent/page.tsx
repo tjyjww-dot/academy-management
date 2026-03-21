@@ -261,7 +261,7 @@ export default function ParentPage() {
           ):(
             data.videos.map((v:any)=>{const yi=getYtId(v.videoUrl);return(
               <div key={v.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
-                {yi?(<iframe className="w-full aspect-video" src={'https://www.youtube.com/embed/'+yi} allowFullScreen/>):(<a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="block p-4 text-blue-600 hover:bg-blue-50 transition-colors">🔗 {v.videoUrl}</a>)}
+                {yi?(<iframe className="w-full aspect-video" src={'https://www.youtube.com/embed/'+yi} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" style={{maxHeight:'100vh'}}/>):(<a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="block p-4 text-blue-600 hover:bg-blue-50 transition-colors">🔗 {v.videoUrl}</a>)}
                 <div className="p-4"><p className="font-semibold text-sm text-slate-700">{v.title}</p><p className="text-xs text-slate-400 mt-1">{v.date}</p></div>
               </div>
             );})
