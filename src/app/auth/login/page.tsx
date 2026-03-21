@@ -11,7 +11,7 @@ function LoginContent() {
   const [loginTab, setLoginTab] = useState<'parent' | 'staff'>('parent');
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const [phoneLoading, setPhoneLoading] = useState(false);h
+  const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneStep, setPhoneStep] = useState<'PHONE' | 'SELECT'>('PHONE');
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
