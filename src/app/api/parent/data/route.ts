@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
       include: { enrollments: { where: { status: 'ACTIVE' }, include: { classroom: { include: { subject: true, teacher: true } } } } },
     });
 
-    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const dailyReports = await prisma.dailyReport.findMany({
       where: { studentId: { in: studentIds }, date: { gte: sevenDaysAgo.toISOString().split('T')[0] } },
       include: { classroom: { include: { subject: true } } },
@@ -43,10 +44,24 @@ export async function GET(req: NextRequest) {
     const grades = await prisma.grade.findMany({
       where: { studentId: { in: studentIds } },
       include: { classroom: { include: { subject: true } } },
-      orderBy: { testDate: 'desc' }, take: 20,
+      orderBy: { testDate: 'desc' },
+      take: 20,
     });
 
-    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Calculate class averages for each grade
+    const gradesWithAvg = await Promise.all(grades.map(async (g: any) => {
+      const allGrades = await prisma.grade.findMany({
+        where: { classroomId: g.classroomId, testName: g.testName, testDate: g.testDate },
+        select: { score: true }
+      });
+      const avg = allGrades.length > 0
+        ? Math.round(allGrades.reduce((sum: number, gr: any) => sum + gr.score, 0) / allGrades.length * 10) / 10
+        : g.score;
+      return { ...g, classAverage: avg };
+    }));
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const attendance = await prisma.attendanceRecord.findMany({
       where: { studentId: { in: studentIds }, date: { gte: thirtyDaysAgo.toISOString().split('T')[0] } },
       include: { classroom: { include: { subject: true } } },
@@ -56,14 +71,15 @@ export async function GET(req: NextRequest) {
     const announcements = await prisma.announcement.findMany({ where: { isActive: true }, orderBy: { publishDate: 'desc' }, take: 5 });
 
     const classroomIds = students.flatMap(s => s.enrollments.map((e: any) => e.classroom.id));
-    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
     const videos = await prisma.lectureVideo.findMany({
       where: { classroomId: { in: classroomIds }, date: { gte: twoWeeksAgo.toISOString().split('T')[0] } },
       include: { classroom: { include: { subject: true } } },
       orderBy: { date: 'desc' },
     });
 
-    return NextResponse.json({ user: { id: user.id, name: user.name, role: user.role }, students, dailyReports, grades, attendance, announcements, videos });
+    return NextResponse.json({ user: { id: user.id, name: user.name, role: user.role }, students, dailyReports, grades: gradesWithAvg, attendance, announcements, videos });
   } catch (error) {
     console.error('Parent data error:', error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
