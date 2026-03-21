@@ -45,13 +45,13 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     const dailyReports = await prisma.dailyReport.findMany({
       where: {
         studentId: { in: studentIds },
-        date: { gte: thirtyDaysAgo.toISOString().split('T')[0] }
+        date: { gte: ninetyDaysAgo.toISOString().split('T')[0] }
       },
       include: { classroom: { include: { subject: true } } },
       orderBy: { date: 'desc' },
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     const attendance = await prisma.attendanceRecord.findMany({
       where: {
         studentId: { in: studentIds },
-        date: { gte: thirtyDaysAgo.toISOString().split('T')[0] }
+        date: { gte: ninetyDaysAgo.toISOString().split('T')[0] }
       },
       include: { classroom: { include: { subject: true } } },
       orderBy: { date: 'desc' },
