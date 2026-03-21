@@ -61,9 +61,62 @@ export default function ParentPage() {
       </div>
     </div>
   );
+
   if (!data) return null;
   const s = data.students?.[0];
-  const tabs = [{id:'report',label:'리포트',icon:'📋'},{id:'grades',label:'성적/출결',icon:'📊'},{id:'video',label:'수업영상',icon:'🎬'},{id:'counsel',label:'상담요청',icon:'💬'},{id:'memo',label:'메모',icon:'📝'}];
+
+  const tabs = [
+    {id:'report',label:'리포트',icon:'📋'},
+    {id:'grades',label:'성적',icon:'📊'},
+    {id:'attendance',label:'출결',icon:'📅'},
+    {id:'video',label:'수업영상',icon:'🎬'},
+    {id:'counsel',label:'상담요청',icon:'💬'},
+    {id:'memo',label:'메모',icon:'📝'}
+  ];
+
+  // Chart rendering function
+  const renderGradeChart = () => {
+    if (!data.grades || data.grades.length < 2) return null;
+    const chartData = [...data.grades].reverse();
+    const W = 600, H = 280;
+    const padL = 45, padR = 20, padT = 30, padB = 65;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const maxVal = Math.max(...chartData.map((g: any) => Math.max(g.score, g.classAverage || 0, g.maxScore || 0)));
+    const yMax = Math.ceil(maxVal / 10) * 10 || 100;
+    const getX = (i: number) => padL + (chartData.length === 1 ? chartW / 2 : (i / (chartData.length - 1)) * chartW);
+    const getY = (val: number) => padT + chartH - (val / yMax) * chartH;
+    const scoreLine = chartData.map((g: any, i: number) => `${i === 0 ? 'M' : 'L'}${getX(i)},${getY(g.score)}`).join(' ');
+    const avgLine = chartData.filter((g: any) => g.classAverage != null).map((g: any, i: number) => `${i === 0 ? 'M' : 'L'}${getX(chartData.indexOf(g))},${getY(g.classAverage)}`).join(' ');
+
+    return (
+      <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm mb-4 overflow-x-auto">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-slate-700">성적 추이</p>
+          <div className="flex items-center gap-4 text-xs text-slate-500">
+            <span className="flex items-center gap-1.5"><span style={{width:16,height:3,background:'#3b82f6',borderRadius:2,display:'inline-block'}}/>내 점수</span>
+            <span className="flex items-center gap-1.5"><span style={{width:16,height:0,borderTop:'2px dashed #fb923c',display:'inline-block'}}/>반 평균</span>
+          </div>
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{minWidth:350}}>
+          {[0,25,50,75,100].map(pct => {
+            const y = getY(yMax * pct / 100);
+            return <g key={pct}><line x1={padL} y1={y} x2={W-padR} y2={y} stroke="#f1f5f9" strokeWidth="1"/><text x={padL-8} y={y+4} textAnchor="end" fill="#94a3b8" fontSize="11">{Math.round(yMax*pct/100)}</text></g>;
+          })}
+          {avgLine && <path d={avgLine} fill="none" stroke="#fb923c" strokeWidth="2" strokeDasharray="6,3" opacity="0.7"/>}
+          <path d={scoreLine} fill="none" stroke="#3b82f6" strokeWidth="2.5"/>
+          {chartData.map((g: any, i: number) => (
+            <g key={i}>
+              <circle cx={getX(i)} cy={getY(g.score)} r="4" fill="#3b82f6"/>
+              {g.classAverage != null && <circle cx={getX(i)} cy={getY(g.classAverage)} r="3" fill="#fb923c" opacity="0.7"/>}
+              <text x={getX(i)} y={H-padB+16} textAnchor="middle" fill="#64748b" fontSize="9" transform={`rotate(-35,${getX(i)},${H-padB+16})`}>{g.testName?.length > 8 ? g.testName.substring(0,8)+'…' : g.testName}</text>
+              <text x={getX(i)} y={getY(g.score)-8} textAnchor="middle" fill="#3b82f6" fontSize="10" fontWeight="600">{g.score}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
@@ -94,7 +147,9 @@ export default function ParentPage() {
       <div className="max-w-lg mx-auto px-4 pt-4">
         <div className="flex gap-1.5 overflow-x-auto pb-1" style={{scrollbarWidth:'none',msOverflowStyle:'none'}}>
           {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} className={"flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 "+(tab===t.id?'text-white shadow-md':'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200/60')} style={tab===t.id?{background:'linear-gradient(135deg,#3b82f6,#4f46e5)',boxShadow:'0 4px 12px rgba(59,130,246,0.25)'}:{}}>
+            <button key={t.id} onClick={()=>setTab(t.id)}
+              className={"flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 "+(tab===t.id?'text-white shadow-md':'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200/60')}
+              style={tab===t.id?{background:'linear-gradient(135deg,#3b82f6,#4f46e5)',boxShadow:'0 4px 12px rgba(59,130,246,0.25)'}:{}}>
               <span className="mr-1.5">{t.icon}</span>{t.label}
             </button>
           ))}
@@ -102,16 +157,14 @@ export default function ParentPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-4 pb-8">
+
         {tab==='report'&&(<div className="space-y-3">
           <h2 className="text-base font-bold text-slate-800 px-1">데일리 리포트</h2>
           {data.dailyReports.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">최근 리포트가 없습니다.</p></div>):(
             data.dailyReports.map((r:any)=>(
               <div key={r.id} onClick={()=>setExpandedReport(expandedReport===r.id?null:r.id)} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer" style={{WebkitTapHighlightColor:'transparent'}}>
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"/>
-                    <span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span>
-                  </div>
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"/><span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span></div>
                   <span className="text-xs text-slate-400">{r.date}</span>
                 </div>
                 {expandedReport===r.id&&(
@@ -127,34 +180,36 @@ export default function ParentPage() {
           )}
         </div>)}
 
-        {tab==='grades'&&(<div className="space-y-6">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 px-1 mb-3">성적</h2>
-            {data.grades.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">성적 기록이 없습니다.</p></div>):(
-              <div className="space-y-2">{data.grades.map((g:any)=>{const pct=g.maxScore>0?Math.round((g.score/g.maxScore)*100):0;return(
-                <div key={g.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                  <div className="flex justify-between items-start mb-2">
-                    <div><p className="text-sm font-semibold text-slate-700">{g.testName}</p><p className="text-xs text-slate-400 mt-0.5">{g.testDate}</p></div>
-                    <p className="text-xl font-bold text-blue-600">{g.score}<span className="text-sm text-slate-400 font-normal">/{g.maxScore}</span></p>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500" style={{width:pct+'%',background:pct>=80?'linear-gradient(to right,#4ade80,#10b981)':pct>=60?'linear-gradient(to right,#60a5fa,#3b82f6)':pct>=40?'linear-gradient(to right,#fbbf24,#f59e0b)':'linear-gradient(to right,#f87171,#ef4444)'}}/>
-                  </div>
+        {tab==='grades'&&(<div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-800 px-1">성적</h2>
+          {renderGradeChart()}
+          {data.grades.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">성적 기록이 없습니다.</p></div>):(
+            <div className="space-y-2">{data.grades.map((g:any)=>{const pct=g.maxScore>0?Math.round((g.score/g.maxScore)*100):0;return(
+              <div key={g.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div><p className="text-sm font-semibold text-slate-700">{g.testName}</p><p className="text-xs text-slate-400 mt-0.5">{g.testDate}{g.classAverage != null && <span className="ml-2 text-orange-500">반평균 {g.classAverage}점</span>}</p></div>
+                  <p className="text-xl font-bold text-blue-600">{g.score}<span className="text-sm text-slate-400 font-normal">/{g.maxScore}</span></p>
                 </div>
-              );})}</div>
-            )}
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-slate-800 px-1 mb-3">출결</h2>
-            {data.attendance.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">출결 기록이 없습니다.</p></div>):(
-              <div className="space-y-2">{data.attendance.map((a:any)=>(
-                <div key={a.id} className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm flex justify-between items-center">
-                  <div><p className="text-sm font-medium text-slate-700">{a.date}</p><p className="text-xs text-slate-400">{a.classroom?.subject?.name}</p></div>
-                  <span className={"px-3 py-1 rounded-full text-xs font-semibold "+(a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-600')} style={a.status==='PRESENT'?{boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'}:a.status==='ABSENT'?{boxShadow:'inset 0 0 0 1px rgba(239,68,68,0.2)'}:{background:'#fffbeb',color:'#d97706',boxShadow:'inset 0 0 0 1px rgba(217,119,6,0.2)'}}>{a.status==='PRESENT'?'출석':a.status==='ABSENT'?'결석':'지각'}</span>
-                </div>
-              ))}</div>
-            )}
-          </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500" style={{width:pct+'%',background:pct>=80?'linear-gradient(to right,#4ade80,#10b981)':pct>=60?'linear-gradient(to right,#60a5fa,#3b82f6)':pct>=40?'linear-gradient(to right,#fbbf24,#f59e0b)':'linear-gradient(to right,#f87171,#ef4444)'}}/></div>
+              </div>
+            );})}</div>
+          )}
+        </div>)}
+
+        {tab==='attendance'&&(<div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-800 px-1">출결</h2>
+          {data.attendance.length===0?(<div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">출결 기록이 없습니다.</p></div>):(
+            <div className="space-y-2">{data.attendance.map((a:any)=>(
+              <div key={a.id} className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm flex justify-between items-center">
+                <div><p className="text-sm font-medium text-slate-700">{a.date}</p><p className="text-xs text-slate-400">{a.classroom?.subject?.name}</p></div>
+                <span className={"px-3 py-1 rounded-full text-xs font-semibold "+(a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-600')}
+                  style={a.status==='PRESENT'?{boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'}:a.status==='ABSENT'?{boxShadow:'inset 0 0 0 1px rgba(239,68,68,0.2)'}:{background:'#fffbeb',color:'#d97706',boxShadow:'inset 0 0 0 1px rgba(217,119,6,0.2)'}}>
+                  {a.status==='PRESENT'?'출석':a.status==='ABSENT'?'결석':'지각'}
+                </span>
+              </div>
+            ))}</div>
+          )}
         </div>)}
 
         {tab==='video'&&(<div className="space-y-3">
