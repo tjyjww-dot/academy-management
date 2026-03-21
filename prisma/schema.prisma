@@ -25,6 +25,7 @@ model User {
   counselingRequests CounselingRequest[]
   pushTokens         PushToken[]
   studentProfile     Student?           // 학생 역할인 경우 Student와 연결
+  memos           Memo[]   @relation("memoAuthor")
 }
 
 model Student {
@@ -53,6 +54,7 @@ model Student {
   attendanceRecords     AttendanceRecord[]
   assignmentSubmissions AssignmentSubmission[]
   counselingRequests    CounselingRequest[]
+  memos              Memo[]
   payments              Payment[]
   dailyReports          DailyReport[]
 }
