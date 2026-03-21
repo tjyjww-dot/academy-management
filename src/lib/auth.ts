@@ -48,6 +48,6 @@ export function verifyToken(token: string): TokenPayload | null {
  * Extract the auth token from request cookies
  */
 export function getTokenFromCookies(request: NextRequest): string | null {
-  const token = request.cookies.get('auth-token')?.value;
+  const token = request.cookies.get('auth-token')?.value || request.cookies.get('auth-token-js')?.value;
   return token || null;
 }
