@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTokenFromCookies, verifyToken } from './lib/auth';
+function decodeToken(token: string) { try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp && payload.exp * 1000 < Date.now()) return null; return payload; } catch { return null; } }
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Get token from cookies
-  const token = getTokenFromCookies(request);
+  const token = request.cookies.get('auth-token-js')?.value || request.cookies.get('auth-token')?.value;
 
   // Protect /admin/* routes
   if (pathname.startsWith('/admin')) {
@@ -27,7 +27,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
 
-    const decoded = verifyToken(token);
+    const decoded = decodeToken(token);
     if (!decoded) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
@@ -41,7 +41,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
 
-    const decoded = verifyToken(token);
+    const decoded = decodeToken(token);
     if (!decoded || decoded.role !== 'PARENT') {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
