@@ -312,3 +312,18 @@ model PushToken {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+
+// ── 메모 (학부모/학생 ↔ 강사 소통) ──
+model Memo {
+  id        String   @id @default(cuid())
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  author    User     @relation("memoAuthor", fields: [authorId], references: [id])
+  authorId  String
+  content   String
+  isFromParent Boolean @default(true) // true: 학부모/학생 작성, false: 강사 답변
+  parentMemoId String? // 답변인 경우 원본 메모 ID
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
