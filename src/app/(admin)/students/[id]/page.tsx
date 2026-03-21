@@ -55,6 +55,12 @@ export default function StudentDetailPage() {
   const [counselingForm, setCounselingForm] = useState({ title: '', description: '', counselingType: 'PHONE' });
   const [editingCounselingId, setEditingCounselingId] = useState<string | null>(null);
   const [editCounselingForm, setEditCounselingForm] = useState({ title: '', description: '', counselingType: 'PHONE' });
+  const formatPhoneNumber = (value: string) => {
+    const nums = value.replace(/[^0-9]/g, '');
+    if (nums.length <= 3) return nums;
+    if (nums.length <= 7) return nums.slice(0,3) + '-' + nums.slice(3);
+    return nums.slice(0,3) + '-' + nums.slice(3,7) + '-' + nums.slice(7,11);
+  };
   const [attendanceMonth, setAttendanceMonth] = useState(() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); });
 
   const fetchStudent = async () => {
