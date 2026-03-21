@@ -46,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       prisma.dailyReport.findMany({ where: { classroomId, date } }),
     ]);
 
-    // 이전 날짜의 DailyReport에서 숙제 가져오기 (중복 제거)
+    // ì´ì  ë ì§ì DailyReportìì ìì  ê°ì ¸ì¤ê¸° (ì¤ë³µ ì ê±°)
     const prevDailyHomework = await prisma.dailyReport.findMany({
       where: {
         classroomId,
@@ -59,11 +59,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       select: { date: true, homework: true },
     });
 
-    // DailyReport 숙제를 이전 과제 형식으로 변환하여 prevAssignments에 병합
+    // DailyReport ìì ë¥¼ ì´ì  ê³¼ì  íìì¼ë¡ ë³ííì¬ prevAssignmentsì ë³í©
     const homeworkAsAssignments = prevDailyHomework
       .filter((dr: any) => dr.homework && dr.homework.trim() !== '')
       .reduce((acc: any[], dr: any) => {
-        // 같은 날짜의 숙제가 여러 개일 수 있으므로 날짜별로 중복 제거
+        // ê°ì ë ì§ì ìì ê° ì¬ë¬ ê°ì¼ ì ìì¼ë¯ë¡ ë ì§ë³ë¡ ì¤ë³µ ì ê±°
         if (!acc.find((a: any) => a.assignmentDate === dr.date && a.title === dr.homework)) {
           acc.push({
             id: 'hw-' + dr.date,
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         return acc;
       }, []);
 
-    // Assignment와 DailyReport 숙제를 합친 후 날짜순 정렬
+    // Assignmentì DailyReport ìì ë¥¼ í©ì¹ í ë ì§ì ì ë ¬
     const allPrevItems = [...prevAssignments.map((a: any) => ({
       id: a.id,
       assignmentDate: a.assignmentDate,
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     let prevAssignmentForHomework = '';
     const todayHasHomework = dailyReports.some((dr) => dr.homework && dr.homework.trim() !== '');
     if (!todayHasHomework) {
-      // 먼저 가장 최근 DailyReport의 숙제를 확인
+      // ë¨¼ì  ê°ì¥ ìµê·¼ DailyReportì ìì ë¥¼ íì¸
       const latestPrevHomework = await prisma.dailyReport.findFirst({
         where: { classroomId, date: { lt: date }, homework: { not: '' } },
         orderBy: { date: 'desc' },
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (latestPrevHomework && latestPrevHomework.homework?.trim()) {
         prevAssignmentForHomework = latestPrevHomework.homework;
       } else {
-        // DailyReport에 없으면 Assignment에서 가져오기
+        // DailyReportì ìì¼ë©´ Assignmentìì ê°ì ¸ì¤ê¸°
         const latestPrevAssignment = await prisma.assignment.findFirst({
           where: { classroomId, assignmentDate: { lt: date } },
           orderBy: { assignmentDate: 'desc' },
@@ -125,6 +125,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: classroomId } = await params;
   const body = await req.json();
   const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, perStudentProgress, sendPushNotification } = body;
+
+  // If this is only a push notification request (e.g., from copyReport), skip data saving
+  if (sendPushNotification && !attendanceData && !gradesData && !assignmentGrades && !videoData && !progressNote && !homework && !announcement && !perStudentHomework && !perStudentProgress) {
+    try {
+      const { studentId: pushStudentId } = sendPushNotification;
+      const parentLinks = await prisma.parentStudent.findMany({
+        where: { studentId: pushStudentId },
+        include: { parent: { include: { pushTokens: { where: { isActive: true } } } } },
+      });
+      const tokens = parentLinks.flatMap(pl => pl.parent.pushTokens.map(pt => pt.token));
+      if (tokens.length > 0) {
+        const messages = tokens.map(t => ({
+          to: t,
+          sound: 'default',
+          title: 'Daily Report',
+          body: sendPushNotification.studentName + ' daily report is ready.',
+          data: { type: 'DAILY_REPORT', studentId: pushStudentId, date },
+        }));
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
+          body: JSON.stringify(messages),
+        });
+      }
+    } catch (pushErr) {
+      console.error('Push notification error (non-fatal):', pushErr);
+    }
+    return NextResponse.json({ success: true });
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
