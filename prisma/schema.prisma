@@ -10,13 +10,13 @@ datasource db {
 model User {
   id         String   @id @default(cuid())
   email      String   @unique
-  password   String?  // Google OAuth 사용자는 비밀번호 없음
+  password   String?  // Google OAuth ì¬ì©ìë ë¹ë°ë²í¸ ìì
   name       String   @default("")
   role       String   @default("TEACHER") // ADMIN, TEACHER, DESK, PARENT, STUDENT
   phone      String?
-  image      String?  // 프로필 이미지 (Google 프로필)
+  image      String?  // íë¡í ì´ë¯¸ì§ (Google íë¡í)
   provider   String   @default("email") // email, google
-  isApproved Boolean  @default(false) // 관리자 승인 여부 (Google 가입 사용자)
+  isApproved Boolean  @default(false) // ê´ë¦¬ì ì¹ì¸ ì¬ë¶ (Google ê°ì ì¬ì©ì)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -25,7 +25,7 @@ model User {
   counselingRequests CounselingRequest[]
   pushTokens         PushToken[]
   webPushSubscriptions WebPushSubscription[]
-  studentProfile     Student?           // 학생 역할인 경우 Student와 연결
+  studentProfile     Student?           // íì ì­í ì¸ ê²½ì° Studentì ì°ê²°
   memos           Memo[]   @relation("memoAuthor")
 }
 
@@ -35,17 +35,17 @@ model Student {
   name             String
   dateOfBirth      String?
   phone            String?
-  parentPhone      String?  // 학부모 연락처 (앱 로그인용)
+  parentPhone      String?  // íë¶ëª¨ ì°ë½ì² (ì± ë¡ê·¸ì¸ì©)
   school           String?
   grade            String?
   status             String   @default("ACTIVE")
-  withdrawalReason   String?  // 퇴원 사유
-  withdrawalDate     DateTime? // 퇴원 일자
+  withdrawalReason   String?  // í´ì ì¬ì 
+  withdrawalDate     DateTime? // í´ì ì¼ì
   registrationDate   DateTime @default(now())
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  // 학생 로그인 연결 (선택적 - 학생도 앱에 로그인 가능)
+  // íì ë¡ê·¸ì¸ ì°ê²° (ì íì  - íìë ì±ì ë¡ê·¸ì¸ ê°ë¥)
   user   User?   @relation(fields: [userId], references: [id])
   userId String? @unique
 
@@ -66,7 +66,7 @@ model ParentStudent {
   parentId  String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
-  relation  String  @default("부모")
+  relation  String  @default("ë¶ëª¨")
 
   @@unique([parentId, studentId])
 }
@@ -181,8 +181,8 @@ model CounselingRequest {
   studentId       String
   title           String
   description     String?
-  counselingType  String   @default("PHONE") // PHONE(전화상담), VISIT(방문상담)
-  visitMessage    String?  // 방문상담 시 전달사항
+  counselingType  String   @default("PHONE") // PHONE(ì íìë´), VISIT(ë°©ë¬¸ìë´)
+  visitMessage    String?  // ë°©ë¬¸ìë´ ì ì ë¬ì¬í­
   preferredDate   String?
   status          String   @default("PENDING")
   adminNotes      String?
@@ -214,9 +214,9 @@ model EntranceTest {
   testTime    String
   status      String   @default("SCHEDULED")
   notes       String?
-  priorLevel      String?  // 선행정도
-  testScore       String?  // 테스트 점수
-  counselingNotes String?  // 상담내용
+  priorLevel      String?  // ì íì ë
+  testScore       String?  // íì¤í¸ ì ì
+  counselingNotes String?  // ìë´ë´ì©
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -225,18 +225,18 @@ model Payment {
   id            String   @id @default(cuid())
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId     String
-  yearMonth     String   // "2026-02" 형식
-  tuitionFee    Int      @default(0) // 수강료
-  specialFee    Int      @default(0) // 특강비
-  otherFee      Int      @default(0) // 기타비용
-  totalFee      Int      @default(0) // 총액 (자동 계산)
-  remarks       String?  // 비고
+  yearMonth     String   // "2026-02" íì
+  tuitionFee    Int      @default(0) // ìê°ë£
+  specialFee    Int      @default(0) // í¹ê°ë¹
+  otherFee      Int      @default(0) // ê¸°íë¹ì©
+  totalFee      Int      @default(0) // ì´ì¡ (ìë ê³ì°)
+  remarks       String?  // ë¹ê³ 
   status        String   @default("PENDING") // PENDING, INPUT_DONE, SENT, PAID
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
-// ── 데일리 리포트 (선생님이 학생별로 매일 작성) ──
+// ââ ë°ì¼ë¦¬ ë¦¬í¬í¸ (ì ìëì´ íìë³ë¡ ë§¤ì¼ ìì±) ââ
 model DailyReport {
   id          String    @id @default(cuid())
   student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -244,67 +244,67 @@ model DailyReport {
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId String
   date        String    // "2026-02-26"
-  content     String    // 오늘의 학습 내용
-  homework    String?   // 숙제/과제 안내
-  attitude    String?   // 학습 태도 (EXCELLENT, GOOD, NORMAL, NEEDS_IMPROVEMENT)
-  specialNote String?   // 특이사항
+  content     String    // ì¤ëì íìµ ë´ì©
+  homework    String?   // ìì /ê³¼ì  ìë´
+  attitude    String?   // íìµ íë (EXCELLENT, GOOD, NORMAL, NEEDS_IMPROVEMENT)
+  specialNote String?   // í¹ì´ì¬í­
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@unique([studentId, classroomId, date])
 }
 
-// ── 강의 영상/링크 (반별 강의 자료) ──
+// ââ ê°ì ìì/ë§í¬ (ë°ë³ ê°ì ìë£) ââ
 model LectureVideo {
   id          String    @id @default(cuid())
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId String
   title       String
   description String?
-  videoUrl    String    // YouTube, Vimeo 등 영상 URL
+  videoUrl    String    // YouTube, Vimeo ë± ìì URL
   videoType   String    @default("YOUTUBE") // YOUTUBE, VIMEO, DIRECT, LINK
-  duration    String?   // "45:00" 형식
-  date        String    // 강의 날짜
+  duration    String?   // "45:00" íì
+  date        String    // ê°ì ë ì§
   isPublished Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
-// ── 가입신청 (학부모/학생 앱 또는 외부 신청) ──
+// ââ ê°ìì ì²­ (íë¶ëª¨/íì ì± ëë ì¸ë¶ ì ì²­) ââ
 model SignupRequest {
   id           String   @id @default(cuid())
-  studentName  String   // 학생 이름
-  school       String?  // 학교
-  grade        String?  // 학년
-  parentName   String?  // 학부모 이름
-  parentPhone  String   // 학부모 연락처
-  studentPhone String?  // 학생 연락처
-  message      String?  // 상담 요청사항 / 메모
-  status       String   @default("PENDING") // PENDING(대기), APPROVED(승인), REJECTED(거절)
-  adminNotes   String?  // 관리자 메모
+  studentName  String   // íì ì´ë¦
+  school       String?  // íêµ
+  grade        String?  // íë
+  parentName   String?  // íë¶ëª¨ ì´ë¦
+  parentPhone  String   // íë¶ëª¨ ì°ë½ì²
+  studentPhone String?  // íì ì°ë½ì²
+  message      String?  // ìë´ ìì²­ì¬í­ / ë©ëª¨
+  status       String   @default("PENDING") // PENDING(ëê¸°), APPROVED(ì¹ì¸), REJECTED(ê±°ì )
+  adminNotes   String?  // ê´ë¦¬ì ë©ëª¨
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
-// ── 업무 요청사항 (대시보드) ──
+// ââ ìë¬´ ìì²­ì¬í­ (ëìë³´ë) ââ
 model TaskRequest {
   id          String   @id @default(cuid())
-  title       String   // 요청 내용
-  description String?  // 상세 설명
-  createdBy   String   // 요청자 ID
-  createdByName String @default("") // 요청자 이름
-  targetRole  String   // TEACHER, DESK, ADMIN (대상 역할)
-  assigneeId  String?  // 특정 담당자 ID (선택)
-  targetUserId  String?  // 요청 대상 사용자 ID
-  targetUserName String? // 요청 대상 사용자 이름
+  title       String   // ìì²­ ë´ì©
+  description String?  // ìì¸ ì¤ëª
+  createdBy   String   // ìì²­ì ID
+  createdByName String @default("") // ìì²­ì ì´ë¦
+  targetRole  String   // TEACHER, DESK, ADMIN (ëì ì­í )
+  assigneeId  String?  // í¹ì  ë´ë¹ì ID (ì í)
+  targetUserId  String?  // ìì²­ ëì ì¬ì©ì ID
+  targetUserName String? // ìì²­ ëì ì¬ì©ì ì´ë¦
   isCompleted Boolean  @default(false)
-  completedBy String?  // 완료 처리한 사람 ID
-  completedAt DateTime? // 완료 시간
+  completedBy String?  // ìë£ ì²ë¦¬í ì¬ë ID
+  completedAt DateTime? // ìë£ ìê°
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-// ── 푸시 알림 토큰 (Expo Push Token) ──
+// ââ í¸ì ìë¦¼ í í° (Expo Push Token) ââ
 model PushToken {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -316,7 +316,7 @@ model PushToken {
   updatedAt DateTime @updatedAt
 }
 
-// —— 웹 푸시 구독 (PWA 웹 푸시 알림용) ——
+// ââ ì¹ í¸ì êµ¬ë (PWA ì¹ í¸ì ìë¦¼ì©) ââ
 model WebPushSubscription {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -330,7 +330,7 @@ model WebPushSubscription {
 }
 
 
-// ── 메모 (학부모/학생 ↔ 강사 소통) ──
+// ââ ë©ëª¨ (íë¶ëª¨/íì â ê°ì¬ ìíµ) ââ
 model Memo {
   id        String   @id @default(cuid())
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -338,8 +338,10 @@ model Memo {
   author    User     @relation("memoAuthor", fields: [authorId], references: [id])
   authorId  String
   content   String
-  isFromParent Boolean @default(true) // true: 학부모/학생 작성, false: 강사 답변
-  parentMemoId String? // 답변인 경우 원본 메모 ID
+  isFromParent Boolean @default(true) // true: íë¶ëª¨/íì ìì±, false: ê°ì¬ ëµë³
+  parentMemoId String? // ëµë³ì¸ ê²½ì° ìë³¸ ë©ëª¨ ID
   createdAt DateTime @default(now())
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
   updatedAt DateTime @updatedAt
 }

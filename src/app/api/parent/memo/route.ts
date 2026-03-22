@@ -35,5 +35,17 @@ export async function POST(req: NextRequest) {
     data: { studentId, authorId: user.id, content, isFromParent, parentMemoId: parentMemoId || null },
     include: { author: { select: { name: true, role: true } } },
   });
+
+    // Create CounselingRequest record
+    await prisma.counselingRequest.create({
+      data: {
+        studentId: studentId,
+        parentId: session.user.id,
+        type: 'MEMO',
+        status: 'COMPLETED',
+        content: content,
+        resolvedAt: new Date(),
+      },
+    });
   return NextResponse.json(memo);
 }

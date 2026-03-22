@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import UnreadMemoPopup from '@/components/UnreadMemoPopup';
 
 interface User {
   id: string;
@@ -12,20 +13,20 @@ interface User {
 }
 
 const navLinks = [
-  { href: '/dashboard', label: '대시보드', icon: 'dashboard' },
-  { href: '/entrance-test', label: '입학테스트 예약', icon: 'entrance' },
-  { href: '/students', label: '원생관리', icon: 'students' },
-  { href: '/classes', label: '반관리', icon: 'classrooms' },
-  { href: '/attendance', label: '출결관리', icon: 'attendance' },
-  { href: '/payments', label: '수강료 수납', icon: 'payments' },
-  { href: '/announcements', label: '공지관리', icon: 'announcements' },
-  { href: '/requests', label: '요청사항', icon: 'requests' },
+  { href: '/dashboard', label: 'ëìë³´ë', icon: 'dashboard' },
+  { href: '/entrance-test', label: 'ìííì¤í¸ ìì½', icon: 'entrance' },
+  { href: '/students', label: 'ììê´ë¦¬', icon: 'students' },
+  { href: '/classes', label: 'ë°ê´ë¦¬', icon: 'classrooms' },
+  { href: '/attendance', label: 'ì¶ê²°ê´ë¦¬', icon: 'attendance' },
+  { href: '/payments', label: 'ìê°ë£ ìë©', icon: 'payments' },
+  { href: '/announcements', label: 'ê³µì§ê´ë¦¬', icon: 'announcements' },
+  { href: '/requests', label: 'ìì²­ì¬í­', icon: 'requests' },
 ];
 
-// 관리자 전용 메뉴
+// ê´ë¦¬ì ì ì© ë©ë´
 const adminOnlyLinks = [
-  { href: '/signup-requests', label: '가입신청 관리', icon: 'signup' },
-    { href: '/backup', label: '데이터 백업', icon: 'backup' },
+  { href: '/signup-requests', label: 'ê°ìì ì²­ ê´ë¦¬', icon: 'signup' },
+    { href: '/backup', label: 'ë°ì´í° ë°±ì', icon: 'backup' },
 ];
 
 function getIcon(name: string) {
@@ -164,7 +165,7 @@ export default function AdminLayout({
               ></path>
             </svg>
           </div>
-          <p className="mt-4 text-gray-600">로딩 중...</p>
+          <p className="mt-4 text-gray-600">ë¡ë© ì¤...</p>
         </div>
       </div>
     );
@@ -189,7 +190,7 @@ export default function AdminLayout({
         <div className="flex flex-col h-full">
           {/* Logo/Title */}
           <div className="px-6 py-6 border-b border-gray-800">
-            <h2 className="text-2xl font-bold">수학탐구</h2>
+            <h2 className="text-2xl font-bold">ìííêµ¬</h2>
           </div>
 
           {/* Navigation Links */}
@@ -213,7 +214,7 @@ export default function AdminLayout({
               );
             })}
 
-            {/* 관리자 전용 메뉴 */}
+            {/* ê´ë¦¬ì ì ì© ë©ë´ */}
             {user?.role === 'ADMIN' && (
               <>
                 <div className="border-t border-gray-700 my-3"></div>
@@ -257,7 +258,7 @@ export default function AdminLayout({
                   d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                 />
               </svg>
-              <span className="font-medium">로그아웃</span>
+              <span className="font-medium">ë¡ê·¸ìì</span>
             </button>
           </div>
         </div>
@@ -305,6 +306,7 @@ export default function AdminLayout({
 
         {/* Page Content */}
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
+          <UnreadMemoPopup />
           {children}
         </main>
       </div>
