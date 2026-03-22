@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getTokenFromCookies, verifyToken } from '@/lib/auth';
+import { sendWebPushToStudent } from '@/lib/web-push-notification';
 
 export async function GET(request: NextRequest) {
   try {
@@ -76,6 +77,19 @@ export async function POST(request: NextRequest) {
         })
       )
     );
+
+    // 웹 푸시 알림 발송
+    try {
+      for (const grade of createdGrades) {
+        const pct = grade.maxScore > 0 ? Math.round((grade.score / grade.maxScore) * 100) : 0;
+        sendWebPushToStudent(
+          grade.studentId,
+          '성적 알림',
+          `${grade.student?.name || '학생'}의 성적이 등록되었습니다. (${grade.score}/${grade.maxScore}, ${pct}점)`,
+          '/parent'
+        ).catch(e => console.error('Push error:', e));
+      }
+    } catch (e) { console.error('Grades push error:', e); }
 
     return NextResponse.json(createdGrades);
   } catch (error) {

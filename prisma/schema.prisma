@@ -24,6 +24,7 @@ model User {
   parentStudents     ParentStudent[]
   counselingRequests CounselingRequest[]
   pushTokens         PushToken[]
+  webPushSubscriptions WebPushSubscription[]
   studentProfile     Student?           // 학생 역할인 경우 Student와 연결
   memos           Memo[]   @relation("memoAuthor")
 }
@@ -310,6 +311,19 @@ model PushToken {
   userId    String
   token     String   @unique // Expo Push Token
   platform  String   @default("unknown") // ios, android
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// —— 웹 푸시 구독 (PWA 웹 푸시 알림용) ——
+model WebPushSubscription {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

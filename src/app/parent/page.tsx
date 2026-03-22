@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import PushNotificationManager from '@/components/PushNotificationManager';
 
 export default function ParentPage() {
   const router = useRouter();
@@ -313,6 +314,7 @@ export default function ParentPage() {
         </div>)}
 
       </div>
+      <PushNotificationManager />
     </div>
   );
 }

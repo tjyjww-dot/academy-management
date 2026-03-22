@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getTokenFromCookies, verifyToken } from '@/lib/auth';
+import { sendWebPushToStudent } from '@/lib/web-push-notification';
 
 export async function GET(request: NextRequest) {
   try {
@@ -85,6 +86,20 @@ export async function POST(request: NextRequest) {
         })
       )
     );
+
+    // 웹 푸시 알림 발송 (비동기, 실패해도 출결 저장에 영향 없음)
+    try {
+      const statusMap: Record<string, string> = { PRESENT: '출석', ABSENT: '결석', LATE: '지각' };
+      for (const record of createdRecords) {
+        const statusText = statusMap[record.status] || record.status;
+        sendWebPushToStudent(
+          record.studentId,
+          '출결 알림',
+          `${record.student?.name || '학생'}의 출결이 ${statusText}(으)로 기록되었습니다.`,
+          '/parent'
+        ).catch(e => console.error('Push error:', e));
+      }
+    } catch (e) { console.error('Attendance push error:', e); }
 
     return NextResponse.json(createdRecords);
   } catch (error) {
