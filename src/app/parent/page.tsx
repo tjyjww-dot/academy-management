@@ -100,7 +100,7 @@ export default function ParentPage() {
     const scoreLine = chartData.map((g: any, i: number) => `${i === 0 ? 'M' : 'L'}${getX(i)},${getY(g.maxScore > 0 ? g.score / g.maxScore * 100 : g.score)}`).join(' ');
     const avgLine = chartData.filter((g: any) => g.classAverage != null).map((g: any, i: number) => `${i === 0 ? 'M' : 'L'}${getX(chartData.indexOf(g))},${getY(g.classAverage)}`).join(' ');
     return (
-      <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm mb-4 overflow-x-auto">
+      <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm mb-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-slate-700">성적 추이</p>
           <div className="flex items-center gap-4 text-xs text-slate-500">
@@ -108,7 +108,7 @@ export default function ParentPage() {
             <span className="flex items-center gap-1.5"><span style={{width:16,height:0,borderTop:'2px dashed #fb923c',display:'inline-block'}}/>반 평균</span>
           </div>
         </div>
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{minWidth:350}}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
           {[0,25,50,75,100].map(pct => {
             const y = getY(yMax * pct / 100);
             return <g key={pct}><line x1={padL} y1={y} x2={W-padR} y2={y} stroke="#f1f5f9" strokeWidth="1"/><text x={padL-8} y={y+4} textAnchor="end" fill="#94a3b8" fontSize="11">{Math.round(yMax*pct/100)}%</text></g>;
@@ -119,7 +119,7 @@ export default function ParentPage() {
             <g key={i}>
               <circle cx={getX(i)} cy={getY(g.maxScore > 0 ? g.score / g.maxScore * 100 : g.score)} r="4" fill="#3b82f6"/>
               {g.classAverage != null && <circle cx={getX(i)} cy={getY(g.classAverage)} r="3" fill="#fb923c" opacity="0.7"/>}
-              <text x={getX(i)} y={H-padB+16} textAnchor="middle" fill="#64748b" fontSize="9" transform={`rotate(-35,${getX(i)},${H-padB+16})`}>{g.testName?.length > 8 ? g.testName.substring(0,8)+'…' : g.testName}</text>
+              <text x={getX(i)} y={H-padB+16} textAnchor="middle" fill="#64748b" fontSize="9" transform={`rotate(-35,${getX(i)},${H-padB+16})`}>{(() => { const maxLen = chartData.length > 10 ? 4 : chartData.length > 6 ? 6 : 8; return g.testName?.length > maxLen ? g.testName.substring(0,maxLen)+'…' : g.testName; })()}</text>
               <text x={getX(i)} y={getY(g.maxScore > 0 ? g.score / g.maxScore * 100 : g.score)-8} textAnchor="middle" fill="#3b82f6" fontSize="10" fontWeight="600">{g.maxScore > 0 ? Math.round(g.score / g.maxScore * 100) : g.score}%</text>
             </g>
           ))}

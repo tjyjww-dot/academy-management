@@ -624,8 +624,8 @@ export default function StudentDetailPage() {
                       return `${pad.left + oi * xStep},${pad.top + h - ((g.classAverage||0) / yMax) * h}`;
                     });
                     return (
-                      <div className="mb-6 overflow-x-auto">
-                        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full max-w-2xl mx-auto" style={{minWidth:'400px'}}>
+                      <div className="mb-6">
+                        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full">
                           {[0,25,50,75,100].map(pct => {
                             const val = Math.round(yMax * pct / 100);
                             const y = pad.top + h - (pct/100)*h;
@@ -634,7 +634,7 @@ export default function StudentDetailPage() {
                           <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" points={sPts.join(' ')}/>
                           {sPts.map((pt: string, i: number) => {const [cx,cy]=pt.split(',').map(Number); return <circle key={`s${i}`} cx={cx} cy={cy} r="4" fill="#3b82f6" stroke="white" strokeWidth="2"/>;})}
                           {aPts.length > 0 && (<><polyline fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6,3" points={aPts.join(' ')}/>{aPts.map((pt: string, i: number) => {const [cx,cy]=pt.split(',').map(Number); return <circle key={`a${i}`} cx={cx} cy={cy} r="3.5" fill="#f59e0b" stroke="white" strokeWidth="1.5"/>;})}</>)}
-                          {gradeStats.map((g: any, i: number) => {const x=pad.left+i*xStep; return (<text key={`x${i}`} x={x} y={chartH-25} textAnchor="middle" fill="#6b7280" fontSize="10" transform={`rotate(-20,${x},${chartH-25})`}>{g.testName}</text>);})}
+                          {gradeStats.map((g: any, i: number) => {const x=pad.left+i*xStep; return (<text key={`x${i}`} x={x} y={chartH-25} textAnchor="middle" fill="#6b7280" fontSize="10" transform={`rotate(-35,${x},${chartH-25})`}>{(() => { const maxLen = gradeStats.length > 10 ? 4 : gradeStats.length > 6 ? 6 : 8; return g.testName?.length > maxLen ? g.testName.substring(0,maxLen)+'…' : g.testName; })()}</text>);})}
                           <circle cx={pad.left} cy={chartH-8} r="4" fill="#3b82f6"/><text x={pad.left+8} y={chartH-4} fill="#374151" fontSize="11">학생 점수</text>
                           <circle cx={pad.left+80} cy={chartH-8} r="4" fill="#f59e0b"/><text x={pad.left+88} y={chartH-4} fill="#374151" fontSize="11">반 평균</text>
                         </svg>
