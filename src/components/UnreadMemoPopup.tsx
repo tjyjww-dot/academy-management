@@ -103,27 +103,27 @@ export default function UnreadMemoPopup() {
                       <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
                                 <h2 className="text-lg font-bold">
                                             읽지 않은 학부모 메모 ({memos.length}건)
-                                </h2>h2>
+                                </h2>
                                 <button
                                               onClick={handleCloseAll}
                                               className="text-white/80 hover:text-white text-sm"
                                             >
                                             모두 읽음 처리
-                                </button>button>
-                      </div>div>
+                                </button>
+                      </div>
                       <div className="overflow-y-auto max-h-[60vh] p-4 space-y-4">
                         {memos.map((memo) => (
                       <div key={memo.id} className="border rounded-xl p-4 bg-gray-50">
                                     <div className="flex justify-between items-start mb-2">
                                                     <div>
-                                                                      <span className="font-semibold text-blue-700">{memo.student.name}</span>span>
-                                                                      <span className="text-gray-500 text-sm ml-2">({memo.author.name})</span>span>
-                                                    </div>div>
+                                                                      <span className="font-semibold text-blue-700">{memo.student.name}</span>
+                                                                      <span className="text-gray-500 text-sm ml-2">({memo.author.name})</span>
+                                                    </div>
                                                     <span className="text-xs text-gray-400">
                                                       {new Date(memo.createdAt).toLocaleDateString('ko-KR')}
-                                                    </span>span>
-                                    </div>div>
-                                    <p className="text-gray-800 mb-3 whitespace-pre-wrap">{memo.content}</p>p>
+                                                    </span>
+                                    </div>
+                                    <p className="text-gray-800 mb-3 whitespace-pre-wrap">{memo.content}</p>
                                     <div className="flex gap-2">
                                                     <input
                                                                         type="text"
@@ -143,18 +143,18 @@ export default function UnreadMemoPopup() {
                                                                         className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
                                                                       >
                                                       {sending[memo.id] ? '...' : '답장'}
-                                                    </button>button>
+                                                    </button>
                                                     <button
                                                                         onClick={() => handleClose(memo.id)}
                                                                         className="text-gray-400 hover:text-gray-600 px-2 py-2 text-sm"
                                                                       >
                                                                       닫기
-                                                    </button>button>
-                                    </div>div>
-                      </div>div>
+                                                    </button>
+                                    </div>
+                      </div>
                     ))}
-                      </div>div>
-              </div>div>
-        </div>div>
+                      </div>
+              </div>
+        </div>
       );
 }</div>
