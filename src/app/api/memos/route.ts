@@ -53,4 +53,45 @@ export async function GET(request: NextRequest) {
                     console.error('Error fetching unread memos:', error);
                     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
         }
+
+        export async function POST(request: NextRequest) {
+                  try {
+                              const token = getTokenFromCookies(request);
+                              const user = verifyToken(token || '');
+
+                              if (!user?.userId) {
+                                            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+                              }
+
+                              const body = await request.json();
+                              const { studentId, content, isFromParent, parentMemoId } = body;
+
+                              if (!studentId || !content) {
+                                            return NextResponse.json({ error: 'studentId and content are required' }, { status: 400 });
+                              }
+
+                              const memo = await prisma.memo.create({
+                                            data: {
+                                                            studentId,
+                                                            authorId: user.userId,
+                                                            content,
+                                                            isFromParent: isFromParent ?? false,
+                                                            parentMemoId: parentMemoId || null,
+                                            },
+                              });
+
+                              // If this is a reply to a parent memo, mark the original as read
+                              if (parentMemoId) {
+                                            await prisma.memo.update({
+                                                            where: { id: parentMemoId },
+                                                            data: { isRead: true, readAt: new Date() },
+                                            });
+                              }
+
+                              return NextResponse.json(memo, { status: 201 });
+                  } catch (error) {
+                              console.error('Error creating memo:', error);
+                              return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+                  }
+        }
 }
