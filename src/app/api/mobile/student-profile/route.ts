@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
       classrooms: student.enrollments.map((e: any) => ({
         id: e.classroom.id,
         name: e.classroom.name,
-        subject: e.classroom.subject.name,
-        teacher: e.classroom.teacher.name,
+        subject: e.classroom.subject?.name || '',
+        teacher: e.classroom.teacher?.name || '',
         schedule: e.classroom.schedule,
       })),
     });
