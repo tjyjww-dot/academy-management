@@ -138,7 +138,7 @@ export default function NewStudentPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                연락처
+                학생 연락처
               </label>
               <input
                 type="tel"

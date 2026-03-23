@@ -34,18 +34,37 @@ export async function GET(
       },
     });
 
-    return NextResponse.json(
-      grades.map((g: any) => ({
-        id: g.id,
-        testName: g.testName,
-        score: g.score,
-        maxScore: g.maxScore,
-        testDate: g.testDate,
-        remarks: g.remarks,
-        classroom: g.classroom.name,
-        subject: g.classroom.subject.name,
-      }))
+    // 각 성적에 대해 반 평균 계산
+    const gradesWithAvg = await Promise.all(
+      grades.map(async (g: any) => {
+        const avgResult = await prisma.grade.aggregate({
+          where: {
+            classroomId: g.classroomId,
+            testName: g.testName,
+            testDate: g.testDate,
+          },
+          _avg: { score: true },
+          _count: { score: true },
+        });
+
+        return {
+          id: g.id,
+          testName: g.testName,
+          score: g.score,
+          maxScore: g.maxScore,
+          testDate: g.testDate,
+          remarks: g.remarks,
+          classroom: g.classroom.name,
+          classroomId: g.classroomId,
+          subject: g.classroom.subject.name,
+          classAverage: avgResult._avg.score != null
+            ? Math.round(avgResult._avg.score * 10) / 10
+            : null,
+        };
+      })
     );
+
+    return NextResponse.json(gradesWithAvg);
   } catch (error) {
     console.error('Get grades error:', error);
     return NextResponse.json(

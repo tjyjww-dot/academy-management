@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -84,9 +85,14 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isCompleted: !isCompleted }),
       });
-      setTaskRequests(prev =>
-        prev.map(tr => tr.id === id ? { ...tr, isCompleted: !isCompleted } : tr)
-      );
+      if (!isCompleted) {
+        // 읽음처리(완료) 시 목록에서 제거
+        setTaskRequests(prev => prev.filter(tr => tr.id !== id));
+      } else {
+        setTaskRequests(prev =>
+          prev.map(tr => tr.id === id ? { ...tr, isCompleted: !isCompleted } : tr)
+        );
+      }
     } catch (err) {
       console.error('Toggle error:', err);
     }
