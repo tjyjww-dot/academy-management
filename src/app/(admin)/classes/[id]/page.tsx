@@ -111,7 +111,17 @@ export default function ClassDetailPage() {
       setPrevAssignmentForHomework(data.prevAssignmentForHomework || '');
 
       if (data.dailyReports.length > 0) {
-        setProgressNote(data.dailyReports[0].content || '');
+        // content가 JSON 형식이면 progressNote 추출, 아니면 그대로 사용 (레거시 호환)
+        let loadedProgressNote = data.dailyReports[0].content || '';
+        try {
+          const parsed = JSON.parse(loadedProgressNote);
+          if (parsed && typeof parsed === 'object' && 'progressNote' in parsed) {
+            loadedProgressNote = parsed.progressNote || '';
+          }
+        } catch {
+          // JSON이 아닌 레거시 데이터 - 그대로 사용
+        }
+        setProgressNote(loadedProgressNote);
         setHomework(data.dailyReports[0].homework || '');
         setAnnouncement(data.dailyReports[0].specialNote || '');
         const pshMap: Record<string, string> = {};
@@ -145,13 +155,20 @@ export default function ClassDetailPage() {
       }
 
       // 시험 범위와 만점을 공통으로 설정
-      const firstGrade = data.grades?.[0];
-      if (firstGrade) {
-        setTestName(firstGrade.testName || '');
-        setMaxScore(firstGrade.maxScore?.toString() || '100');
+      // 1순위: API에서 반환한 savedTestName/savedMaxScore (DailyReport에 저장된 값)
+      // 2순위: 기존 Grade 레코드에서 가져온 값
+      if (data.savedTestName || data.savedMaxScore) {
+        setTestName(data.savedTestName || '');
+        setMaxScore(data.savedMaxScore || '100');
       } else {
-        setTestName('');
-        setMaxScore('100');
+        const firstGrade = data.grades?.[0];
+        if (firstGrade) {
+          setTestName(firstGrade.testName || '');
+          setMaxScore(firstGrade.maxScore?.toString() || '100');
+        } else {
+          setTestName('');
+          setMaxScore('100');
+        }
       }
     } catch (err) {
       setError('Failed to load data');
@@ -240,6 +257,8 @@ export default function ClassDetailPage() {
           announcement,
           perStudentHomework: Object.entries(perStudentHomeworkMap).map(([studentId, hw]) => ({ studentId, homework: hw })),
           perStudentProgress: Object.entries(perStudentProgressMap).map(([studentId, prog]) => ({ studentId, progress: prog })),
+          testName,
+          maxScore,
         }),
       });
       if (!res.ok) throw new Error('Failed');

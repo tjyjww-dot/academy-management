@@ -80,11 +80,17 @@ export default function DashboardPage() {
   }, []);
   const handleToggleComplete = async (id: string, isCompleted: boolean) => {
     try {
-      await fetch(`/api/task-requests/${id}`, {
+      const res = await fetch(`/api/task-requests/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isCompleted: !isCompleted }),
       });
+      if (!res.ok) {
+        console.error('Toggle failed:', res.status, res.statusText);
+        alert('처리에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      // 서버 저장 성공 후에만 UI 업데이트
       if (!isCompleted) {
         // 읽음처리(완료) 시 목록에서 제거
         setTaskRequests(prev => prev.filter(tr => tr.id !== id));
@@ -95,15 +101,22 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Toggle error:', err);
+      alert('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
     }
   };
 
   const handleMarkAsRead = async (memoId: string) => {
     try {
-      await fetch(`/api/memos/${memoId}/read`, { method: 'PUT' });
+      const res = await fetch(`/api/memos/${memoId}/read`, { method: 'PUT' });
+      if (!res.ok) {
+        console.error('Mark as read failed:', res.status);
+        alert('읽음 처리에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
       setParentMemos(prev => prev.filter(m => m.id !== memoId));
     } catch (err) {
       console.error('Mark as read error:', err);
+      alert('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
     }
   };
 

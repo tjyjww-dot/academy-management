@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="80" fill="white"/>
-  <!-- 수 character - blue -->
-  <text x="150" y="310" font-family="'Noto Sans KR', sans-serif" font-weight="900" font-size="280" fill="#2B7CB3" text-anchor="middle">수</text>
-  <!-- 탐 character - gray -->
-  <text x="362" y="310" font-family="'Noto Sans KR', sans-serif" font-weight="900" font-size="280" fill="#808080" text-anchor="middle">탐</text>
-</svg>

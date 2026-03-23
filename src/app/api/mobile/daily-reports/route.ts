@@ -38,16 +38,28 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(
-      reports.map((r: any) => ({
-        id: r.id,
-        date: r.date,
-        content: r.content,
-        homework: r.homework,
-        attitude: r.attitude,
-        specialNote: r.specialNote,
-        classroom: r.classroom.name,
-        subject: r.classroom.subject.name,
-      }))
+      reports.map((r: any) => {
+        // content가 JSON 형식이면 progressNote만 추출 (레거시 호환)
+        let displayContent = r.content;
+        try {
+          const parsed = JSON.parse(r.content);
+          if (parsed && typeof parsed === 'object' && 'progressNote' in parsed) {
+            displayContent = parsed.progressNote || '';
+          }
+        } catch {
+          // JSON이 아닌 레거시 데이터 - 그대로 사용
+        }
+        return {
+          id: r.id,
+          date: r.date,
+          content: displayContent,
+          homework: r.homework,
+          attitude: r.attitude,
+          specialNote: r.specialNote,
+          classroom: r.classroom.name,
+          subject: r.classroom.subject.name,
+        };
+      })
     );
   } catch (error) {
     console.error('Get daily reports error:', error);

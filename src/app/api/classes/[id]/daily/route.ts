@@ -46,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       prisma.dailyReport.findMany({ where: { classroomId, date } }),
     ]);
 
-    // ì´ì  ë ì§ì DailyReportìì ìì  ê°ì ¸ì¤ê¸° (ì¤ë³µ ì ê±°)
+    // 이전 날짜의 DailyReport에서 숙제 가져오기 (중복 제거)
     const prevDailyHomework = await prisma.dailyReport.findMany({
       where: {
         classroomId,
@@ -59,11 +59,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       select: { date: true, homework: true },
     });
 
-    // DailyReport ìì ë¥¼ ì´ì  ê³¼ì  íìì¼ë¡ ë³ííì¬ prevAssignmentsì ë³í©
+    // DailyReport 숙제를 이전 과제 형식으로 변환하여 prevAssignments와 병합
     const homeworkAsAssignments = prevDailyHomework
       .filter((dr: any) => dr.homework && dr.homework.trim() !== '')
       .reduce((acc: any[], dr: any) => {
-        // ê°ì ë ì§ì ìì ê° ì¬ë¬ ê°ì¼ ì ìì¼ë¯ë¡ ë ì§ë³ë¡ ì¤ë³µ ì ê±°
         if (!acc.find((a: any) => a.assignmentDate === dr.date && a.title === dr.homework)) {
           acc.push({
             id: 'hw-' + dr.date,
@@ -75,7 +74,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         return acc;
       }, []);
 
-    // Assignmentì DailyReport ìì ë¥¼ í©ì¹ í ë ì§ì ì ë ¬
+    // Assignment와 DailyReport 숙제를 합친 후 날짜순 정렬
     const allPrevItems = [...prevAssignments.map((a: any) => ({
       id: a.id,
       assignmentDate: a.assignmentDate,
@@ -88,7 +87,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     let prevAssignmentForHomework = '';
     const todayHasHomework = dailyReports.some((dr) => dr.homework && dr.homework.trim() !== '');
     if (!todayHasHomework) {
-      // ë¨¼ì  ê°ì¥ ìµê·¼ DailyReportì ìì ë¥¼ íì¸
       const latestPrevHomework = await prisma.dailyReport.findFirst({
         where: { classroomId, date: { lt: date }, homework: { not: '' } },
         orderBy: { date: 'desc' },
@@ -96,7 +94,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (latestPrevHomework && latestPrevHomework.homework?.trim()) {
         prevAssignmentForHomework = latestPrevHomework.homework;
       } else {
-        // DailyReportì ìì¼ë©´ Assignmentìì ê°ì ¸ì¤ê¸°
         const latestPrevAssignment = await prisma.assignment.findFirst({
           where: { classroomId, assignmentDate: { lt: date } },
           orderBy: { assignmentDate: 'desc' },
@@ -107,9 +104,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // DailyReport의 content에서 testName/maxScore 메타데이터 추출
+    let savedTestName = '';
+    let savedMaxScore = '100';
+    if (dailyReports.length > 0) {
+      try {
+        const parsed = JSON.parse(dailyReports[0].content);
+        if (parsed && typeof parsed === 'object' && 'progressNote' in parsed) {
+          savedTestName = parsed.testName || '';
+          savedMaxScore = parsed.maxScore || '100';
+        }
+      } catch {
+        // 레거시 데이터 (JSON이 아닌 경우) - 무시
+      }
+    }
+
     return NextResponse.json({
       classroom, attendance, grades, allGrades, todayAssignments, prevAssignments: allPrevItems,
-      videos, dailyReports, date, prevAssignmentForHomework,
+      videos, dailyReports, date, prevAssignmentForHomework, savedTestName, savedMaxScore,
     });
   } catch (error) {
     console.error('Daily fetch error:', error);
@@ -124,7 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id: classroomId } = await params;
   const body = await req.json();
-  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, perStudentProgress, sendPushNotification } = body;
+  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, perStudentProgress, sendPushNotification, testName: bodyTestName, maxScore: bodyMaxScore } = body;
 
   // If this is only a push notification request (e.g., from copyReport), skip data saving
   if (sendPushNotification && !attendanceData && !gradesData && !assignmentGrades && !videoData && !progressNote && !homework && !announcement && !perStudentHomework && !perStudentProgress) {
@@ -208,11 +220,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
+      // content 필드에 progressNote와 함께 testName/maxScore 메타데이터를 JSON으로 저장
       for (const enr of enrollments) {
+        const studentProgress = pspMap[enr.studentId] || progressNote || '';
+        const contentData = JSON.stringify({
+          progressNote: studentProgress,
+          testName: bodyTestName || '',
+          maxScore: bodyMaxScore || '100',
+        });
+
         await tx.dailyReport.upsert({
           where: { studentId_classroomId_date: { studentId: enr.studentId, classroomId, date } },
-          update: { content: pspMap[enr.studentId] || progressNote || '', homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
-          create: { studentId: enr.studentId, classroomId, date, content: progressNote || '', homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
+          update: { content: contentData, homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
+          create: { studentId: enr.studentId, classroomId, date, content: contentData, homework: pshMap[enr.studentId] || homework || '', attitude: agMap[enr.studentId] || '', specialNote: announcement || '' },
         });
       }
 
