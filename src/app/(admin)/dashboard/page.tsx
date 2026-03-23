@@ -80,7 +80,7 @@ export default function DashboardPage() {
   const handleToggleComplete = async (id: string, isCompleted: boolean) => {
     try {
       await fetch(`/api/task-requests/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isCompleted: !isCompleted }),
       });
