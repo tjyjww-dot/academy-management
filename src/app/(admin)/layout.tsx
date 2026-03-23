@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import UnreadMemoPopup from '@/components/UnreadMemoPopup';
 
 interface User {
   id: string;
@@ -306,7 +305,7 @@ export default function AdminLayout({
 
         {/* Page Content */}
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
-          <UnreadMemoPopup />
+          
           {children}
         </main>
       </div>
