@@ -1,56 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken, getTokenFromCookies } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = getTokenFromCookies(request);
-    if (!token) return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 });
-    const payload = verifyToken(token);
-    if (!payload) return NextResponse.json({ error: '유효하지 않은 토큰입니다' }, { status: 401 });
+    const tkn = request.cookies.get('token')?.value;
+    if (!tkn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const decoded = verifyToken(tkn);
+    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const studentId = searchParams.get('studentId');
     const classroomId = searchParams.get('classroomId');
-    const status = searchParams.get('status') || 'ACTIVE';
+    const status = searchParams.get('status');
 
     const where: Record<string, unknown> = {};
     if (studentId) where.studentId = studentId;
     if (classroomId) where.classroomId = classroomId;
-    if (status !== 'ALL') where.status = status;
+    if (status) where.status = status;
 
     const wrongAnswers = await prisma.wrongAnswer.findMany({
       where,
       include: {
         student: { select: { id: true, name: true, studentNumber: true } },
         classroom: { select: { id: true, name: true } },
+        testPaper: { include: { pages: { orderBy: { pageNumber: 'asc' } } } },
       },
-      orderBy: [{ createdAt: 'desc' }],
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(wrongAnswers);
   } catch (error) {
-    console.error('오답 조회 오류:', error);
-    return NextResponse.json({ error: '서버 오류가 발생했습니다' }, { status: 500 });
+    console.error('Failed to fetch wrong answers:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const token = getTokenFromCookies(request);
-    if (!token) return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 });
-    const payload = verifyToken(token);
-    if (!payload) return NextResponse.json({ error: '유효하지 않은 토큰입니다' }, { status: 401 });
-
-    if (!['ADMIN', 'TEACHER'].includes(payload.role)) {
-      return NextResponse.json({ error: '권한이 없습니다' }, { status: 403 });
+    const tkn = request.cookies.get('token')?.value;
+    if (!tkn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const decoded = verifyToken(tkn);
+    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { studentId, classroomId, testName, problemNumbers } = body;
+    const { studentId, classroomId, testName, problemNumbers, testPaperId } = body;
 
     if (!studentId || !classroomId || !testName || !problemNumbers?.length) {
-      return NextResponse.json({ error: '필수 항목이 누락되었습니다' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // If testPaperId provided, get the test paper pages for image linking
+    let pageImages: Record<number, string> = {};
+    if (testPaperId) {
+      const testPaper = await prisma.testPaper.findUnique({
+        where: { id: testPaperId },
+        include: { pages: { orderBy: { pageNumber: 'asc' } } },
+      });
+      if (testPaper) {
+        for (const page of testPaper.pages) {
+          pageImages[page.pageNumber] = page.imageUrl;
+        }
+      }
     }
 
     const results = [];
@@ -63,27 +76,38 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Determine which page image to link (simple: use first page if only 1, else try to match)
+      const problemImage = pageImages[1] || null;
+
       if (existing) {
         if (existing.status === 'MASTERED') {
-          const updated = await prisma.wrongAnswer.update({
+          await prisma.wrongAnswer.update({
             where: { id: existing.id },
-            data: { status: 'ACTIVE', round: existing.round + 1 },
+            data: {
+              status: 'ACTIVE',
+              round: existing.round + 1,
+              testPaperId: testPaperId || existing.testPaperId,
+              problemImage: problemImage || existing.problemImage,
+            },
           });
-          results.push(updated);
-        } else {
-          results.push(existing);
         }
+        results.push(existing);
       } else {
         const created = await prisma.wrongAnswer.create({
-          data: { studentId, classroomId, testName, problemNumber: num },
+          data: {
+            studentId, classroomId, testName,
+            problemNumber: num,
+            testPaperId: testPaperId || null,
+            problemImage,
+          },
         });
         results.push(created);
       }
     }
 
-    return NextResponse.json(results, { status: 201 });
+    return NextResponse.json({ count: results.length, results });
   } catch (error) {
-    console.error('오답 기록 오류:', error);
-    return NextResponse.json({ error: '서버 오류가 발생했습니다' }, { status: 500 });
+    console.error('Failed to record wrong answers:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
