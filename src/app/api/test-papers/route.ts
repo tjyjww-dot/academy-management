@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
     const name = formData.get('name') as string;
     const classroomId = formData.get('classroomId') as string;
     const totalProblems = parseInt(formData.get('totalProblems') as string);
+    const answers = formData.get('answers') as string | null;
     const images = formData.getAll('images') as File[];
 
     if (!name || !classroomId || !totalProblems || images.length === 0) {
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
         classroomId,
         uploadedById: decoded.userId,
         totalProblems,
+        answers: answers || undefined,
         pages: {
           create: pageData
         }
