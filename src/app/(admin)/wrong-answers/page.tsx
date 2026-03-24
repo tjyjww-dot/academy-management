@@ -617,7 +617,6 @@ export default function WrongAnswersPage() {
                 </div>
               )}
             </div>
-          )}
         </div>
       </div>
     </div>
