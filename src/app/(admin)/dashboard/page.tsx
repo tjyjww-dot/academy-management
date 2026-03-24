@@ -290,10 +290,11 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
+        <div className="bg-white rounded-lg shadow p-2 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
           <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Google Calendar</h2>
-          <div className="w-full overflow-hidden rounded-lg" style={{ height: "clamp(500px, 60vw, 800px)" }}>
-            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no" />
+          <div className="w-full overflow-hidden rounded-lg border border-gray-200" style={{ height: "clamp(350px, 70vh, 800px)" }}>
+            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no"
+              loading="lazy" />
           </div>
         </div>
       </div>
