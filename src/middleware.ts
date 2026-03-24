@@ -4,10 +4,10 @@ function decodeToken(token: string) { try { const payload = JSON.parse(atob(toke
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Allow public routes and mobile API (모바일 API는 자체 Bearer 토큰 인증 사용)
+  // Allow public routes and mobile API (ëª¨ë°ì¼ APIë ìì²´ Bearer í í° ì¸ì¦ ì¬ì©)
   const publicRoutes = ['/auth', '/api/auth', '/api/mobile', '/_next', '/favicon.ico'];
   if (publicRoutes.some((route) => pathname.startsWith(route))) {
-    // 모바일 API CORS 지원
+    // ëª¨ë°ì¼ API CORS ì§ì
     if (pathname.startsWith('/api/mobile')) {
       const response = NextResponse.next();
       response.headers.set('Access-Control-Allow-Origin', '*');
@@ -42,7 +42,7 @@ export function middleware(request: NextRequest) {
     }
 
     const decoded = decodeToken(token);
-    if (!decoded || decoded.role !== 'PARENT') {
+      if (!decoded || (decoded.role !== 'PARENT' && decoded.role !== 'STUDENT')) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
 
