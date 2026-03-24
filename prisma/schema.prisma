@@ -27,6 +27,7 @@ model User {
   webPushSubscriptions WebPushSubscription[]
   studentProfile     Student?
   memos           Memo[]   @relation("memoAuthor")
+  testPapers       TestPaper[]
 }
 
 model Student {
@@ -59,6 +60,7 @@ model Student {
   dailyReports             DailyReport[]
   wrongAnswers             WrongAnswer[]
   wrongAnswerTests         WrongAnswerTest[]
+  testPapers               TestPaper[]
 }
 
 model ParentStudent {
@@ -102,6 +104,7 @@ model Classroom {
   lectureVideos    LectureVideo[]
   wrongAnswers     WrongAnswer[]
   wrongAnswerTests WrongAnswerTest[]
+  testPapers       TestPaper[]
 }
 
 model Enrollment {
@@ -352,6 +355,8 @@ model WrongAnswer {
   testName      String
   problemNumber Int
   problemImage  String?
+  testPaper     TestPaper? @relation(fields: [testPaperId], references: [id])
+  testPaperId   String?
   status        String   @default("ACTIVE")
   round         Int      @default(1)
   createdAt     DateTime @default(now())
@@ -386,4 +391,29 @@ model WrongAnswerTestItem {
   isCorrect     Boolean?
 
   @@unique([testId, wrongAnswerId])
+}
+
+
+model TestPaper {
+  id            String   @id @default(cuid())
+  name          String
+  classroom     Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId   String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  uploadedById  String
+  totalProblems Int
+  createdAt     DateTime @default(now())
+
+  pages         TestPaperPage[]
+  wrongAnswers  WrongAnswer[]
+}
+
+model TestPaperPage {
+  id            String    @id @default(cuid())
+  testPaper     TestPaper @relation(fields: [testPaperId], references: [id], onDelete: Cascade)
+  testPaperId   String
+  pageNumber    Int
+  imageUrl      String
+
+  @@unique([testPaperId, pageNumber])
 }
