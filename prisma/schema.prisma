@@ -60,7 +60,6 @@ model Student {
   dailyReports             DailyReport[]
   wrongAnswers             WrongAnswer[]
   wrongAnswerTests         WrongAnswerTest[]
-  testPapers               TestPaper[]
 }
 
 model ParentStudent {
@@ -69,7 +68,7 @@ model ParentStudent {
   parentId  String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
-  relation  String  @default("부모")
+  relation  String  @default("ë¶ëª¨")
 
   @@unique([parentId, studentId])
 }
@@ -345,7 +344,7 @@ model Memo {
   updatedAt    DateTime @updatedAt
 }
 
-// —— 오답 관리 (Wrong Answer Management) ——
+// ââ ì¤ëµ ê´ë¦¬ (Wrong Answer Management) ââ
 model WrongAnswer {
   id            String   @id @default(cuid())
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
