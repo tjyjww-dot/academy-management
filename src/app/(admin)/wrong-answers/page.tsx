@@ -284,7 +284,7 @@ export default function WrongAnswersPage() {
         // Extract answers from last page
         return pdf.getPage(lastPageIdx).then(lastPage => {
           return lastPage.getTextContent().then(textContent => {
-            const text = textContent.items.map((item: {str?: string}) => (item as {str:string}).str || '').join('\n');
+            const text = textContent.items.map((item: any) => item.str || '').join('\n');
             const answerRegex = /(\d+)\)\s*(.+)/g;
             let match;
             while ((match = answerRegex.exec(text)) !== null) {
