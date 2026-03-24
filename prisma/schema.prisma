@@ -10,13 +10,13 @@ datasource db {
 model User {
   id         String   @id @default(cuid())
   email      String   @unique
-  password   String?  // Google OAuth ì¬ì©ìë ë¹ë°ë²í¸ ìì
+  password   String?
   name       String   @default("")
-  role       String   @default("TEACHER") // ADMIN, TEACHER, DESK, PARENT, STUDENT
+  role       String   @default("TEACHER")
   phone      String?
-  image      String?  // íë¡í ì´ë¯¸ì§ (Google íë¡í)
-  provider   String   @default("email") // email, google
-  isApproved Boolean  @default(false) // ê´ë¦¬ì ì¹ì¸ ì¬ë¶ (Google ê°ì ì¬ì©ì)
+  image      String?
+  provider   String   @default("email")
+  isApproved Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -25,7 +25,7 @@ model User {
   counselingRequests CounselingRequest[]
   pushTokens         PushToken[]
   webPushSubscriptions WebPushSubscription[]
-  studentProfile     Student?           // íì ì­í ì¸ ê²½ì° Studentì ì°ê²°
+  studentProfile     Student?
   memos           Memo[]   @relation("memoAuthor")
 }
 
@@ -35,29 +35,30 @@ model Student {
   name             String
   dateOfBirth      String?
   phone            String?
-  parentPhone      String?  // íë¶ëª¨ ì°ë½ì² (ì± ë¡ê·¸ì¸ì©)
+  parentPhone      String?
   school           String?
   grade            String?
   status             String   @default("ACTIVE")
-  withdrawalReason   String?  // í´ì ì¬ì 
-  withdrawalDate     DateTime? // í´ì ì¼ì
+  withdrawalReason   String?
+  withdrawalDate     DateTime?
   registrationDate   DateTime @default(now())
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  // íì ë¡ê·¸ì¸ ì°ê²° (ì íì  - íìë ì±ì ë¡ê·¸ì¸ ê°ë¥)
-  user   User?   @relation(fields: [userId], references: [id])
-  userId String? @unique
+  user               User?    @relation(fields: [userId], references: [id])
+  userId             String?  @unique
 
-  parentStudents        ParentStudent[]
-  enrollments           Enrollment[]
-  grades                Grade[]
-  attendanceRecords     AttendanceRecord[]
-  assignmentSubmissions AssignmentSubmission[]
-  counselingRequests    CounselingRequest[]
-  memos              Memo[]
-  payments              Payment[]
-  dailyReports          DailyReport[]
+  parentStudents           ParentStudent[]
+  enrollments              Enrollment[]
+  grades                   Grade[]
+  attendanceRecords        AttendanceRecord[]
+  assignmentSubmissions    AssignmentSubmission[]
+  counselingRequests       CounselingRequest[]
+  memos                    Memo[]
+  payments                 Payment[]
+  dailyReports             DailyReport[]
+  wrongAnswers             WrongAnswer[]
+  wrongAnswerTests         WrongAnswerTest[]
 }
 
 model ParentStudent {
@@ -66,16 +67,17 @@ model ParentStudent {
   parentId  String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
-  relation  String  @default("ë¶ëª¨")
+  relation  String  @default("부모")
 
   @@unique([parentId, studentId])
 }
 
 model Subject {
-  id         String      @id @default(cuid())
-  name       String      @unique
-  code       String      @unique
-  createdAt  DateTime    @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+
   classrooms Classroom[]
 }
 
@@ -92,83 +94,85 @@ model Classroom {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  enrollments       Enrollment[]
-  grades            Grade[]
+  enrollments      Enrollment[]
+  grades           Grade[]
   attendanceRecords AttendanceRecord[]
-  assignments       Assignment[]
-  dailyReports      DailyReport[]
-  lectureVideos     LectureVideo[]
+  assignments      Assignment[]
+  dailyReports     DailyReport[]
+  lectureVideos    LectureVideo[]
+  wrongAnswers     WrongAnswer[]
+  wrongAnswerTests WrongAnswerTest[]
 }
 
 model Enrollment {
-  id             String    @id @default(cuid())
-  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId      String
   classroom      Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId    String
-  enrollmentDate DateTime  @default(now())
-  status         String    @default("ACTIVE")
-  createdAt      DateTime  @default(now())
+  enrollmentDate DateTime @default(now())
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
 
   @@unique([studentId, classroomId])
 }
 
 model Grade {
-  id          String    @id @default(cuid())
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId   String
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId String
   testName    String
   score       Float
-  maxScore    Float     @default(100)
+  maxScore    Float    @default(100)
   testDate    String
   remarks     String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model AttendanceRecord {
-  id          String    @id @default(cuid())
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId   String
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId String
   date        String
-  status      String    @default("PRESENT")
+  status      String   @default("PRESENT")
   checkInTime String?
   remarks     String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
   @@unique([studentId, classroomId, date])
 }
 
 model Assignment {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   title          String
   description    String?
   classroom      Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId    String
   dueDate        String
   assignmentDate String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   submissions AssignmentSubmission[]
 }
 
 model AssignmentSubmission {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   assignmentId String
-  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId    String
-  status       String     @default("NOT_SUBMITTED")
+  status       String   @default("NOT_SUBMITTED")
   submittedAt  String?
   score        Float?
   feedback     String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([assignmentId, studentId])
 }
@@ -181,8 +185,8 @@ model CounselingRequest {
   studentId       String
   title           String
   description     String?
-  counselingType  String   @default("PHONE") // PHONE(ì íìë´), VISIT(ë°©ë¬¸ìë´)
-  visitMessage    String?  // ë°©ë¬¸ìë´ ì ì ë¬ì¬í­
+  counselingType  String   @default("PHONE")
+  visitMessage    String?
   preferredDate   String?
   status          String   @default("PENDING")
   adminNotes      String?
@@ -205,118 +209,112 @@ model Announcement {
 }
 
 model EntranceTest {
+  id              String   @id @default(cuid())
+  name            String
+  school          String?
+  grade           String?
+  parentPhone     String
+  testDate        String
+  testTime        String
+  status          String   @default("SCHEDULED")
+  notes           String?
+  priorLevel      String?
+  testScore       String?
+  counselingNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Payment {
   id          String   @id @default(cuid())
-  name        String
-  school      String?
-  grade       String?
-  parentPhone String
-  testDate    String
-  testTime    String
-  status      String   @default("SCHEDULED")
-  notes       String?
-  priorLevel      String?  // ì íì ë
-  testScore       String?  // íì¤í¸ ì ì
-  counselingNotes String?  // ìë´ë´ì©
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  yearMonth   String
+  tuitionFee  Int      @default(0)
+  specialFee  Int      @default(0)
+  otherFee    Int      @default(0)
+  totalFee    Int      @default(0)
+  remarks     String?
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-model Payment {
-  id            String   @id @default(cuid())
-  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId     String
-  yearMonth     String   // "2026-02" íì
-  tuitionFee    Int      @default(0) // ìê°ë£
-  specialFee    Int      @default(0) // í¹ê°ë¹
-  otherFee      Int      @default(0) // ê¸°íë¹ì©
-  totalFee      Int      @default(0) // ì´ì¡ (ìë ê³ì°)
-  remarks       String?  // ë¹ê³ 
-  status        String   @default("PENDING") // PENDING, INPUT_DONE, SENT, PAID
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-// ââ ë°ì¼ë¦¬ ë¦¬í¬í¸ (ì ìëì´ íìë³ë¡ ë§¤ì¼ ìì±) ââ
 model DailyReport {
-  id          String    @id @default(cuid())
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId   String
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId String
-  date        String    // "2026-02-26"
-  content     String    // ì¤ëì íìµ ë´ì©
-  homework    String?   // ìì /ê³¼ì  ìë´
-  attitude    String?   // íìµ íë (EXCELLENT, GOOD, NORMAL, NEEDS_IMPROVEMENT)
-  specialNote String?   // í¹ì´ì¬í­
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  date        String
+  content     String
+  homework    String?
+  attitude    String?
+  specialNote String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([studentId, classroomId, date])
 }
 
-// ââ ê°ì ìì/ë§í¬ (ë°ë³ ê°ì ìë£) ââ
 model LectureVideo {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   classroomId String
   title       String
   description String?
-  videoUrl    String    // YouTube, Vimeo ë± ìì URL
-  videoType   String    @default("YOUTUBE") // YOUTUBE, VIMEO, DIRECT, LINK
-  duration    String?   // "45:00" íì
-  date        String    // ê°ì ë ì§
-  isPublished Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-}
-
-// ââ ê°ìì ì²­ (íë¶ëª¨/íì ì± ëë ì¸ë¶ ì ì²­) ââ
-model SignupRequest {
-  id           String   @id @default(cuid())
-  studentName  String   // íì ì´ë¦
-  school       String?  // íêµ
-  grade        String?  // íë
-  parentName   String?  // íë¶ëª¨ ì´ë¦
-  parentPhone  String   // íë¶ëª¨ ì°ë½ì²
-  studentPhone String?  // íì ì°ë½ì²
-  message      String?  // ìë´ ìì²­ì¬í­ / ë©ëª¨
-  status       String   @default("PENDING") // PENDING(ëê¸°), APPROVED(ì¹ì¸), REJECTED(ê±°ì )
-  adminNotes   String?  // ê´ë¦¬ì ë©ëª¨
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-// ââ ìë¬´ ìì²­ì¬í­ (ëìë³´ë) ââ
-model TaskRequest {
-  id          String   @id @default(cuid())
-  title       String   // ìì²­ ë´ì©
-  description String?  // ìì¸ ì¤ëª
-  createdBy   String   // ìì²­ì ID
-  createdByName String @default("") // ìì²­ì ì´ë¦
-  targetRole  String   // TEACHER, DESK, ADMIN (ëì ì­í )
-  assigneeId  String?  // í¹ì  ë´ë¹ì ID (ì í)
-  targetUserId  String?  // ìì²­ ëì ì¬ì©ì ID
-  targetUserName String? // ìì²­ ëì ì¬ì©ì ì´ë¦
-  isCompleted Boolean  @default(false)
-  completedBy String?  // ìë£ ì²ë¦¬í ì¬ë ID
-  completedAt DateTime? // ìë£ ìê°
+  videoUrl    String
+  videoType   String   @default("YOUTUBE")
+  duration    String?
+  date        String
+  isPublished Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-// ââ í¸ì ìë¦¼ í í° (Expo Push Token) ââ
+model SignupRequest {
+  id           String   @id @default(cuid())
+  studentName  String
+  school       String?
+  grade        String?
+  parentName   String?
+  parentPhone  String
+  studentPhone String?
+  message      String?
+  status       String   @default("PENDING")
+  adminNotes   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model TaskRequest {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  createdBy     String
+  createdByName String    @default("")
+  targetRole    String
+  assigneeId    String?
+  targetUserId  String?
+  targetUserName String?
+  isCompleted   Boolean   @default(false)
+  completedBy   String?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 model PushToken {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
-  token     String   @unique // Expo Push Token
-  platform  String   @default("unknown") // ios, android
+  token     String   @unique
+  platform  String   @default("unknown")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// ââ ì¹ í¸ì êµ¬ë (PWA ì¹ í¸ì ìë¦¼ì©) ââ
 model WebPushSubscription {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -329,19 +327,63 @@ model WebPushSubscription {
   updatedAt DateTime @updatedAt
 }
 
-
-// ââ ë©ëª¨ (íë¶ëª¨/íì â ê°ì¬ ìíµ) ââ
 model Memo {
-  id        String   @id @default(cuid())
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId String
-  author    User     @relation("memoAuthor", fields: [authorId], references: [id])
-  authorId  String
-  content   String
-  isFromParent Boolean @default(true) // true: íë¶ëª¨/íì ìì±, false: ê°ì¬ ëµë³
-  parentMemoId String? // ëµë³ì¸ ê²½ì° ìë³¸ ë©ëª¨ ID
-  createdAt DateTime @default(now())
-  isRead    Boolean  @default(false)
-  readAt    DateTime?
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  author       User     @relation("memoAuthor", fields: [authorId], references: [id])
+  authorId     String
+  content      String
+  isFromParent Boolean  @default(true)
+  parentMemoId String?
+  createdAt    DateTime @default(now())
+  isRead       Boolean  @default(false)
+  readAt       DateTime?
+  updatedAt    DateTime @updatedAt
+}
+
+// —— 오답 관리 (Wrong Answer Management) ——
+model WrongAnswer {
+  id            String   @id @default(cuid())
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  classroom     Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId   String
+  testName      String
+  problemNumber Int
+  problemImage  String?
+  status        String   @default("ACTIVE")
+  round         Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  testItems WrongAnswerTestItem[]
+
+  @@unique([studentId, classroomId, testName, problemNumber])
+}
+
+model WrongAnswerTest {
+  id          String    @id @default(cuid())
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  classroomId String
+  round       Int
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  gradedAt    DateTime?
+  gradedBy    String?
+
+  items WrongAnswerTestItem[]
+}
+
+model WrongAnswerTestItem {
+  id            String         @id @default(cuid())
+  test          WrongAnswerTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  testId        String
+  wrongAnswer   WrongAnswer    @relation(fields: [wrongAnswerId], references: [id], onDelete: Cascade)
+  wrongAnswerId String
+  isCorrect     Boolean?
+
+  @@unique([testId, wrongAnswerId])
 }
