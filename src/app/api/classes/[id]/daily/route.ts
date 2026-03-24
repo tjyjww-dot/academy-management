@@ -222,12 +222,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       // content 필드에 progressNote와 함께 testName/maxScore 메타데이터를 JSON으로 저장
       for (const enr of enrollments) {
-        const studentProgress = pspMap[enr.studentId] || progressNote || '';
-        const contentData = JSON.stringify({
-          progressNote: studentProgress,
-          testName: bodyTestName || '',
-          maxScore: bodyMaxScore || '100',
-        });
+        let studentProgress = pspMap[enr.studentId] || progressNote || '';
+            // Fix: progressNote에 JSON이 중첩 저장되는 버그 방지 - 순수 텍스트만 추출
+            if (typeof studentProgress === 'string' && studentProgress.startsWith('{')) {
+              try {
+                let parsed = JSON.parse(studentProgress);
+                while (parsed && typeof parsed === 'object' && 'progressNote' in parsed) {
+                  studentProgress = parsed.progressNote || '';
+                  if (typeof studentProgress !== 'string' || !studentProgress.startsWith('{')) break;
+                  try { parsed = JSON.parse(studentProgress); } catch { break; }
+                }
+              } catch {}
+            }
+            const contentData = JSON.stringify({
+              progressNote: studentProgress,
+              testName: bodyTestName || '',
+              maxScore: bodyMaxScore || '100',
+            });
 
         await tx.dailyReport.upsert({
           where: { studentId_classroomId_date: { studentId: enr.studentId, classroomId, date } },
