@@ -134,12 +134,12 @@ export default function WrongAnswersPage() {
 
   const handleRecord = async () => {
     if (!selectedStudent || !selectedClassroom || !testName || !problemNumbers) {
-      showToast('ëª¨ë  íëë¥¼ ìë ¥í´ì£¼ì¸ì.', 'error'); return;
+      showToast('모든 필드를 입력해주세요.', 'error'); return;
     }
     setLoading(true);
     try {
       const nums = problemNumbers.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-      if (nums.length === 0) { showToast('ë¬¸ì  ë²í¸ë¥¼ ì¬ë°ë¥´ê² ìë ¥í´ì£¼ì¸ì.', 'error'); return; }
+      if (nums.length === 0) { showToast('문제 번호를 올바르게 입력해주세요.', 'error'); return; }
 
       const body: Record<string, unknown> = {
         studentId: selectedStudent, classroomId: selectedClassroom,
@@ -152,20 +152,20 @@ export default function WrongAnswersPage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        showToast(`${nums.length}ê° ì¤ëµì´ ê¸°ë¡ëììµëë¤.`);
+        showToast(`${nums.length}개 오답이 기록되었습니다.`);
         setProblemNumbers(''); setTestName('');
         fetchWrongAnswers(); fetchStats();
       } else {
         const err = await res.json();
-        showToast(err.error || 'ì¤ëµ ê¸°ë¡ ì¤í¨', 'error');
+        showToast(err.error || '오답 기록 실패', 'error');
       }
-    } catch { showToast('ì¤ë¥ê° ë°ìíìµëë¤.', 'error'); }
+    } catch { showToast('오류가 발생했습니다.', 'error'); }
     finally { setLoading(false); }
   };
 
   const handleGenerateTest = async () => {
     if (!selectedStudent || !selectedClassroom) {
-      showToast('ë°ê³¼ íìì ì íí´ì£¼ì¸ì.', 'error'); return;
+      showToast('반과 학생을 선택해주세요.', 'error'); return;
     }
     setLoading(true);
     try {
@@ -173,9 +173,9 @@ export default function WrongAnswersPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId: selectedStudent, classroomId: selectedClassroom }),
       });
-      if (res.ok) { showToast('ì¤ëµ íì¤í¸ê° ìì±ëììµëë¤.'); fetchTests(); }
-      else { const err = await res.json(); showToast(err.error || 'íì¤í¸ ìì± ì¤í¨', 'error'); }
-    } catch { showToast('ì¤ë¥ê° ë°ìíìµëë¤.', 'error'); }
+      if (res.ok) { showToast('오답 테스트가 생성되었습니다.'); fetchTests(); }
+      else { const err = await res.json(); showToast(err.error || '테스트 생성 실패', 'error'); }
+    } catch { showToast('오류가 발생했습니다.', 'error'); }
     finally { setLoading(false); }
   };
 
@@ -192,18 +192,18 @@ export default function WrongAnswersPage() {
         body: JSON.stringify({ results }),
       });
       if (res.ok) {
-        showToast('ì±ì ì´ ìë£ëììµëë¤.');
+        showToast('채점이 완료되었습니다.');
         setGradingTest(null); setGradeResults({});
         fetchTests(); fetchWrongAnswers(); fetchStats();
-      } else { showToast('ì±ì  ì¤í¨', 'error'); }
-    } catch { showToast('ì¤ë¥ê° ë°ìíìµëë¤.', 'error'); }
+      } else { showToast('채점 실패', 'error'); }
+    } catch { showToast('오류가 발생했습니다.', 'error'); }
     finally { setLoading(false); }
   };
 
   const handlePdfSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || file.type !== 'application/pdf') {
-      showToast('PDF íì¼ë§ ìë¡ë ê°ë¥í©ëë¤.', 'error'); return;
+      showToast('PDF 파일만 업로드 가능합니다.', 'error'); return;
     }
     setUploadingPdf(true);
     setPdfPages([]);
@@ -225,10 +225,10 @@ export default function WrongAnswersPage() {
       }
       setPdfPages(pages);
       setPdfName(file.name.replace('.pdf', ''));
-      showToast(`${pages.length}íì´ì§ ì¶ì¶ ìë£`);
+      showToast(`${pages.length}페이지 추출 완료`);
     } catch (err) {
       console.error(err);
-      showToast('PDF ì²ë¦¬ ì¤ ì¤ë¥ê° ë°ìíìµëë¤.', 'error');
+      showToast('PDF 처리 중 오류가 발생했습니다.', 'error');
     } finally { setUploadingPdf(false); }
   };
 
@@ -241,7 +241,7 @@ export default function WrongAnswersPage() {
           setDriveFolders(data.files.filter((f: {mimeType:string}) => f.mimeType === 'application/vnd.google-apps.folder'));
         }
       })
-      .catch(err => { console.error(err); showToast('Drive 폴더 불러오기 실패', 'error'); });
+      .catch(err => { console.error(err); showToast('Drive 폴더 목록을 가져올 수 없습니다', 'error'); });
   };
 
   const fetchDriveFilesInFolder = (folderId: string) => {
@@ -255,7 +255,7 @@ export default function WrongAnswersPage() {
           setDriveFiles(data.files.filter((f: {mimeType:string}) => f.mimeType === 'application/pdf'));
         }
       })
-      .catch(err => { console.error(err); showToast('PDF 목록 불러오기 실패', 'error'); });
+      .catch(err => { console.error(err); showToast('PDF 파일 처리에 실패했습니다', 'error'); });
   };
 
   const processPDFFromDrive = (fileId: string) => {
@@ -355,7 +355,7 @@ export default function WrongAnswersPage() {
       })
       .catch(err => {
         console.error(err);
-        showToast('PDF 처리 중 오류가 발생했습니다.', 'error');
+        showToast('PDF 파일을 처리할 수 없습니다.', 'error');
         setProcessingStatus('idle');
         setUploadProgress(0);
       });
@@ -363,7 +363,7 @@ export default function WrongAnswersPage() {
 
   const handleSaveTestPaper = () => {
     if (!selectedClassroom || croppedProblems.length === 0) {
-      showToast('반을 선택하고 PDF를 처리해주세요.', 'error');
+      showToast('해당 Drive 폴더에 PDF 파일이 없습니다.', 'error');
       return;
     }
     setProcessingStatus('uploading');
@@ -385,7 +385,7 @@ export default function WrongAnswersPage() {
     fetch('/api/test-papers', { method: 'POST', body: formData })
       .then(res => {
         if (res.ok) {
-          showToast('시험지가 업로드되었습니다.');
+          showToast('시험지 저장에 실패했습니다.');
           setCroppedProblems([]);
           setParsedAnswers({});
           setSelectedDriveFile('');
@@ -393,12 +393,12 @@ export default function WrongAnswersPage() {
           setUploadProgress(0);
           fetchTestPapers();
         } else {
-          res.json().then(err => showToast(err.error || '업로드 실패', 'error'));
+          res.json().then(err => showToast(err.error || '저장 실패', 'error'));
         }
       })
       .catch(err => {
         console.error(err);
-        showToast('오류가 발생했습니다.', 'error');
+        showToast('저장에 실패했습니다.', 'error');
       })
       .finally(() => {
         setProcessingStatus('idle');
@@ -406,25 +406,25 @@ export default function WrongAnswersPage() {
   };
 
   const handleDeleteTestPaper = async (id: string) => {
-    if (!confirm('ì´ ìíì§ë¥¼ ì­ì íìê² ìµëê¹?')) return;
+    if (!confirm('이 시험지를 삭제하시겠습니까?')) return;
     try {
       const res = await fetch(`/api/test-papers/${id}`, { method: 'DELETE' });
-      if (res.ok) { showToast('ìíì§ê° ì­ì ëììµëë¤.'); fetchTestPapers(); }
-      else { showToast('ì­ì  ì¤í¨', 'error'); }
-    } catch { showToast('ì¤ë¥ê° ë°ìíìµëë¤.', 'error'); }
+      if (res.ok) { showToast('시험지가 삭제되었습니다.'); fetchTestPapers(); }
+      else { showToast('삭제 실패', 'error'); }
+    } catch { showToast('오류가 발생했습니다.', 'error'); }
   };
 
   const tabs = [
-    { id: 'dashboard', label: 'ëìë³´ë' },
-    { id: 'upload', label: 'ìíì§ ìë¡ë' },
-    { id: 'record', label: 'ì¤ëµ ê¸°ë¡' },
-    { id: 'test', label: 'ì¤ëµ íì¤í¸' },
-    { id: 'review', label: 'ì¤ëµ íí©' },
+    { id: 'dashboard', label: '대시보드' },
+    { id: 'upload', label: '시험지 업로드' },
+    { id: 'record', label: '오답 기록' },
+    { id: 'test', label: '오답 테스트' },
+    { id: 'review', label: '오답 현황' },
   ];
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">ì¤ëµ ê´ë¦¬</h1>
+      <h1 className="text-2xl font-bold mb-6">오답 관리</h1>
 
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
@@ -444,43 +444,43 @@ export default function WrongAnswersPage() {
       <div className="flex gap-4 mb-6">
         <select value={selectedClassroom} onChange={e => { setSelectedClassroom(e.target.value); setSelectedStudent(''); }}
           className="border rounded-lg px-3 py-2 bg-white">
-          <option value="">ë° ì í</option>
+          <option value="">반 선택</option>
           {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)}
           className="border rounded-lg px-3 py-2 bg-white" disabled={!selectedClassroom}>
-          <option value="">íì ì í (ì ì²´)</option>
+          <option value="">학생 선택 (전체)</option>
           {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.studentNumber})</option>)}
         </select>
       </div>
 
-      {/* ëìë³´ë í­ */}
+      {/* 대시보드 탭 */}
       {activeTab === 'dashboard' && (
         <div>
           {stats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-red-600">{stats.totalActive}</div>
-                <div className="text-sm text-red-500 mt-1">íì± ì¤ëµ</div>
+                <div className="text-sm text-red-500 mt-1">활성 오답</div>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-green-600">{stats.totalMastered}</div>
-                <div className="text-sm text-green-500 mt-1">ìë£</div>
+                <div className="text-sm text-green-500 mt-1">완료</div>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-blue-600">{stats.totalTests}</div>
-                <div className="text-sm text-blue-500 mt-1">ì´ íì¤í¸</div>
+                <div className="text-sm text-blue-500 mt-1">총 테스트</div>
               </div>
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
                 <div className="text-3xl font-bold text-yellow-600">{stats.pendingTests}</div>
-                <div className="text-sm text-yellow-500 mt-1">ì±ì  ëê¸°</div>
+                <div className="text-sm text-yellow-500 mt-1">채점 대기</div>
               </div>
             </div>
           )}
           {stats && (
             <div className="bg-white border rounded-xl p-4">
               <div className="flex justify-between mb-2">
-                <span className="font-medium">ìë¬ë¥ </span>
+                <span className="font-medium">숙달률</span>
                 <span className="font-bold text-blue-600">{stats.masteryRate}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-4">
@@ -490,15 +490,15 @@ export default function WrongAnswersPage() {
           )}
           {testPapers.length > 0 && (
             <div className="mt-6">
-              <h3 className="text-lg font-bold mb-3">ìµê·¼ ìë¡ëë ìíì§</h3>
+              <h3 className="text-lg font-bold mb-3">최근 업로드된 시험지</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {testPapers.slice(0, 4).map(tp => (
                   <div key={tp.id} className="bg-white border rounded-xl p-4 flex justify-between items-center">
                     <div>
                       <div className="font-medium">{tp.name}</div>
-                      <div className="text-sm text-gray-500">{tp.classroom.name} | {tp.totalProblems}ë¬¸ì  | {tp.pages.length}íì´ì§</div>
+                      <div className="text-sm text-gray-500">{tp.classroom.name} | {tp.totalProblems}문제 | {tp.pages.length}페이지</div>
                     </div>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">ì¤ëµ {tp._count.wrongAnswers}ê±´</span>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">오답 {tp._count.wrongAnswers}건</span>
                   </div>
                 ))}
               </div>
@@ -507,18 +507,18 @@ export default function WrongAnswersPage() {
         </div>
       )}
 
-      {/* ìíì§ ìë¡ë í­ */}
+      {/* 시험지 업로드 탭 */}
           {activeTab === 'upload' && (
             <div className="space-y-6">
               {/* Step 1: Select Classroom */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold mb-4">반 선택</h3>
+            <h3 className="text-lg font-semibold mb-4">반 선택</h3>
                 <select
                   value={selectedClassroom}
                   onChange={(e) => setSelectedClassroom(e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg"
                 >
-                  <option value="">반을 선택하세요</option>
+                <option value="">반을 선택하세요</option>
                   {classrooms.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -527,12 +527,12 @@ export default function WrongAnswersPage() {
 
               {/* Step 2: Google Drive Folder */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold mb-4">Google Drive 폴더 선택</h3>
+            <h3 className="text-lg font-semibold mb-4">Google Drive 폴더 선택</h3>
                 <button
                   onClick={() => fetchDriveFolders()}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mb-4"
                 >
-                  Drive 폴더 불러오기
+                  Drive T $0
                 </button>
                 {driveFolders.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -552,7 +552,7 @@ export default function WrongAnswersPage() {
               {/* Step 3: PDF File Selection */}
               {driveFiles.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold mb-4">PDF 파일 선택</h3>
+            <h3 className="text-lg font-semibold mb-4">PDF 파일 선택</h3>
                   <div className="space-y-2">
                     {driveFiles.map((file) => (
                       <button
@@ -573,10 +573,10 @@ export default function WrongAnswersPage() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">
-                      {processingStatus === 'downloading' && '다운로드 중...'}
-                      {processingStatus === 'processing' && '문제 자르기 중...'}
-                      {processingStatus === 'uploading' && '업로드 중...'}
-                      {processingStatus === 'done' && '완료!'}
+                {processingStatus === 'downloading' && '다운로드 중...'}
+                {processingStatus === 'processing' && '처리 중...'}
+                {processingStatus === 'uploading' && '업로드 중...'}
+                {processingStatus === 'done' && '완료!'}
                     </span>
                     <span className="text-sm text-gray-500">{uploadProgress}%</span>
                   </div>
@@ -593,23 +593,23 @@ export default function WrongAnswersPage() {
               {croppedProblems.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">잘라진 문제 ({croppedProblems.length}개)</h3>
+              <h3 className="text-lg font-semibold">잘린 문제 총 ({croppedProblems.length}개)</h3>
                     <button
                       onClick={handleSaveTestPaper}
                       disabled={!selectedClassroom || processingStatus === 'uploading'}
                       className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium"
                     >
-                      저장하기
+                저장
                     </button>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {croppedProblems.sort((a,b) => a.num - b.num).map((p) => (
                       <div key={p.num} className="border rounded-lg p-2">
-                        <div className="text-xs font-medium text-gray-500 mb-1">문제 {p.num}</div>
-                        <img src={p.preview} alt={`문제 ${p.num}`} className="w-full rounded" />
+                        <div className="text-xs font-medium text-gray-500 mb-1">8 {p.num}</div>
+                        <img src={p.preview} alt={`8 ${p.num}`} className="w-full rounded" />
                         {p.answer && (
                           <div className="mt-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                            정답: {p.answer}
+                        답: {p.answer}
                           </div>
                         )}
                       </div>
