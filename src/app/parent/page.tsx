@@ -14,17 +14,31 @@ export default function ParentPage() {
   const [showCounselForm, setShowCounselForm] = useState(false);
   const [counselType, setCounselType] = useState('PHONE');
   const [counselDesc, setCounselDesc] = useState('');
+  const [wrongAnswers, setWrongAnswers] = useState<any[]>([]);
+  const [wrongAnswerTests, setWrongAnswerTests] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/parent/data')
       .then(r => { if (!r.ok) { router.push('/auth/login'); return null; } return r.json(); })
-      .then(d => { if (d) { setData(d); if (d.students?.[0]) fetchMemos(d.students[0].id); } })
+      .then(d => { if (d) { setData(d); if (d.students?.[0]) {
+            fetchMemos(d.students[0].id);
+            fetchWrongAnswers(d.students[0].id);
+          } } })
       .catch(() => router.push('/auth/login'))
       .finally(() => setLoading(false));
   }, [router]);
 
   const fetchMemos = (sid: string) => {
     fetch('/api/parent/memo?studentId=' + sid).then(r => r.json()).then(setMemos).catch(() => {});
+  };
+
+  const fetchWrongAnswers = (sid: string) => {
+    fetch('/api/wrong-answers?studentId=' + sid).then(r => r.json()).then(data => {
+      setWrongAnswers(data.wrongAnswers || []);
+    }).catch(() => {});
+    fetch('/api/wrong-answers/tests?studentId=' + sid).then(r => r.json()).then(data => {
+      setWrongAnswerTests(data.tests || []);
+    }).catch(() => {});
   };
 
   const sendMemo = async () => {
@@ -83,6 +97,7 @@ export default function ParentPage() {
     {id:'attendance',label:'출결',icon:'📅'},
     {id:'video',label:'수업영상',icon:'🎬'},
     {id:'counsel',label:'상담요청',icon:'💬'},
+    {id:'wrongAnswers',label:'오답관리',icon:'✅'},
     {id:'memo',label:'메모',icon:'💭'}
   ];
 
@@ -287,6 +302,88 @@ export default function ParentPage() {
               <div className="flex gap-2">
                 <button onClick={()=>setShowCounselForm(false)} className="flex-1 py-3 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">취소</button>
                 <button onClick={submitCounsel} className="flex-1 py-3 rounded-xl text-sm font-medium text-white shadow-md transition-all" style={{background:'linear-gradient(135deg,#3b82f6,#4f46e5)',boxShadow:'0 4px 12px rgba(59,130,246,0.25)'}}>요청하기</button>
+              </div>
+            </div>
+          )}
+        </div>)}
+
+        
+
+        {tab==='wrongAnswers'&&(<div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-800 px-1">오답 관리</h2>
+          
+          {/* Active Wrong Answers */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full bg-red-500"/>
+              <p className="text-sm font-semibold text-slate-700">틀린 문제 ({wrongAnswers.filter((w:any) => w.status === 'ACTIVE').length}개)</p>
+            </div>
+            {wrongAnswers.filter((w:any) => w.status === 'ACTIVE').length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">현재 틀린 문제가 없습니다 🎉</p>
+            ) : (
+              <div className="space-y-2">
+                {wrongAnswers.filter((w:any) => w.status === 'ACTIVE').map((w:any) => (
+                  <div key={w.id} className="flex justify-between items-center px-3 py-2.5 rounded-xl bg-red-50 border border-red-100">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{w.testName} - {w.problemNumber}번</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{w.classroom?.name} · {w.round}회차</p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-600 font-medium">오답</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mastered Wrong Answers */}
+          {wrongAnswers.filter((w:any) => w.status === 'MASTERED').length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"/>
+                <p className="text-sm font-semibold text-slate-700">마스터한 문제 ({wrongAnswers.filter((w:any) => w.status === 'MASTERED').length}개)</p>
+              </div>
+              <div className="space-y-2">
+                {wrongAnswers.filter((w:any) => w.status === 'MASTERED').map((w:any) => (
+                  <div key={w.id} className="flex justify-between items-center px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{w.testName} - {w.problemNumber}번</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{w.classroom?.name}</p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-600 font-medium">완료 ✓</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Wrong Answer Tests */}
+          {wrongAnswerTests.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-blue-500"/>
+                <p className="text-sm font-semibold text-slate-700">오답 테스트 이력</p>
+              </div>
+              <div className="space-y-2">
+                {wrongAnswerTests.map((t:any) => (
+                  <div key={t.id} className="px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-medium text-slate-700">{t.round}회차 오답 테스트</p>
+                      <span className={"text-xs px-2.5 py-1 rounded-full font-medium " + (t.status === 'GRADED' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600')}>
+                        {t.status === 'GRADED' ? '채점 완료' : '채점 대기 (선생님이 채점합니다)'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">{new Date(t.createdAt).toLocaleDateString('ko-KR')} · {t.items?.length || 0}문제</p>
+                    {t.status === 'GRADED' && t.items && (
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {t.items.map((item:any, idx:number) => (
+                          <span key={idx} className={"w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold " + (item.isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600')}>
+                            {item.isCorrect ? 'O' : 'X'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
