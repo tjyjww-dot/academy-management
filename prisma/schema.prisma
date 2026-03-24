@@ -400,6 +400,7 @@ model TestPaper {
   classroomId   String
   uploadedBy    User     @relation(fields: [uploadedById], references: [id])
   uploadedById  String
+  answers       String?
   totalProblems Int
   createdAt     DateTime @default(now())
 
