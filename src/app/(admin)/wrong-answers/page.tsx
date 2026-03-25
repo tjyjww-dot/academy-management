@@ -355,7 +355,7 @@ export default function WrongAnswersPage() {
       const answerTextContent = await lastPage.getTextContent();
       const textLines = answerTextContent.items.map((item: any) => item.str).join('\n');
 
-      const answerPattern = /(\d+)\)\s*(.+?)(?=\n\d+\)|$)/gs;
+      const answerPattern = /(\d+)\)\s*(.+?)(?=\n\d+\)|$)/g;
       let match;
       while ((match = answerPattern.exec(textLines)) !== null) {
         answers[match[1].trim()] = match[2].trim();
