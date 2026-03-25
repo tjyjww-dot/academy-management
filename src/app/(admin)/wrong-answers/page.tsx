@@ -385,7 +385,7 @@ export default function WrongAnswersPage() {
     fetch('/api/test-papers', { method: 'POST', body: formData })
       .then(res => {
         if (res.ok) {
-          showToast('시험지 저장에 실패했습니다.');
+          showToast('시험지가 저장되었습니다.');
           setCroppedProblems([]);
           setParsedAnswers({});
           setSelectedDriveFile('');
@@ -532,7 +532,7 @@ export default function WrongAnswersPage() {
                   onClick={() => fetchDriveFolders()}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mb-4"
                 >
-                  Drive T $0
+                  Drive 폴더 불러오기
                 </button>
                 {driveFolders.length > 0 && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -605,8 +605,8 @@ export default function WrongAnswersPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {croppedProblems.sort((a,b) => a.num - b.num).map((p) => (
                       <div key={p.num} className="border rounded-lg p-2">
-                        <div className="text-xs font-medium text-gray-500 mb-1">8 {p.num}</div>
-                        <img src={p.preview} alt={`8 ${p.num}`} className="w-full rounded" />
+                        <div className="text-xs font-medium text-gray-500 mb-1">문제 {p.num}</div>
+                        <img src={p.preview} alt={`문제 ${p.num}`} className="w-full rounded" />
                         {p.answer && (
                           <div className="mt-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
                         답: {p.answer}
