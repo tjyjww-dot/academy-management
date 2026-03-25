@@ -1019,10 +1019,10 @@ export default function WrongAnswersPage() {
 
                 <button
                   onClick={handleUploadProblems}
-                  disabled={processingStatus === 'loading'}
+                  disabled={false}
                   className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
                 >
-                  {processingStatus === 'loading' ? '업로드 중...' : '시험지 업로드 완료'}
+                  {'시험지 업로드 완료'}
                 </button>
               </div>
             )}
