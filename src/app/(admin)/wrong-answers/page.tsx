@@ -257,8 +257,7 @@ export default function WrongAnswersPage() {
                                                                                                                                                                                       })
                                                                                                                                                                                             .catch(err => { console.error(err); showToast('Drive 폴더 목록을 가져올 수 없습니다: ' + err.message, 'error'); });
                                                                                                                                                                                               };
-                                                                                                                                                                                              
-    }
+
   const fetchDriveFilesInFolder = (folderId: string) => {
     setSelectedDriveFolder(folderId);
     setSelectedDriveFile('');
