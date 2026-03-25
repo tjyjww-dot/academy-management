@@ -233,17 +233,32 @@ export default function WrongAnswersPage() {
   };
 
 
-  const fetchDriveFolders = () => {
-    fetch('/api/google-drive?action=list')
-      .then(r => r.json())
-      .then(data => {
-        if (data.files) {
-          setDriveFolders(data.files.filter((f: {mimeType:string}) => f.mimeType === 'application/vnd.google-apps.folder'));
-        }
-      })
-      .catch(err => { console.error(err); showToast('Drive 폴더 목록을 가져올 수 없습니다', 'error'); });
-  };
-
+    const fetchDriveFolders = () => {
+          fetch('/api/google-drive?action=list')
+                .then(r => {
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                                return r.json();
+                                      })
+                                            .then(data => {
+                                                    if (data.error) {
+                                                              console.error('Drive API error:', data.error);
+                                                                        showToast('Drive 연결 오류: ' + (typeof data.error === 'string' ? data.error : 'API 오류가 발생했습니다'), 'error');
+                                                                                  return;
+                                                                                          }
+                                                                                                  if (data.files) {
+                                                                                                            const folders = data.files.filter((f: {mimeType:string}) => f.mimeType === 'application/vnd.google-apps.folder');
+                                                                                                                      setDriveFolders(folders);
+                                                                                                                                if (folders.length === 0) {
+                                                                                                                                            showToast('서비스 계정에 공유된 Drive 폴더가 없습니다. Google Drive에서 폴더를 공유해주세요.', 'error');
+                                                                                                                                                      }
+                                                                                                                                                              } else {
+                                                                                                                                                                        showToast('Drive에서 폴더를 찾을 수 없습니다', 'error');
+                                                                                                                                                                                }
+                                                                                                                                                                                      })
+                                                                                                                                                                                            .catch(err => { console.error(err); showToast('Drive 폴더 목록을 가져올 수 없습니다: ' + err.message, 'error'); });
+                                                                                                                                                                                              };
+                                                                                                                                                                                              
+    }
   const fetchDriveFilesInFolder = (folderId: string) => {
     setSelectedDriveFolder(folderId);
     setSelectedDriveFile('');
