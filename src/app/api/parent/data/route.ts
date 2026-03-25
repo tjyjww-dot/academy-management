@@ -69,10 +69,17 @@ export async function GET(req: NextRequest) {
         where: { classroomId: g.classroomId, testName: g.testName, testDate: g.testDate },
         select: { score: true, maxScore: true }
       });
+      const scores = allGrades.map((gr: any) => gr.score);
       const avg = allGrades.length > 0
         ? Math.round(allGrades.reduce((sum: number, gr: any) => sum + (gr.score / (gr.maxScore || 100)) * 100, 0) / allGrades.length * 10) / 10
         : g.score;
-      return { ...g, classAverage: avg };
+      const avgRaw = allGrades.length > 0
+        ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length * 10) / 10
+        : g.score;
+      const highScore = scores.length > 0 ? Math.max(...scores) : g.score;
+      const lowScore = scores.length > 0 ? Math.min(...scores) : g.score;
+      const studentCount = allGrades.length;
+      return { ...g, classAverage: avg, avgRaw, highScore, lowScore, studentCount };
     }));
 
     const attendance = await prisma.attendanceRecord.findMany({
