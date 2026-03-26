@@ -310,7 +310,7 @@ export default function ParentPage() {
             <div className="space-y-2">{data.grades.map((g:any)=>{const pct=g.maxScore>0?Math.round((g.score/g.maxScore)*100):0;return(
               <div key={g.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
-                  <div><p className="text-sm font-semibold text-slate-700">{g.testName}</p><p className="text-xs text-slate-400 mt-0.5">{g.testDate}{g.classAverage != null && <span className="ml-2 text-orange-500">반평균 {g.classAverage}점</span>}</p></div>
+                  <div><p className="text-sm font-semibold text-slate-700">{g.testName}</p><p className="text-xs text-slate-400 mt-0.5">{g.testDate}</p></div>
                   <p className="text-xl font-bold text-blue-600">{g.score}<span className="text-sm text-slate-400 font-normal">/{g.maxScore}</span></p>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -455,4 +455,4 @@ export default function ParentPage() {
       <PushNotificationManager />
     </div>
   );
-                                                                               }
+              }
