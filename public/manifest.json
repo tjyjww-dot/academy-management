@@ -1,0 +1,24 @@
+{
+  "name": "수학탐구학원",
+  "short_name": "수학탐구",
+  "description": "수학탐구학원 학부모/학생 포털",
+  "start_url": "/auth/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
