@@ -22,6 +22,23 @@ function LoginContent() {
   const [nameSubmitted, setNameSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWebView, setIsWebView] = useState(false);
+  const [autoLoginChecking, setAutoLoginChecking] = useState(true);
+
+  // 영구 로그인: 저장된 토큰이 있으면 자동으로 로그인 시도
+  useEffect(() => {
+    const savedToken = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
+    if (savedToken) {
+      const hasAuthCookie = document.cookie.includes('auth-token-js=');
+      if (!hasAuthCookie) {
+        document.cookie = `auth-token-js=${savedToken}; path=/; max-age=${365*24*60*60}; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+      }
+      fetch('/api/parent/data')
+        .then(r => { if (r.ok) { router.push('/parent'); return; } setAutoLoginChecking(false); })
+        .catch(() => setAutoLoginChecking(false));
+    } else {
+      setAutoLoginChecking(false);
+    }
+  }, [router]);
 
   useEffect(() => {
     const ua = navigator.userAgent || '';
@@ -66,7 +83,8 @@ function LoginContent() {
       const data = await res.json();
       if (!res.ok) { setPhoneError(data.error); return; }
       if (data.step === 'LOGIN_SUCCESS') {
-        document.cookie = `auth-token-js=${data.token}; path=/; max-age=${30*24*60*60}; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+        document.cookie = `auth-token-js=${data.token}; path=/; max-age=${365*24*60*60}; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+        if (typeof window !== 'undefined') localStorage.setItem('auth-token', data.token);
         router.push(data.user.role === 'PARENT' || data.user.role === 'STUDENT' ? '/parent' : '/dashboard');
       }
     } catch { setPhoneError('로그인에 실패했습니다.'); } finally { setPhoneLoading(false); }
@@ -79,6 +97,10 @@ function LoginContent() {
     setIsSubmitting(true);
     try { const res = await fetch('/api/auth/update-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name: realName.trim() }) }); if (res.ok) setNameSubmitted(true); } catch {} finally { setIsSubmitting(false); }
   };
+
+  if (autoLoginChecking) {
+    return (<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="flex flex-col items-center gap-3"><div style={{width:32,height:32,border:'3px solid #3b82f6',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/><p className="text-sm text-gray-500">자동 로그인 확인 중...</p><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div></div>);
+  }
 
   if (error === 'not_approved' && email && !nameSubmitted) {
     return (<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="max-w-md w-full space-y-6 p-8 bg-white rounded-lg shadow-md"><div className="text-center"><h1 className="text-3xl font-bold text-gray-900">수학탐구</h1><p className="mt-2 text-gray-600">직원 가입 신청</p></div><input type="text" value={email} disabled className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-500" /><input type="text" value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="실명을 입력해주세요" className="w-full px-3 py-2 border rounded-lg" onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()} /><button onClick={handleNameSubmit} disabled={!realName.trim() || isSubmitting} className="w-full py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-400">{isSubmitting ? '처리 중...' : '가입 신청'}</button></div></div>);
