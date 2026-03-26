@@ -8,7 +8,7 @@ export default function ParentPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('homework');
+  const [tab, setTab] = useState('notice');
   const [memos, setMemos] = useState<any[]>([]);
   const [newMemo, setNewMemo] = useState('');
   const [showCounselForm, setShowCounselForm] = useState(false);
@@ -78,7 +78,7 @@ export default function ParentPage() {
   };
 
   const parseContent = (content: string) => {
-    if (!content) return '';
+    if (!content || !content.trim()) return '';
     try {
       let parsed = content;
       while (typeof parsed === 'string' && (parsed.startsWith('{') || parsed.startsWith('"'))) {
@@ -86,20 +86,27 @@ export default function ParentPage() {
         if (typeof obj === 'string') {
           parsed = obj;
         } else if (typeof obj === 'object' && obj !== null) {
-          if (obj.progressNote) return obj.progressNote;
-          if (obj.studentProgress) return obj.studentProgress;
-          if (obj.content) {
+          // progressNote 필드가 있으면 그것만 반환
+          if (obj.progressNote && obj.progressNote.trim()) return obj.progressNote.trim();
+          // studentProgress 필드도 확인
+          if (obj.studentProgress && obj.studentProgress.trim()) return obj.studentProgress.trim();
+          // content 필드도 확인
+          if (obj.content && typeof obj.content === 'string' && obj.content.trim()) {
             parsed = obj.content;
             continue;
           }
-          return content;
+          // 모든 값이 비어있는 JSON 객체인 경우 빈 문자열 반환
+          const allEmpty = Object.values(obj).every(v => !v || (typeof v === 'string' && !v.trim()));
+          if (allEmpty) return '';
+          return '';
         } else {
           return String(obj);
         }
       }
-      return parsed || content;
+      return parsed?.trim() || '';
     } catch {
-      return content;
+      // JSON 파싱 실패 시 원본 텍스트 반환 (빈 문자열 체크)
+      return content.trim() || '';
     }
   };
 
@@ -122,14 +129,44 @@ export default function ParentPage() {
   const s = data.students?.[0];
 
   const tabs = [
-    {id:'homework',label:'숙제',icon:'📝'},
     {id:'notice',label:'공지',icon:'📢'},
     {id:'grades',label:'성적',icon:'📊'},
+    {id:'assignment',label:'과제완성도',icon:'✅'},
+    {id:'homework',label:'숙제',icon:'📝'},
     {id:'attendance',label:'출결',icon:'📅'},
     {id:'video',label:'수업영상',icon:'🎬'},
     {id:'counsel',label:'상담요청',icon:'💬'},
     {id:'memo',label:'메모',icon:'💭'}
   ];
+
+  // 과제완성도 데이터 파싱 (attitude 필드: "GRADE::MEMO" 형식)
+  const parseAttitude = (attitude: string) => {
+    if (!attitude || !attitude.trim()) return { grade: '', memo: '' };
+    const parts = attitude.split('::');
+    return { grade: parts[0]?.trim() || '', memo: parts[1]?.trim() || '' };
+  };
+
+  const getGradeColor = (grade: string) => {
+    switch(grade) {
+      case 'A': return { bg: '#ecfdf5', text: '#059669', border: '#a7f3d0' };
+      case 'B': return { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' };
+      case 'C': return { bg: '#fefce8', text: '#ca8a04', border: '#fde68a' };
+      case 'D': return { bg: '#fff7ed', text: '#ea580c', border: '#fed7aa' };
+      case 'X': return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' };
+      default: return { bg: '#f8fafc', text: '#64748b', border: '#e2e8f0' };
+    }
+  };
+
+  const getGradeLabel = (grade: string) => {
+    switch(grade) {
+      case 'A': return '완벽';
+      case 'B': return '잘함';
+      case 'C': return '보통';
+      case 'D': return '미흡';
+      case 'X': return '미제출';
+      default: return '';
+    }
+  };
 
   // Chart rendering function
   const renderGradeChart = () => {
@@ -231,7 +268,7 @@ export default function ParentPage() {
                 <div className="rounded-xl p-3" style={{background:'#fffbeb'}}>
                   <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{r.homework}</p>
                 </div>
-                {r.content && (
+                {r.content && parseContent(r.content) && (
                   <div className="mt-2 rounded-xl p-3 bg-slate-50">
                     <p className="text-xs font-semibold text-blue-500 mb-1">수업진도</p>
                     <p className="text-sm text-slate-600 leading-relaxed">{parseContent(r.content)}</p>
@@ -287,6 +324,52 @@ export default function ParentPage() {
                 )}
               </div>
             );})}</div>
+          )}
+        </div>)}
+
+        {tab==='assignment'&&(<div className="space-y-3">
+          <h2 className="text-base font-bold text-slate-800 px-1">과제 완성도</h2>
+          {data.dailyReports.filter((r:any) => {
+            const att = parseAttitude(r.attitude || '');
+            return att.grade !== '';
+          }).length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">과제 완성도 기록이 없습니다.</p></div>
+          ):(
+            data.dailyReports.filter((r:any) => {
+              const att = parseAttitude(r.attitude || '');
+              return att.grade !== '';
+            }).map((r:any)=>{
+              const att = parseAttitude(r.attitude || '');
+              const gc = getGradeColor(att.grade);
+              return(
+                <div key={r.id+'-assign'} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{background:gc.text}}/>
+                      <span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span>
+                    </div>
+                    <span className="text-xs text-slate-400">{r.date}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center" style={{background:gc.bg,border:`1.5px solid ${gc.border}`}}>
+                      <span className="text-xl font-bold" style={{color:gc.text}}>{att.grade}</span>
+                      <span className="text-[10px] font-medium" style={{color:gc.text}}>{getGradeLabel(att.grade)}</span>
+                    </div>
+                    {att.memo && (
+                      <div className="flex-1 rounded-xl p-3 bg-slate-50">
+                        <p className="text-xs font-semibold text-slate-500 mb-0.5">선생님 메모</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{att.memo}</p>
+                      </div>
+                    )}
+                    {!att.memo && (
+                      <div className="flex-1">
+                        <p className="text-sm text-slate-400">메모 없음</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>)}
 
@@ -346,6 +429,9 @@ export default function ParentPage() {
 
         {tab==='memo'&&(<div className="space-y-3">
           <h2 className="text-base font-bold text-slate-800 px-1">메모</h2>
+          <div className="rounded-xl px-4 py-3 text-xs text-blue-600 leading-relaxed" style={{background:'#eff6ff',border:'1px solid #bfdbfe'}}>
+            선생님께 간단히 전달하실 말씀을 입력해주시면, 선생님이 확인 후 답장 드리겠습니다.
+          </div>
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3 max-h-96 overflow-y-auto">
             {memos.length===0?(
               <div className="py-8 text-center"><p className="text-slate-400 text-sm">메모가 없습니다</p></div>
@@ -369,4 +455,4 @@ export default function ParentPage() {
       <PushNotificationManager />
     </div>
   );
-}
+                                                                               }
