@@ -16,9 +16,27 @@ export default function ParentPage() {
   const [counselDesc, setCounselDesc] = useState('');
 
   useEffect(() => {
+    // 영구 로그인: localStorage에서 토큰 복원
+    const savedToken = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
+    if (savedToken) {
+      const hasAuthCookie = document.cookie.includes('auth-token-js=');
+      if (!hasAuthCookie) {
+        document.cookie = `auth-token-js=${savedToken}; path=/; max-age=${365*24*60*60}; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+      }
+    }
     fetch('/api/parent/data')
       .then(r => { if (!r.ok) { router.push('/auth/login'); return null; } return r.json(); })
-      .then(d => { if (d) { setData(d); if (d.students?.[0]) fetchMemos(d.students[0].id); } })
+      .then(d => {
+        if (d) {
+          setData(d);
+          if (d.students?.[0]) fetchMemos(d.students[0].id);
+          // 로그인 성공 시 토큰 저장
+          const tokenMatch = document.cookie.match(/auth-token-js=([^;]+)/);
+          if (tokenMatch && typeof window !== 'undefined') {
+            localStorage.setItem('auth-token', tokenMatch[1]);
+          }
+        }
+      })
       .catch(() => router.push('/auth/login'))
       .finally(() => setLoading(false));
   }, [router]);
@@ -54,6 +72,7 @@ export default function ParentPage() {
   };
 
   const handleLogout = async () => {
+    if (typeof window !== 'undefined') localStorage.removeItem('auth-token');
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/auth/login');
   };
@@ -112,6 +131,7 @@ export default function ParentPage() {
     {id:'memo',label:'메모',icon:'💭'}
   ];
 
+  // Chart rendering function
   const renderGradeChart = () => {
     if (!data.grades || data.grades.length < 2) return null;
     const chartData = [...data.grades].reverse();
@@ -258,6 +278,13 @@ export default function ParentPage() {
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500" style={{width:pct+'%',background:pct>=80?'linear-gradient(to right,#4ade80,#10b981)':pct>=60?'linear-gradient(to right,#60a5fa,#3b82f6)':pct>=40?'linear-gradient(to right,#fbbf24,#f59e0b)':'linear-gradient(to right,#f87171,#ef4444)'}}/></div>
+                {(g.avgRaw != null || g.highScore != null || g.lowScore != null) && (
+                  <div className="flex gap-3 mt-2">
+                    {g.avgRaw != null && <span className="text-xs text-orange-500 font-medium">평균 {g.avgRaw}점</span>}
+                    {g.highScore != null && <span className="text-xs text-emerald-500 font-medium">최고 {g.highScore}점</span>}
+                    {g.lowScore != null && <span className="text-xs text-red-400 font-medium">최저 {g.lowScore}점</span>}
+                  </div>
+                )}
               </div>
             );})}</div>
           )}
