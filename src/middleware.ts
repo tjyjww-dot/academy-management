@@ -4,10 +4,9 @@ function decodeToken(token: string) { try { const payload = JSON.parse(atob(toke
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Allow public routes and mobile API (ëª¨ë°ì¼ APIë ìì²´ Bearer í í° ì¸ì¦ ì¬ì©)
+  // Allow public routes and mobile API
   const publicRoutes = ['/auth', '/api/auth', '/api/mobile', '/_next', '/favicon.ico'];
   if (publicRoutes.some((route) => pathname.startsWith(route))) {
-    // ëª¨ë°ì¼ API CORS ì§ì
     if (pathname.startsWith('/api/mobile')) {
       const response = NextResponse.next();
       response.headers.set('Access-Control-Allow-Origin', '*');
@@ -18,7 +17,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get token from cookies
   const token = request.cookies.get('auth-token-js')?.value || request.cookies.get('auth-token')?.value;
 
   // Protect /admin/* routes
@@ -26,26 +24,22 @@ export function middleware(request: NextRequest) {
     if (!token) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
-
     const decoded = decodeToken(token);
     if (!decoded) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
-
     return NextResponse.next();
   }
 
-  // Protect /parent/* routes
+  // Protect /parent/* routes (학부모 + 학생 모두 접근 가능)
   if (pathname.startsWith('/parent')) {
     if (!token) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
-
     const decoded = decodeToken(token);
-      if (!decoded || (decoded.role !== 'PARENT' && decoded.role !== 'STUDENT')) {
+    if (!decoded || (decoded.role !== 'PARENT' && decoded.role !== 'STUDENT')) {
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
-
     return NextResponse.next();
   }
 
