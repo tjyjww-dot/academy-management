@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-function decodeToken(token: string) { try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp && payload.exp * 1000 < Date.now()) return null; return payload; } catch { return null; } }
+function decodeToken(token: string) {
+  try {
+    let base64 = token.split('.')[1];
+    base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64));
+    if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+    return payload;
+  } catch { return null; }
+}
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
