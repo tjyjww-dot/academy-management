@@ -9,6 +9,7 @@ interface Payment {
   tuitionFee: number;
   specialFee: number;
   otherFee: number;
+  siblingDiscount: number;
   totalFee: number;
   remarks: string | null;
   status: string;
@@ -73,8 +74,8 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(false);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editData, setEditData] = useState<{
-    tuitionFee: number; specialFee: number; otherFee: number; remarks: string;
-  }>({ tuitionFee: 0, specialFee: 0, otherFee: 0, remarks: '' });
+    tuitionFee: number; specialFee: number; otherFee: number; siblingDiscount: number; remarks: string;
+  }>({ tuitionFee: 0, specialFee: 0, otherFee: 0, siblingDiscount: 0, remarks: '' });
   const [showPaid, setShowPaid] = useState(false);
 
   // Search tab state
@@ -102,24 +103,45 @@ export default function PaymentsPage() {
     }
   }, [fetchPayments, activeTab]);
 
-  const handleSave = async (studentId: string) => {
+  const handleSave = async (studentId: string, existingPayment?: Payment | null) => {
     try {
-      const res = await fetch('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentId,
-          yearMonth,
-          tuitionFee: editData.tuitionFee,
-          specialFee: editData.specialFee,
-          otherFee: editData.otherFee,
-          remarks: editData.remarks,
-          status: 'INPUT_DONE',
-        }),
-      });
-      if (res.ok) {
-        setEditingRow(null);
-        fetchPayments();
+      // 이미 존재하는 결제 기록이면 PATCH로 수정 (상태 유지)
+      if (existingPayment && existingPayment.id) {
+        const res = await fetch(`/api/payments/${existingPayment.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tuitionFee: editData.tuitionFee,
+            specialFee: editData.specialFee,
+            otherFee: editData.otherFee,
+            siblingDiscount: editData.siblingDiscount,
+            remarks: editData.remarks,
+          }),
+        });
+        if (res.ok) {
+          setEditingRow(null);
+          fetchPayments();
+        }
+      } else {
+        // 새 기록 생성
+        const res = await fetch('/api/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId,
+            yearMonth,
+            tuitionFee: editData.tuitionFee,
+            specialFee: editData.specialFee,
+            otherFee: editData.otherFee,
+            siblingDiscount: editData.siblingDiscount,
+            remarks: editData.remarks,
+            status: 'INPUT_DONE',
+          }),
+        });
+        if (res.ok) {
+          setEditingRow(null);
+          fetchPayments();
+        }
       }
     } catch (error) {
       console.error('Failed to save:', error);
@@ -165,6 +187,7 @@ export default function PaymentsPage() {
       tuitionFee: row.payment?.tuitionFee || 0,
       specialFee: row.payment?.specialFee || 0,
       otherFee: row.payment?.otherFee || 0,
+      siblingDiscount: row.payment?.siblingDiscount || 0,
       remarks: row.payment?.remarks || '',
     });
   };
@@ -304,6 +327,7 @@ export default function PaymentsPage() {
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">수강료</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">특강비</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">기타비용</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">형제할인</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">총액</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">비고</th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">상태</th>
@@ -356,9 +380,18 @@ export default function PaymentsPage() {
                                   placeholder="0"
                                 />
                               </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={editData.siblingDiscount || ''}
+                                  onChange={(e) => setEditData({ ...editData, siblingDiscount: Number(e.target.value) || 0 })}
+                                  className="w-28 px-2 py-1.5 border border-orange-300 rounded text-right text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-orange-50"
+                                  placeholder="0"
+                                />
+                              </td>
                               <td className="px-4 py-3 text-right">
                                 <span className="font-bold text-blue-600">
-                                  {formatCurrency(editData.tuitionFee + editData.specialFee + editData.otherFee)}
+                                  {formatCurrency(editData.tuitionFee + editData.specialFee + editData.otherFee - editData.siblingDiscount)}
                                 </span>
                               </td>
                               <td className="px-4 py-3">
@@ -381,6 +414,9 @@ export default function PaymentsPage() {
                               </td>
                               <td className="px-4 py-3 text-right text-sm text-gray-700">
                                 {payment ? formatCurrency(payment.otherFee) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm text-orange-600">
+                                {payment && payment.siblingDiscount > 0 ? `-${formatCurrency(payment.siblingDiscount)}` : '-'}
                               </td>
                               <td className="px-4 py-3 text-right">
                                 <span className="font-bold text-gray-900">
@@ -406,7 +442,7 @@ export default function PaymentsPage() {
                               {isEditing ? (
                                 <>
                                   <button
-                                    onClick={() => handleSave(row.studentId)}
+                                    onClick={() => handleSave(row.studentId, payment)}
                                     className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
                                   >
                                     저장
@@ -445,15 +481,31 @@ export default function PaymentsPage() {
                                     </>
                                   )}
                                   {payment && currentStatus === 'SENT' && (
-                                    <button
-                                      onClick={() => handleStatusAdvance(payment.id, currentStatus)}
-                                      className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
-                                    >
-                                      입금확인
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => startEdit(row)}
+                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
+                                      >
+                                        수정
+                                      </button>
+                                      <button
+                                        onClick={() => handleStatusAdvance(payment.id, currentStatus)}
+                                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
+                                      >
+                                        입금확인
+                                      </button>
+                                    </>
                                   )}
                                   {payment && currentStatus === 'PAID' && (
-                                    <span className="text-xs text-green-600 font-medium">완료</span>
+                                    <>
+                                      <button
+                                        onClick={() => startEdit(row)}
+                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
+                                      >
+                                        수정
+                                      </button>
+                                      <span className="text-xs text-green-600 font-medium">완료</span>
+                                    </>
                                   )}
                                 </>
                               )}
@@ -565,6 +617,7 @@ export default function PaymentsPage() {
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">수강료</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">특강비</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">기타</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">형제할인</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">총액</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">비고</th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">상태</th>
@@ -584,6 +637,9 @@ export default function PaymentsPage() {
                           </td>
                           <td className="px-4 py-3 text-right text-sm text-gray-700">
                             {formatCurrency(p.otherFee)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm text-orange-600">
+                            {p.siblingDiscount > 0 ? `-${formatCurrency(p.siblingDiscount)}` : '-'}
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-gray-900">
                             {formatCurrency(p.totalFee)}

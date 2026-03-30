@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { studentId, yearMonth, tuitionFee, specialFee, otherFee, remarks, status } = body;
+    const { studentId, yearMonth, tuitionFee, specialFee, otherFee, siblingDiscount, remarks, status } = body;
 
     if (!studentId || !yearMonth) {
       return NextResponse.json(
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalFee = (tuitionFee || 0) + (specialFee || 0) + (otherFee || 0);
+    const totalFee = (tuitionFee || 0) + (specialFee || 0) + (otherFee || 0) - (siblingDiscount || 0);
 
     const existing = await prisma.payment.findFirst({
       where: { studentId, yearMonth },
@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
           tuitionFee: tuitionFee ?? existing.tuitionFee,
           specialFee: specialFee ?? existing.specialFee,
           otherFee: otherFee ?? existing.otherFee,
+          siblingDiscount: siblingDiscount ?? existing.siblingDiscount,
           totalFee,
           remarks: remarks !== undefined ? remarks : existing.remarks,
           status: status || existing.status,
@@ -121,6 +122,7 @@ export async function POST(request: NextRequest) {
           tuitionFee: tuitionFee || 0,
           specialFee: specialFee || 0,
           otherFee: otherFee || 0,
+          siblingDiscount: siblingDiscount || 0,
           totalFee,
           remarks: remarks || null,
           status: status || 'INPUT_DONE',

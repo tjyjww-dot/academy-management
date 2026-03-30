@@ -9,7 +9,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { status, tuitionFee, specialFee, otherFee, remarks } = body;
+    const { status, tuitionFee, specialFee, otherFee, siblingDiscount, remarks } = body;
 
     const existing = await prisma.payment.findUnique({ where: { id } });
     if (!existing) {
@@ -19,7 +19,8 @@ export async function PATCH(
     const newTuition = tuitionFee !== undefined ? tuitionFee : existing.tuitionFee;
     const newSpecial = specialFee !== undefined ? specialFee : existing.specialFee;
     const newOther = otherFee !== undefined ? otherFee : existing.otherFee;
-    const totalFee = newTuition + newSpecial + newOther;
+    const newDiscount = siblingDiscount !== undefined ? siblingDiscount : existing.siblingDiscount;
+    const totalFee = newTuition + newSpecial + newOther - newDiscount;
 
     const payment = await prisma.payment.update({
       where: { id },
@@ -28,6 +29,7 @@ export async function PATCH(
         ...(tuitionFee !== undefined ? { tuitionFee } : {}),
         ...(specialFee !== undefined ? { specialFee } : {}),
         ...(otherFee !== undefined ? { otherFee } : {}),
+        ...(siblingDiscount !== undefined ? { siblingDiscount } : {}),
         totalFee,
         ...(remarks !== undefined ? { remarks } : {}),
       },

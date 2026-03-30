@@ -228,18 +228,19 @@ model EntranceTest {
 }
 
 model Payment {
-  id          String   @id @default(cuid())
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId   String
-  yearMonth   String
-  tuitionFee  Int      @default(0)
-  specialFee  Int      @default(0)
-  otherFee    Int      @default(0)
-  totalFee    Int      @default(0)
-  remarks     String?
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId       String
+  yearMonth       String
+  tuitionFee      Int      @default(0)
+  specialFee      Int      @default(0)
+  otherFee        Int      @default(0)
+  siblingDiscount Int      @default(0)
+  totalFee        Int      @default(0)
+  remarks         String?
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model DailyReport {
