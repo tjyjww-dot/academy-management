@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
       const token = getTokenFromCookies(request);
       if (!token) {
         return NextResponse.json(
-          { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
+          { error: '인증이 필요합니다.' },
           { status: 401 }
         );
       }
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       const decoded = verifyToken(token);
       if (!decoded) {
         return NextResponse.json(
-          { error: 'Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂ Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂÃ«ÂÂÃ«ÂÂ¤.' },
+          { error: '유효하지 않은 토큰입니다.' },
           { status: 401 }
         );
       }
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      // Ã«Â°ÂÃ¬ÂÂ Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­: targetUserIdÃªÂ°Â Ã­ÂÂÃ¬ÂÂ¬ Ã¬ÂÂ¬Ã¬ÂÂ©Ã¬ÂÂÃ¬ÂÂ¸ ÃªÂ²ÂÃ«Â§Â Ã­ÂÂÃ¬ÂÂ (Ã«Â¯Â¸Ã¬ÂÂÃ«Â£Â)
+      // 받은 요청사항: targetUserId가 현재 사용자인 것만 표시 (미완료)
       const taskRequestsForUser = await prisma.taskRequest.findMany({
         where: {
           targetUserId: decoded.userId,
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error('Dashboard error:', error);
       return NextResponse.json(
-        { error: 'Ã«ÂÂÃ¬ÂÂÃ«Â³Â´Ã«ÂÂ Ã«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ° Ã¬Â¡Â°Ã­ÂÂ Ã¬Â¤Â Ã¬ÂÂ¤Ã«Â¥ÂÃªÂ°Â Ã«Â°ÂÃ¬ÂÂÃ­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+        { error: '대시보드 데이터 조회 중 오류가 발생했습니다.' },
         { status: 500 }
       );
     }
