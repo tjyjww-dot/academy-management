@@ -4,19 +4,24 @@ import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
 /**
- * GET /api/users - 회원 목록 조회 (관리자 전용)
+ * GET /api/users - íì ëª©ë¡ ì¡°í (ëª¨ë  ì¤íí ì ê·¼ ê°ë¥)
  */
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth-token')?.value;
     if (!token) {
-      return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
+      return NextResponse.json({ error: 'ì¸ì¦ì´ íìí©ëë¤.' }, { status: 401 });
     }
 
     const payload = verifyToken(token);
-    if (!payload || payload.role !== 'ADMIN') {
-      return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });
+    if (!payload) {
+      return NextResponse.json({ error: 'ì¸ì¦ í í°ì´ ì í¨íì§ ììµëë¤.' }, { status: 401 });
+    }
+
+    // ADMIN, TEACHER, DESK ëª¨ë ì¬ì©ì ëª©ë¡ ì¡°í ê°ë¥
+    if (!['ADMIN', 'TEACHER', 'DESK'].includes(payload.role)) {
+      return NextResponse.json({ error: 'ê¶íì´ ììµëë¤.' }, { status: 403 });
     }
 
     const users = await prisma.user.findMany({
@@ -42,6 +47,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ users });
   } catch (error) {
     console.error('GET users error:', error);
-    return NextResponse.json({ error: '목록 조회에 실패했습니다.' }, { status: 500 });
+    return NextResponse.json({ error: 'ëª©ë¡ ì¡°íì ì¤í¨íìµëë¤.' }, { status: 500 });
   }
 }
