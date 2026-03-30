@@ -1,4 +1,11 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 수학탐구 학원 관리 시스템
+
+학원 원생 관리, 학부모/학생 앱, 요청사항 관리 등을 위한 웹 애플리케이션입니다.
+
+- **Framework**: Next.js 16 (App Router, Turbopack)
+- **Database**: PostgreSQL (Neon) + Prisma ORM
+- **Deploy**: Vercel
+- **URL**: https://suhaktamgu-academy.vercel.app
 
 ## Getting Started
 
