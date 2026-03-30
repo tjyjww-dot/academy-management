@@ -48,10 +48,25 @@ export default function RequestsPage() {
   const [viewingRequest, setViewingRequest] = useState<TaskRequest | null>(null);
 
   useEffect(() => {
-    const userInfoStr = localStorage.getItem('userInfo');
-    if (userInfoStr) {
-      setUserInfo(JSON.parse(userInfoStr));
-    }
+    // /api/auth/me에서 현재 로그인한 사용자 정보를 가져옴
+    const fetchUserInfo = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUserInfo({
+              userId: data.user.id,
+              role: data.user.role,
+              name: data.user.name,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch user info:', err);
+      }
+    };
+    fetchUserInfo();
     fetchUsers();
     fetchSentRequests();
     fetchReceivedRequests();
