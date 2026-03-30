@@ -68,7 +68,7 @@ model ParentStudent {
   parentId  String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
-  relation  String  @default("ë¶ëª¨")
+  relation  String  @default("Ã«Â¶ÂÃ«ÂªÂ¨")
 
   @@unique([parentId, studentId])
 }
@@ -302,6 +302,8 @@ model TaskRequest {
   isCompleted   Boolean   @default(false)
   completedBy   String?
   completedAt   DateTime?
+  response      String?
+  responseByName String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -344,7 +346,7 @@ model Memo {
   updatedAt    DateTime @updatedAt
 }
 
-// ââ ì¤ëµ ê´ë¦¬ (Wrong Answer Management) ââ
+// Ã¢ÂÂÃ¢ÂÂ Ã¬ÂÂ¤Ã«ÂÂµ ÃªÂ´ÂÃ«Â¦Â¬ (Wrong Answer Management) Ã¢ÂÂÃ¢ÂÂ
 model WrongAnswer {
   id            String   @id @default(cuid())
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
