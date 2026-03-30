@@ -87,12 +87,12 @@ export default function DashboardPage() {
       });
       if (!res.ok) {
         console.error('Toggle failed:', res.status, res.statusText);
-        alert('처리에 실패했습니다. 다시 시도해주세요.');
+        alert('ì²ë¦¬ì ì¤í¨íìµëë¤. ë¤ì ìëí´ì£¼ì¸ì.');
         return;
       }
-      // 서버 저장 성공 후에만 UI 업데이트
+      // ìë² ì ì¥ ì±ê³µ íìë§ UI ìë°ì´í¸
       if (!isCompleted) {
-        // 읽음처리(완료) 시 목록에서 제거
+        // ì½ìì²ë¦¬(ìë£) ì ëª©ë¡ìì ì ê±°
         setTaskRequests(prev => prev.filter(tr => tr.id !== id));
       } else {
         setTaskRequests(prev =>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Toggle error:', err);
-      alert('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+      alert('ë¤í¸ìí¬ ì¤ë¥ê° ë°ìíìµëë¤. ë¤ì ìëí´ì£¼ì¸ì.');
     }
   };
 
@@ -110,13 +110,13 @@ export default function DashboardPage() {
       const res = await fetch(`/api/memos/${memoId}/read`, { method: 'PUT' });
       if (!res.ok) {
         console.error('Mark as read failed:', res.status);
-        alert('읽음 처리에 실패했습니다. 다시 시도해주세요.');
+        alert('ì½ì ì²ë¦¬ì ì¤í¨íìµëë¤. ë¤ì ìëí´ì£¼ì¸ì.');
         return;
       }
       setParentMemos(prev => prev.filter(m => m.id !== memoId));
     } catch (err) {
       console.error('Mark as read error:', err);
-      alert('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+      alert('ë¤í¸ìí¬ ì¤ë¥ê° ë°ìíìµëë¤. ë¤ì ìëí´ì£¼ì¸ì.');
     }
   };
 
@@ -152,39 +152,39 @@ export default function DashboardPage() {
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
-    if (minutes < 60) return `${minutes}분 전`;
-    if (hours < 24) return `${hours}시간 전`;
+    if (minutes < 60) return `${minutes}ë¶ ì `;
+    if (hours < 24) return `${hours}ìê° ì `;
     return date.toLocaleDateString('ko-KR');
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">로딩 중...</p>
+        <p className="text-gray-600">ë¡ë© ì¤...</p>
       </div>
     );
   }
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">대시보드</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">ëìë³´ë</h1>
 
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-blue-500">
-              <p className="text-sm text-gray-600">총 원생수</p>
+              <p className="text-sm text-gray-600">ì´ ììì</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-green-500">
-              <p className="text-sm text-gray-600">총 반수</p>
+              <p className="text-sm text-gray-600">Ü ë°ì</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalClassrooms}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-purple-500">
-              <p className="text-sm text-gray-600">오늘 출석</p>
+              <p className="text-sm text-gray-600">ì¤ë ì¶ì</pp>
               <p className="text-2xl font-bold text-gray-900">{stats.todayAttendance}</p>
             </div>
             <div className="bg-white rounded-lg shadow p-4 border-t-4 border-red-500">
-              <p className="text-sm text-gray-600">오늘 테스트</p>
+              <p className="text-sm text-gray-600">ì¤ë íì¤í¸</p>
               <p className="text-2xl font-bold text-gray-900">{stats.todayTests}</p>
             </div>
           </div>
@@ -192,11 +192,11 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">📢 공지사항</h2>
-            <Link href="/notifications" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
+            <h2 className="text-lg font-bold text-gray-900">ð¢ ê³µì§ì¬í­</h2>
+            <Link href="/notifications" className="text-sm text-blue-600 hover:text-blue-800">ì ì²´ ë³´ê¸° â</Link>
           </div>
           {announcements.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">공지사항이 없습니다.</p>
+            <p className="text-gray-500 text-center py-4">ê³µì§ì¬í­ì´ ììµëë¤.</p>
           ) : (
             <div className="space-y-3">
               {announcements.map((a) => (
@@ -216,11 +216,11 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">📋 임박한 입학테스트</h2>
-              <Link href="/entrance-test" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
+              <h2 className="text-lg font-bold text-gray-900">ð ìë°í ìííì¤í¸</h2>
+              <Link href="/entrance-test" className="text-sm text-blue-600 hover:text-blue-800">ì ì²´ ë³´ê¸° â</Link>
             </div>
             {upcomingTests.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">예정된 입학테스트가 없습니다.</p>
+              <p className="text-gray-500 text-center py-4">ìì ë ìííì¤í¸ê° ììµëë¤.</p>
             ) : (
               <div className="space-y-3">
                 {upcomingTests.map((test) => (
@@ -243,13 +243,13 @@ export default function DashboardPage() {
 
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">📨 받은 요청사항</h2>
-              <Link href="/requests" className="text-sm text-blue-600 hover:text-blue-800">요청 보내기 →</Link>
+              <h2 className="text-lg font-bold text-gray-900">ð¨ ë°ì ìì²­ì¬í­</h2>
+              <Link href="/requests" className="text-sm text-blue-600 hover:text-blue-800">ì ì²´ ë³´ê¸° â</Link>
             </div>
 
             {parentMemos.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-orange-600 mb-2">💌 학부모/학생 메모 ({parentMemos.length})</h3>
+                <h3 className="text-sm font-semibold text-orange-600 mb-2">ð íë¶ëª¨/íì ë©ëª¨ ({parentMemos.length})</h3>
                 <div className="space-y-2">
                   {parentMemos.map((memo) => (
                     <div key={memo.id} className="border border-orange-200 bg-orange-50 rounded-lg p-3 cursor-pointer hover:bg-orange-100 transition-colors" onClick={() => setSelectedMemo(memo)}>
@@ -270,31 +270,32 @@ export default function DashboardPage() {
             )}
 
             {taskRequests.length === 0 && parentMemos.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">요청사항이 없습니다.</p>
+              <p className="text-gray-500 text-center py-4">ìì²­ì¬í­ì´ ììµëë¤.</p>
             ) : taskRequests.length > 0 && (
               <div>
-                {parentMemos.length > 0 && <h3 className="text-sm font-semibold text-blue-600 mb-2">📋 업무 요청</h3>}
+                {parentMemos.length > 0 && <h3 className="text-sm font-semibold text-blue-600 mb-2">ð ìë¬´ ìì²­</h3>}
                 <div className="space-y-3">
                   {taskRequests.map((tr) => (
-                    <div key={tr.id} className="flex items-start gap-3 border rounded-lg p-3">
-                      <input type="checkbox" checked={tr.isCompleted} onChange={() => handleToggleComplete(tr.id, tr.isCompleted)} className="mt-1 w-4 h-4 text-blue-600 rounded" />
+                    <Link key={tr.id} href="/requests" className="flex items-start gap-3 border border-yellow-200 bg-yellow-50 rounded-lg p-3 hover:shadow-md transition">
                       <div className="flex-1">
-                        <p className={`font-medium ${tr.isCompleted ? 'line-through text-gray-400' : 'text-gray-900'}`}>{tr.title}</p>
-                        {tr.description && <p className="text-sm text-gray-500 mt-1">{tr.description}</p>}
-                        <p className="text-xs text-gray-400 mt-1">{tr.createdByName} · {new Date(tr.createdAt).toLocaleDateString('ko-KR')}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">ëê¸°ì¤</span>
+                          <p className="font-medium text-gray-900">{tr.title}</p>
+                        </div>
+                        {tr.description && <p className="text-sm text-gray-500 mt-1 line-clamp-1">{tr.description}</p>}
+                        <p className="text-xs text-gray-400 mt-1">{tr.createdByName} Â· {new Date(tr.createdAt).toLocaleDateString('ko-KR')}</p>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>
             )}
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-2 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
           <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Google Calendar</h2>
-          <div className="w-full overflow-hidden rounded-lg border border-gray-200" style={{ height: "clamp(350px, 70vh, 800px)" }}>
-            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no"
-              loading="lazy" />
+          <div className="w-full overflow-hidden rounded-lg" style={{ height: "clamp(500px, 60vw, 800px)" }}>
+            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no" />
           </div>
         </div>
       </div>
@@ -304,8 +305,8 @@ export default function DashboardPage() {
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-bold text-gray-900">메모 상세</h3>
-                <button onClick={() => { setSelectedMemo(null); setReplyContent(''); }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                <h3 className="text-lg font-bold text-gray-900">ë©ëª¨ ìì¸</h3>
+                <button onClick={() => { setSelectedMemo(null); setReplyContent(''); }} className="text-gray-400 hover:text-gray-600 text-xl">â</button>
               </div>
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -316,15 +317,15 @@ export default function DashboardPage() {
                 <p className="text-gray-800 whitespace-pre-wrap">{selectedMemo.content}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">답장 작성</label>
-                <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} placeholder="답장 내용을 입력하세요..." className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" rows={4} />
+                <label className="block text-sm font-medium text-gray-700 mb-2">ëµì¥ ìì±</label>
+                <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} placeholder="ëµì¥ ë´ì©ì ìë ¥íì¸ì..." className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" rows={4} />
               </div>
               <div className="flex gap-2 mt-4">
                 <button onClick={handleReply} disabled={replying || !replyContent.trim()} className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
-                  {replying ? '전송 중...' : '답장 보내기'}
+                  {replying ? 'ì ì¡ ì¤...' : 'ëµì¥ ë³´ë´ê¸°'}
                 </button>
                 <button onClick={() => handleMarkAsRead(selectedMemo.id).then(() => { setSelectedMemo(null); setReplyContent(''); })} className="px-4 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-                  읽음 처리
+                  ì½ì ì²ë¦¬
                 </button>
               </div>
             </div>
