@@ -10,7 +10,7 @@ export async function PATCH(
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
+        { error: '인증이 필요합니다.' },
         { status: 401 }
       );
     }
@@ -18,7 +18,7 @@ export async function PATCH(
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂ Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂÃ«ÂÂÃ«ÂÂ¤.' },
+        { error: '유효하지 않은 토큰입니다.' },
         { status: 401 }
       );
     }
@@ -27,7 +27,7 @@ export async function PATCH(
     const { isCompleted, completedBy, response: responseText } = body;
     const { id: taskId } = await params;
 
-    // Ã«ÂÂµÃ¬ÂÂ¥ÃªÂ³Â¼ Ã­ÂÂ¨ÃªÂ»Â Ã¬ÂÂÃ«Â£Â Ã¬Â²ÂÃ«Â¦Â¬
+    // 답장과 함께 완료 처리
     if (isCompleted) {
       await prisma.taskRequest.update({
         where: { id: taskId },
@@ -58,7 +58,7 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        message: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­Ã¬ÂÂ´ Ã¬ÂÂÃ«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ¸Ã«ÂÂÃ¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.',
+        message: '요청사항이 업데이트되었습니다.',
         taskRequest: taskRequest || null,
       },
       { status: 200 }
@@ -66,7 +66,7 @@ export async function PATCH(
   } catch (error) {
     console.error('Update task request error:', error);
     return NextResponse.json(
-      { error: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­ Ã¬ÂÂÃ«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ¸ Ã¬Â¤Â Ã¬ÂÂ¤Ã«Â¥ÂÃªÂ°Â Ã«Â°ÂÃ¬ÂÂÃ­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+      { error: '요청사항 업데이트 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }
@@ -80,7 +80,7 @@ export async function DELETE(
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
+        { error: '인증이 필요합니다.' },
         { status: 401 }
       );
     }
@@ -88,7 +88,7 @@ export async function DELETE(
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂ Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂÃ«ÂÂÃ«ÂÂ¤.' },
+        { error: '유효하지 않은 토큰입니다.' },
         { status: 401 }
       );
     }
@@ -101,14 +101,14 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        message: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­Ã¬ÂÂ´ Ã¬ÂÂ­Ã¬Â ÂÃ«ÂÂÃ¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.',
+        message: '요청사항이 삭제되었습니다.',
       },
       { status: 200 }
     );
   } catch (error) {
     console.error('Delete task request error:', error);
     return NextResponse.json(
-      { error: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­ Ã¬ÂÂ­Ã¬Â Â Ã¬Â¤Â Ã¬ÂÂ¤Ã«Â¥ÂÃªÂ°Â Ã«Â°ÂÃ¬ÂÂÃ­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+      { error: '요청사항 삭제 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }
