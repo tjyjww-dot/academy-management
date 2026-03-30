@@ -169,8 +169,8 @@ export async function POST(request: NextRequest) {
       }).filter(Boolean)
     );
 
-    // 시트에서 133행부터 데이터 가져오기
-    const START_ROW = 133;
+    // 시트에서 143행부터 데이터 가져오기
+    const START_ROW = 143;
     const csvText = await fetchSheetCSV(START_ROW);
     const lines = csvText.split('\n').filter((l) => l.trim());
 
