@@ -75,10 +75,10 @@ export default function DashboardPage() {
       } finally {
         setLoading(false);
       }
-    {;
+    };
     fetchDashboard();
   }, []);
-  const handleToggleComplete = async (id: string, isCompleted: booolean) => {
+  const handleToggleComplete = async (id: string, isCompleted: boolean) => {
     try {
       const res = await fetch(`/api/task-requests/${id}`, {
         method: 'PATCH',
