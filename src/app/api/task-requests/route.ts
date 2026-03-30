@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
+        { error: '인증이 필요합니다.' },
         { status: 401 }
       );
     }
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ¸Ã¬Â¦Â Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂ´ Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+        { error: '인증 토큰이 유효하지 않습니다.' },
         { status: 401 }
       );
     }
@@ -28,10 +28,10 @@ export async function GET(request: NextRequest) {
     let whereClause: any = {};
 
     if (sent === 'true') {
-      // Ã«ÂÂ´ÃªÂ°Â Ã«Â³Â´Ã«ÂÂ¸ Ã¬ÂÂÃ¬Â²Â­
+      // 내가 보낸 요청
       whereClause.createdBy = decoded.userId;
     } else if (received === 'true') {
-      // Ã«ÂÂ´ÃªÂ°Â Ã«Â°ÂÃ¬ÂÂ Ã¬ÂÂÃ¬Â²Â­
+      // 내가 받은 요청
       whereClause.targetUserId = decoded.userId;
     } else if (targetUserId) {
       whereClause.targetUserId = targetUserId;
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Task requests error:', error);
     return NextResponse.json(
-      { error: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­ Ã«ÂªÂ©Ã«Â¡ÂÃ¬ÂÂ Ã«Â¶ÂÃ«ÂÂ¬Ã¬ÂÂ¤Ã«ÂÂ Ã«ÂÂ° Ã¬ÂÂ¤Ã­ÂÂ¨Ã­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+      { error: '요청사항 목록을 불러오는 데 실패했습니다.' },
       { status: 500 }
     );
   }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
+        { error: '인증이 필요합니다.' },
         { status: 401 }
       );
     }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: 'Ã¬ÂÂ¸Ã¬Â¦Â Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂ´ Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+        { error: '인증 토큰이 유효하지 않습니다.' },
         { status: 401 }
       );
     }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     if (!title) {
       return NextResponse.json(
-        { error: 'Ã­ÂÂÃ¬ÂÂ Ã­ÂÂÃ«ÂÂÃªÂ°Â Ã«ÂÂÃ«ÂÂ½Ã«ÂÂÃ¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+        { error: '필수 필드가 누락되었습니다.' },
         { status: 400 }
       );
     }
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­Ã¬ÂÂ´ Ã¬ÂÂ±ÃªÂ³ÂµÃ¬Â ÂÃ¬ÂÂ¼Ã«Â¡Â Ã«ÂÂ±Ã«Â¡ÂÃ«ÂÂÃ¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.',
+        message: '요청사항이 성공적으로 등록되었습니다.',
         taskRequest,
       },
       { status: 201 }
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Create task request error:', error);
     return NextResponse.json(
-      { error: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­ Ã«ÂÂ±Ã«Â¡ÂÃ¬ÂÂ Ã¬ÂÂ¤Ã­ÂÂ¨Ã­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
+      { error: '요청사항 등록에 실패했습니다.' },
       { status: 500 }
     );
   }
