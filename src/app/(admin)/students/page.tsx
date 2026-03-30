@@ -29,6 +29,19 @@ const statusColorMap: Record<string, string> = {
   퇴원: 'bg-red-100 text-red-800',
 };
 
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query || !text) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="bg-yellow-200 text-yellow-900 rounded px-0.5">{text.slice(idx, idx + query.length)}</span>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
 export default function StudentsPage() {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
@@ -101,16 +114,36 @@ export default function StudentsPage() {
         )}
 
         <div className="mb-6 bg-white p-3 sm:p-4 rounded-lg shadow">
-          <input
-            type="text"
-            placeholder="이름으로 검색..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="이름, 학교, 연락처, 학번으로 검색..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); setPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="mt-2 text-sm text-gray-500">
+              &quot;{searchQuery}&quot; 검색 결과: {students.length}건
+            </p>
+          )}
         </div>
 
         <div className="mb-6 flex gap-2 bg-white p-3 sm:p-4 rounded-lg shadow overflow-x-auto">
@@ -168,19 +201,19 @@ export default function StudentsPage() {
                           onClick={() => router.push(`/students/${student.id}`)}
                         >
                           <td className="px-6 py-4 text-sm text-gray-900">
-                            {student.studentNumber}
+                            <HighlightMatch text={student.studentNumber} query={searchQuery} />
                           </td>
                           <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                            {student.name}
+                            <HighlightMatch text={student.name} query={searchQuery} />
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
-                            {student.school || '-'}
+                            {student.school ? <HighlightMatch text={student.school} query={searchQuery} /> : '-'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {student.grade || '-'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
-                            {student.phone || '-'}
+                            {student.phone ? <HighlightMatch text={student.phone} query={searchQuery} /> : '-'}
                           </td>
                           <td className="px-6 py-4 text-sm">
                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColorMap[statusMap[student.status] || '']}`}>

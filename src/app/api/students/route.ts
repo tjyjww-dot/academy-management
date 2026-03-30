@@ -21,7 +21,13 @@ export async function GET(request: NextRequest) {
       const whereClause: any = {};
 
       if (q) {
-              whereClause.name = { contains: q };
+              whereClause.OR = [
+                { name: { contains: q } },
+                { school: { contains: q } },
+                { phone: { contains: q } },
+                { parentPhone: { contains: q } },
+                { studentNumber: { contains: q } },
+              ];
       }
 
       if (status && status !== '전체') {
