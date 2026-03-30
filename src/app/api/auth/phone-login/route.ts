@@ -4,10 +4,10 @@ import { hashPassword, generateToken } from '@/lib/auth';
 
 /**
  * POST /api/auth/phone-login
- * ì íë²í¸ ê¸°ë° ë¡ê·¸ì¸ (ëª¨ë°ì¼ ì± ì ì©)
+ * 전화번호 기반 로그인 (모바일 앱 전용)
  *
- * Step 1: { phone } â ë§¤ì¹­ëë íì ëª©ë¡ ë°í
- * Step 2: { phone, studentId, studentName, loginType } â íì ì´ë¦ íì¸ í í í° ë°ê¸
+ * Step 1: { phone } → 매칭되는 학생 목록 반환
+ * Step 2: { phone, studentId, studentName, loginType } → 학생 이름 확인 후 토큰 발급
  */
 export async function POST(request: NextRequest) {
   try {
@@ -16,39 +16,39 @@ export async function POST(request: NextRequest) {
 
     if (!phone) {
       return NextResponse.json(
-        { error: 'ì íë²í¸ë¥¼ ìë ¥í´ì£¼ì¸ì.' },
+        { error: '전화번호를 입력해주세요.' },
         { status: 400 }
       );
     }
 
-    // ì íë²í¸ ì ê·í (íì´í ì ê±°)
+    // 전화번호 정규화 (하이픈 제거)
     const normalizedPhone = phone.replace(/[-\s]/g, '');
-    // íì´í í¬í¨ ííë ë§ë¤ê¸° (010-1234-5678)
+    // 하이픈 포함 형태도 만들기 (010-1234-5678)
     const formattedPhone = normalizedPhone.length === 11
       ? normalizedPhone.slice(0,3) + '-' + normalizedPhone.slice(3,7) + '-' + normalizedPhone.slice(7)
       : normalizedPhone;
 
-    // ââ Step 1: ì íë²í¸ë¡ íì ê²ì ââ
+    // ── Step 1: 전화번호로 학생 검색 ──
     if (!studentId) {
-      // íì ë³¸ì¸ ì íë²í¸ ë§¤ì¹­
+      // 학생 본인 전화번호 매칭
       const studentsByPhone = await prisma.student.findMany({
         where: {
-          OR: [{ phone: normalizedPhone }, { phone: formattedPhone }, { phone: { startsWith: formattedPhone } }],
+          OR: [{ phone: normalizedPhone }, { phone: formattedPhone }],
           status: 'ACTIVE',
         },
         select: { id: true, name: true, school: true, grade: true, userId: true },
       });
 
-      // íë¶ëª¨ ì íë²í¸ ë§¤ì¹­
+      // 학부모 전화번호 매칭
       const studentsByParentPhone = await prisma.student.findMany({
         where: {
-          OR: [{ parentPhone: normalizedPhone }, { parentPhone: formattedPhone }, { parentPhone: { startsWith: formattedPhone } }],
+          OR: [{ parentPhone: normalizedPhone }, { parentPhone: formattedPhone }],
           status: 'ACTIVE',
         },
         select: { id: true, name: true, school: true, grade: true, userId: true },
       });
 
-      // ì´ë¯¸ User.phoneì¼ë¡ ë±ë¡ë íë¶ëª¨ ì°¾ê¸°
+      // 이미 User.phone으로 등록된 학부모 찾기
       const existingParentUser = await prisma.user.findFirst({
         where: {
           phone: normalizedPhone,
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         (ps: any) => ps.student
       ) || [];
 
-      // ì¤ë³µ ì ê±°
+      // 중복 제거
       const allStudents = new Map<string, { id: string; name: string; school: string | null; grade: string | null }>();
       const studentMatches: { studentId: string; role: 'STUDENT' }[] = [];
       const parentMatches: { studentId: string; role: 'PARENT' }[] = [];
@@ -95,12 +95,12 @@ export async function POST(request: NextRequest) {
 
       if (allStudents.size === 0) {
         return NextResponse.json(
-          { error: 'ë±ë¡ë ì íë²í¸ê° ìëëë¤. íìì ë¬¸ìí´ì£¼ì¸ì.' },
+          { error: '등록된 전화번호가 아닙니다. 학원에 문의해주세요.' },
           { status: 404 }
         );
       }
 
-      // íì ëª©ë¡ + ë¡ê·¸ì¸ ì­í  ì ë³´ ë°í (ì´ë¦ì ë¶ë¶ ë§ì¤í¹)
+      // 학생 목록 + 로그인 역할 정보 반환 (이름은 부분 마스킹)
       const results = [...allStudents.entries()].map(([id, s]) => {
         const isStudentLogin = studentMatches.find((m) => m.studentId === id);
         return {
@@ -115,61 +115,61 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         step: 'SELECT_STUDENT',
         students: results,
-        message: 'íìì ì ííê³  ì´ë¦ì ìë ¥í´ì£¼ì¸ì.',
+        message: '학생을 선택하고 이름을 입력해주세요.',
       });
     }
 
-    // ââ Step 2: íì ì´ë¦ íì¸ í ë¡ê·¸ì¸ ââ
+    // ── Step 2: 학생 이름 확인 후 로그인 ──
     if (!studentName) {
       return NextResponse.json(
-        { error: 'íì ì´ë¦ì ìë ¥í´ì£¼ì¸ì.' },
+        { error: '학생 이름을 입력해주세요.' },
         { status: 400 }
       );
     }
 
-    // íì ì¡°í
+    // 학생 조회
     const student = await prisma.student.findUnique({
       where: { id: studentId },
     });
 
     if (!student) {
       return NextResponse.json(
-        { error: 'íì ì ë³´ë¥¼ ì°¾ì ì ììµëë¤.' },
+        { error: '학생 정보를 찾을 수 없습니다.' },
         { status: 404 }
       );
     }
 
-    // ì´ë¦ íì¸ (ê³µë°± ì ê±° í ë¹êµ)
+    // 이름 확인 (공백 제거 후 비교)
     const inputName = studentName.replace(/\s/g, '').trim();
     const actualName = student.name.replace(/\s/g, '').trim();
 
     if (inputName !== actualName) {
       return NextResponse.json(
-        { error: 'íì ì´ë¦ì´ ì¼ì¹íì§ ììµëë¤.' },
+        { error: '학생 이름이 일치하지 않습니다.' },
         { status: 401 }
       );
     }
 
-    // ë¡ê·¸ì¸ íì ê²°ì 
+    // 로그인 타입 결정
     const role = loginType === 'STUDENT' ? 'STUDENT' : 'PARENT';
 
     if (role === 'STUDENT') {
-      // ââ íì ë¡ê·¸ì¸ ââ
+      // ── 학생 로그인 ──
       let user = student.userId
         ? await prisma.user.findUnique({ where: { id: student.userId } })
         : null;
 
       if (!user) {
-        // ê¸°ì¡´ì ê°ì ì´ë©ì¼ë¡ ìì±ë Userê° ìëì§ íì¸
+        // 기존에 같은 이메일로 생성된 User가 있는지 확인
         const studentEmail = `student_${student.studentNumber}@suhaktamgu.local`;
         const existingUser = await prisma.user.findUnique({
           where: { email: studentEmail },
         });
 
         if (existingUser) {
-          // ê¸°ì¡´ Userê° ìì¼ë©´ ì¬ì¬ì©íê³  Studentì ì°ê²°
+          // 기존 User가 있으면 재사용하고 Student에 연결
           user = existingUser;
-          // ì´ë¦/ì íë²í¸ ìë°ì´í¸
+          // 이름/전화번호 업데이트
           user = await prisma.user.update({
             where: { id: existingUser.id },
             data: {
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
             },
           });
         } else {
-          // íì User ìë ìì±
+          // 학생 User 자동 생성
           const randomPassword = await hashPassword(
             Math.random().toString(36).slice(-12)
           );
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Student â User ì°ê²°
+        // Student → User 연결
         await prisma.student.update({
           where: { id: student.id },
           data: { userId: user.id },
@@ -209,14 +209,14 @@ export async function POST(request: NextRequest) {
 
       return createLoginResponse(token, user);
     } else {
-      // ââ íë¶ëª¨ ë¡ê·¸ì¸ ââ
-      // ê¸°ì¡´ íë¶ëª¨ ê³ì  ì°¾ê¸° (ì íë²í¸ ê¸°ì¤)
+      // ── 학부모 로그인 ──
+      // 기존 학부모 계정 찾기 (전화번호 기준)
       let user = await prisma.user.findFirst({
-        where: { OR: [{ phone: normalizedPhone }, { phone: formattedPhone }, { phone: { startsWith: formattedPhone } }], role: 'PARENT' },
+        where: { OR: [{ phone: normalizedPhone }, { phone: formattedPhone }], role: 'PARENT' },
       });
 
       if (!user) {
-        // ê¸°ì¡´ì ê°ì ì´ë©ì¼ë¡ ìì±ë Userê° ìëì§ íì¸
+        // 기존에 같은 이메일로 생성된 User가 있는지 확인
         const parentEmail = `parent_${normalizedPhone}@suhaktamgu.local`;
         const existingUserByEmail = await prisma.user.findUnique({
           where: { email: parentEmail },
@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
         if (existingUserByEmail) {
           user = existingUserByEmail;
         } else {
-          // íë¶ëª¨ User ìë ìì±
+          // 학부모 User 자동 생성
           const randomPassword = await hashPassword(
             Math.random().toString(36).slice(-12)
           );
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
             data: {
               email: parentEmail,
               password: randomPassword,
-              name: `${student.name} íë¶ëª¨`,
+              name: `${student.name} 학부모`,
               role: 'PARENT',
               phone: normalizedPhone,
             },
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // ParentStudent ê´ê³ íì¸/ìì±
+      // ParentStudent 관계 확인/생성
       const existingRelation = await prisma.parentStudent.findUnique({
         where: {
           parentId_studentId: {
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Phone login error:', error);
     return NextResponse.json(
-      { error: 'ë¡ê·¸ì¸ ì²ë¦¬ ì¤ ì¤ë¥ê° ë°ìíìµëë¤.' },
+      { error: '로그인 처리 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }
@@ -323,3 +323,4 @@ export async function OPTIONS() {
     },
   });
 }
+
