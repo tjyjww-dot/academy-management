@@ -10,7 +10,7 @@ export async function PATCH(
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
-        { error: 'ì¸ì¦ì´ íìí©ëë¤.' },
+        { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
         { status: 401 }
       );
     }
@@ -18,7 +18,7 @@ export async function PATCH(
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: 'ì í¨íì§ ìì í í°ìëë¤.' },
+        { error: 'Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂ Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂÃ«ÂÂÃ«ÂÂ¤.' },
         { status: 401 }
       );
     }
@@ -27,7 +27,7 @@ export async function PATCH(
     const { isCompleted, completedBy, response: responseText } = body;
     const { id: taskId } = await params;
 
-    // ëµì¥ê³¼ í¨ê» ìë£ ì²ë¦¬
+    // Ã«ÂÂµÃ¬ÂÂ¥ÃªÂ³Â¼ Ã­ÂÂ¨ÃªÂ»Â Ã¬ÂÂÃ«Â£Â Ã¬Â²ÂÃ«Â¦Â¬
     if (isCompleted) {
       await prisma.taskRequest.update({
         where: { id: taskId },
@@ -58,7 +58,7 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        message: 'ìì²­ì¬í­ì´ ìë°ì´í¸ëììµëë¤.',
+        message: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­Ã¬ÂÂ´ Ã¬ÂÂÃ«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ¸Ã«ÂÂÃ¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.',
         taskRequest: taskRequest || null,
       },
       { status: 200 }
@@ -66,7 +66,7 @@ export async function PATCH(
   } catch (error) {
     console.error('Update task request error:', error);
     return NextResponse.json(
-      { error: 'ìì²­ì¬í­ ìë°ì´í¸ ì¤ ì¤ë¥ê° ë°ìíìµëë¤.' },
+      { error: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­ Ã¬ÂÂÃ«ÂÂ°Ã¬ÂÂ´Ã­ÂÂ¸ Ã¬Â¤Â Ã¬ÂÂ¤Ã«Â¥ÂÃªÂ°Â Ã«Â°ÂÃ¬ÂÂÃ­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
       { status: 500 }
     );
   }
@@ -80,7 +80,7 @@ export async function DELETE(
     const token = getTokenFromCookies(request);
     if (!token) {
       return NextResponse.json(
-        { error: 'ì¸ì¦ì´ íìí©ëë¤.' },
+        { error: 'Ã¬ÂÂ¸Ã¬Â¦ÂÃ¬ÂÂ´ Ã­ÂÂÃ¬ÂÂÃ­ÂÂ©Ã«ÂÂÃ«ÂÂ¤.' },
         { status: 401 }
       );
     }
@@ -88,7 +88,7 @@ export async function DELETE(
     const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json(
-        { error: 'ì í¨íì§ ìì í í°ìëë¤.' },
+        { error: 'Ã¬ÂÂ Ã­ÂÂ¨Ã­ÂÂÃ¬Â§Â Ã¬ÂÂÃ¬ÂÂ Ã­ÂÂ Ã­ÂÂ°Ã¬ÂÂÃ«ÂÂÃ«ÂÂ¤.' },
         { status: 401 }
       );
     }
@@ -101,129 +101,14 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        message: 'ìì²­ì¬í­ì´ ì­ì ëììµëë¤.',
+        message: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­Ã¬ÂÂ´ Ã¬ÂÂ­Ã¬Â ÂÃ«ÂÂÃ¬ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.',
       },
       { status: 200 }
     );
   } catch (error) {
     console.error('Delete task request error:', error);
     return NextResponse.json(
-      { error: 'ìì²­ì¬í­ ì­ì  ì¤ ì¤ë¥ê° ë°ìíìµëë¤.' },
-      { status: 500 }
-    );
-  }
-}
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getTokenFromCookies, verifyToken } from '@/lib/auth';
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Verify authentication
-    const token = getTokenFromCookies(request);
-    if (!token) {
-      return NextResponse.json(
-        { error: '인증이 필요합니다.' },
-        { status: 401 }
-      );
-    }
-
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json(
-        { error: '유효하지 않은 토큰입니다.' },
-        { status: 401 }
-      );
-    }
-
-    const body = await request.json();
-    const { isCompleted, completedBy } = body;
-    const { id: taskId } = await params;
-
-    // Update task request
-    if (isCompleted) {
-      await prisma.taskRequest.update({
-        where: { id: taskId },
-        data: {
-          isCompleted: true,
-          completedBy: completedBy || null,
-          completedAt: new Date(),
-        },
-      });
-    } else {
-      await prisma.taskRequest.update({
-        where: { id: taskId },
-        data: {
-          isCompleted: false,
-          completedBy: null,
-          completedAt: null,
-        },
-      });
-    }
-
-    // Fetch and return the updated task request
-    const taskRequest = await prisma.taskRequest.findUnique({
-      where: { id: taskId },
-    });
-
-    return NextResponse.json(
-      {
-        message: '업무 요청사항이 업데이트되었습니다.',
-        taskRequest: taskRequest || null,
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error('Update task request error:', error);
-    return NextResponse.json(
-      { error: '업무 요청사항 업데이트 중 오류가 발생했습니다.' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Verify authentication
-    const token = getTokenFromCookies(request);
-    if (!token) {
-      return NextResponse.json(
-        { error: '인증이 필요합니다.' },
-        { status: 401 }
-      );
-    }
-
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json(
-        { error: '유효하지 않은 토큰입니다.' },
-        { status: 401 }
-      );
-    }
-
-    const { id: taskId } = await params;
-
-    // Delete task request
-    await prisma.taskRequest.delete({
-      where: { id: taskId },
-    });
-
-    return NextResponse.json(
-      {
-        message: '업무 요청사항이 삭제되었습니다.',
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error('Delete task request error:', error);
-    return NextResponse.json(
-      { error: '업무 요청사항 삭제 중 오류가 발생했습니다.' },
+      { error: 'Ã¬ÂÂÃ¬Â²Â­Ã¬ÂÂ¬Ã­ÂÂ­ Ã¬ÂÂ­Ã¬Â Â Ã¬Â¤Â Ã¬ÂÂ¤Ã«Â¥ÂÃªÂ°Â Ã«Â°ÂÃ¬ÂÂÃ­ÂÂÃ¬ÂÂµÃ«ÂÂÃ«ÂÂ¤.' },
       { status: 500 }
     );
   }
