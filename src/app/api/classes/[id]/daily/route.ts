@@ -151,8 +151,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const messages = tokens.map(t => ({
           to: t,
           sound: 'default',
-          title: 'Daily Report',
-          body: sendPushNotification.studentName + ' daily report is ready.',
+          badge: 1,
+          title: '📋 수업 리포트',
+          body: sendPushNotification.studentName + ' 학생의 오늘 수업 리포트가 도착했습니다.',
           data: { type: 'DAILY_REPORT', studentId: pushStudentId, date },
         }));
         await fetch('https://exp.host/--/api/v2/push/send', {
@@ -276,8 +277,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const tokens = parentLinks.flatMap(pl => pl.parent.pushTokens.map(pt => pt.token));
         if (tokens.length > 0) {
           const messages = tokens.map(t => ({
-            to: t, sound: 'default', title: 'Daily Report',
-            body: sendPushNotification.studentName + ' daily report is ready.',
+            to: t, sound: 'default', badge: 1, title: '📋 수업 리포트',
+            body: sendPushNotification.studentName + ' 학생의 오늘 수업 리포트가 도착했습니다.',
             data: { type: 'DAILY_REPORT', studentId: pushStudentId, date },
           }));
           await fetch('https://exp.host/--/api/v2/push/send', {
