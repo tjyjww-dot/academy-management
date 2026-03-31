@@ -294,8 +294,12 @@ export default function DashboardPage() {
         </div>
         <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
           <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Google Calendar</h2>
-          <div className="w-full overflow-hidden rounded-lg" style={{ height: "clamp(500px, 60vw, 800px)" }}>
+          {/* 모바일: iframe을 800px 고정 폭으로 렌더링 후 화면에 맞게 축소 / 데스크톱: 100% */}
+          <div className="w-full overflow-hidden rounded-lg hidden md:block" style={{ height: "700px" }}>
             <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no" />
+          </div>
+          <div className="md:hidden w-full overflow-hidden rounded-lg" style={{ position: 'relative', paddingBottom: '85%' }}>
+            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, position: 'absolute', top: 0, left: 0, width: '250%', height: '250%', transform: 'scale(0.4)', transformOrigin: 'top left' }} frameBorder="0" scrolling="no" />
           </div>
         </div>
       </div>
