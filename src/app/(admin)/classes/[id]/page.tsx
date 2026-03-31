@@ -577,6 +577,7 @@ export default function ClassDetailPage() {
                   <td className="p-3">
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setCounselingStudent(s); setCounselingNote(''); }} className="text-blue-600 hover:text-blue-800 font-semibold">{s.name}</button>
+                      {s.school && <span className="text-xs text-gray-400 ml-1">({s.school})</span>}
                       <button onClick={() => removeStudentFromClass(s.id, s.name)} className="text-red-400 hover:text-red-600 text-xs ml-1" title="반에서 제거">{'\u2716'}</button>
                     </div>
                     <div className="text-xs text-gray-400">{s.phone ? '학생 ' + s.phone : '학생 -'}</div>
