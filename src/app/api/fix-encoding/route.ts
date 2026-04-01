@@ -155,6 +155,32 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// GET: 진단용 - 깨진 데이터 확인
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get('key');
+  if (key !== 'fix-enc-2026-04') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const grades = await prisma.grade.findMany({
+    select: { id: true, testName: true, testDate: true },
+    orderBy: { testDate: 'desc' },
+    take: 30,
+  });
+
+  // 각 testName의 유니코드 코드포인트 확인
+  const diag = grades.map(g => ({
+    id: g.id,
+    testName: g.testName,
+    testDate: g.testDate,
+    codePoints: [...g.testName].map(c => `U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`).join(' '),
+    hexBytes: Buffer.from(g.testName, 'utf-8').toString('hex'),
+  }));
+
+  return NextResponse.json({ grades: diag });
+}
+
 /**
  * UTF-8 바이트가 Latin-1로 잘못 해석된 문자열을 복원 시도
  * 실패 시 원본 반환
