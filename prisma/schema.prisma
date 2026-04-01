@@ -68,7 +68,7 @@ model ParentStudent {
   parentId  String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
-  relation  String  @default("Ã«Â¶ÂÃ«ÂªÂ¨")
+  relation  String  @default("부모")
 
   @@unique([parentId, studentId])
 }
