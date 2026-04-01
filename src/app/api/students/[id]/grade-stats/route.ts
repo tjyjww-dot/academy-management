@@ -45,7 +45,12 @@ export async function GET(
       })
     );
 
-    return NextResponse.json(gradesWithAvg);
+    return new NextResponse(JSON.stringify(gradesWithAvg), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error('Grade stats error:', error);
     return NextResponse.json(
