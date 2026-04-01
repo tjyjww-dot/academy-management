@@ -178,7 +178,22 @@ export async function GET(request: NextRequest) {
     hexBytes: Buffer.from(g.testName, 'utf-8').toString('hex'),
   }));
 
-  return NextResponse.json({ grades: diag });
+  // 황경하 학생 데이터 확인
+  const hwang = await prisma.student.findFirst({
+    where: { name: '황경하' },
+    select: { id: true, name: true },
+  });
+
+  let hwangGrades: unknown[] = [];
+  if (hwang) {
+    hwangGrades = await prisma.grade.findMany({
+      where: { studentId: hwang.id },
+      select: { id: true, testName: true, testDate: true, score: true, maxScore: true },
+      orderBy: { testDate: 'asc' },
+    });
+  }
+
+  return NextResponse.json({ grades: diag, hwang, hwangGrades });
 }
 
 /**
