@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     results.announcements = annFixes;
 
     // 6. DailySession의 content, homework 등 수정
-    const sessions = await prisma.dailySession.findMany({
+    const sessions = await prisma.dailyReport.findMany({
       select: { id: true, content: true, homework: true, attitude: true, specialNote: true },
     });
     const sesFixes: unknown[] = [];
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       const fa = tryFixEncoding(s.attitude || '');
       const fn = tryFixEncoding(s.specialNote || '');
       if (fc !== (s.content || '') || fh !== (s.homework || '') || fa !== (s.attitude || '') || fn !== (s.specialNote || '')) {
-        await prisma.dailySession.update({
+        await prisma.dailyReport.update({
           where: { id: s.id },
           data: {
             content: fc || null,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
         sesFixes.push({ id: s.id });
       }
     }
-    results.dailySessions = sesFixes;
+    results.dailyReports = sesFixes;
 
     // 7. User name (이전에 학부모만 수정했으므로 전체 확인)
     const users = await prisma.user.findMany({
