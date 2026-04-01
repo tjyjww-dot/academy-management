@@ -193,7 +193,18 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ grades: diag, hwang, hwangGrades });
+  // raw query로 동일 데이터 조회 비교
+  let rawGrades: unknown[] = [];
+  if (hwang) {
+    rawGrades = await prisma.$queryRawUnsafe(`
+      SELECT g.id, g."testName", g."testDate"
+      FROM "Grade" g
+      WHERE g."studentId" = $1
+      ORDER BY g."testDate" ASC
+    `, hwang.id) as any[];
+  }
+
+  return NextResponse.json({ grades: diag, hwang, hwangGrades, rawGrades });
 }
 
 /**
