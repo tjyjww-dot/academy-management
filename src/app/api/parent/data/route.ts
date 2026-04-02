@@ -8,6 +8,8 @@ async function getUser() {
   if (!token) return null;
   try {
     const payload = JSON.parse(Buffer.from(token.value.split('.')[1], 'base64').toString());
+    // 토큰 만료 확인 (이 검증이 없으면 미들웨어와 불일치로 무한 리다이렉트 발생)
+    if (payload.exp && payload.exp * 1000 < Date.now()) return null;
     return await prisma.user.findUnique({ where: { id: payload.userId } });
   } catch { return null; }
 }

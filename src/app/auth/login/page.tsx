@@ -28,16 +28,47 @@ function LoginContent() {
   useEffect(() => {
     const savedToken = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
     if (savedToken) {
+      // 토큰 만료 확인 (클라이언트측에서도 체크하여 불필요한 요청 방지)
+      try {
+        const payload = JSON.parse(atob(savedToken.split('.')[1]));
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          // 만료된 토큰 정리
+          localStorage.removeItem('auth-token');
+          document.cookie = 'auth-token-js=; path=/; max-age=0';
+          setAutoLoginChecking(false);
+          return;
+        }
+      } catch {
+        localStorage.removeItem('auth-token');
+        document.cookie = 'auth-token-js=; path=/; max-age=0';
+        setAutoLoginChecking(false);
+        return;
+      }
+
       const hasAuthCookie = document.cookie.includes('auth-token-js=');
       if (!hasAuthCookie) {
         document.cookie = `auth-token-js=${savedToken}; path=/; max-age=${365*24*60*60}; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
       }
       fetch('/api/parent/data')
-        .then(r => { if (r.ok) { router.push('/parent'); return; } setAutoLoginChecking(false); })
-        .catch(() => setAutoLoginChecking(false));
+        .then(r => {
+          if (r.ok) { router.push('/parent'); return; }
+          // 인증 실패 시 만료된 토큰 정리
+          localStorage.removeItem('auth-token');
+          document.cookie = 'auth-token-js=; path=/; max-age=0';
+          setAutoLoginChecking(false);
+        })
+        .catch(() => {
+          localStorage.removeItem('auth-token');
+          document.cookie = 'auth-token-js=; path=/; max-age=0';
+          setAutoLoginChecking(false);
+        });
     } else {
       setAutoLoginChecking(false);
     }
+
+    // 안전장치: 5초 후에도 로딩이면 강제로 로그인 폼 표시
+    const safetyTimer = setTimeout(() => setAutoLoginChecking(false), 5000);
+    return () => clearTimeout(safetyTimer);
   }, [router]);
 
   useEffect(() => {
