@@ -35,7 +35,6 @@ export async function GET(request: NextRequest) {
 
     if (!studentUser && student.phone) {
       const studentEmail = `student_${student.studentNumber}@suhaktamgu.local`;
-      // 이메일로 기존 User 확인
       studentUser = await prisma.user.findUnique({ where: { email: studentEmail } }) as any;
 
       if (!studentUser) {
@@ -51,18 +50,21 @@ export async function GET(request: NextRequest) {
         });
         results.studentUserCreated = true;
       } else {
-        results.studentUserExisted = true;
+        results.studentUserExistedByEmail = true;
       }
-
-      // Student → User 연결
-      if (!student.userId) {
-        await prisma.student.update({
-          where: { id: student.id },
-          data: { userId: studentUser.id },
-        });
-        results.studentLinked = true;
-      }
+    } else if (studentUser) {
+      results.studentUserExistedByPhone = true;
     }
+
+    // Student → User 연결 (항상 체크)
+    if (studentUser && !student.userId) {
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { userId: studentUser.id },
+      });
+      results.studentLinked = true;
+    }
+    results.studentUserId = student.userId;
     results.studentUser = studentUser ? { id: studentUser.id, name: studentUser.name, phone: studentUser.phone, role: studentUser.role } : null;
 
     // 2. 학부모 User 생성
