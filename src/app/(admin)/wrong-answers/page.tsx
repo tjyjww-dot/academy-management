@@ -76,6 +76,8 @@ export default function WrongAnswersPage() {
   const [showAnswerSetup, setShowAnswerSetup] = useState(false);
   const [answerMap, setAnswerMap] = useState<Record<number, string>>({});
   const [editingPaper, setEditingPaper] = useState<TestPaper | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractedText, setExtractedText] = useState('');
 
   // 오답 등록 state
   const [students, setStudents] = useState<StudentOption[]>([]);
@@ -192,6 +194,45 @@ export default function WrongAnswersPage() {
     setUploadFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // PDF에서 문항-정답 자동 추출
+  const extractAnswersFromPdf = async (file: File, totalProblems: number): Promise<Record<number, string>> => {
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('totalProblems', totalProblems.toString());
+
+      const res = await fetch('/api/test-papers/extract', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('Extract failed:', data.error);
+        return {};
+      }
+
+      if (data.rawText) {
+        setExtractedText(data.rawText);
+      }
+
+      if (data.extractedCount > 0) {
+        showMessage(data.message);
+        return data.answers;
+      } else {
+        showMessage(data.message || 'PDF에서 정답을 자동 추출하지 못했습니다. 수동으로 입력해주세요.');
+        return {};
+      }
+    } catch (error) {
+      console.error('Extract error:', error);
+      return {};
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   // 시험지 업로드
   const handleUploadPaper = async () => {
     if (!paperName || !paperTotal || !selectedClassroom) {
@@ -231,6 +272,17 @@ export default function WrongAnswersPage() {
       for (let i = 1; i <= total; i++) {
         initialAnswers[i] = '';
       }
+
+      // PDF 파일이 있으면 자동 추출 시도
+      if (uploadFiles.length > 0) {
+        const extracted = await extractAnswersFromPdf(uploadFiles[0], total);
+        if (Object.keys(extracted).length > 0) {
+          for (const [num, ans] of Object.entries(extracted)) {
+            initialAnswers[parseInt(num)] = ans;
+          }
+        }
+      }
+
       setAnswerMap(initialAnswers);
       setEditingPaper(newPaper);
       setShowAnswerSetup(true);
@@ -515,10 +567,18 @@ export default function WrongAnswersPage() {
                           문항-정답 연결: {editingPaper.name}
                         </h3>
                         <p className="text-sm text-gray-500 mb-4">
-                          각 문항의 정답 번호를 입력하세요. 나중에 자동 채점 시 활용됩니다.
+                          PDF에서 자동으로 추출된 정답을 확인하고, 필요하면 수정하세요.
                         </p>
 
-                        {/* PDF 미리보기 (있을 경우) */}
+                        {/* 추출 진행 중 */}
+                        {extracting && (
+                          <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                            <span className="text-sm text-blue-700">PDF에서 문항과 정답을 추출하는 중...</span>
+                          </div>
+                        )}
+
+                        {/* PDF 미리보기 및 추출된 텍스트 */}
                         {editingPaper.pages && editingPaper.pages.length > 0 && (
                           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                             <p className="text-sm font-medium text-gray-700 mb-2">첨부 파일:</p>
@@ -539,6 +599,18 @@ export default function WrongAnswersPage() {
                               ))}
                             </div>
                           </div>
+                        )}
+
+                        {/* 추출된 원본 텍스트 미리보기 (접이식) */}
+                        {extractedText && (
+                          <details className="mb-4">
+                            <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 font-medium">
+                              PDF 추출 텍스트 보기 (정답이 올바르게 추출되지 않았을 때 참고)
+                            </summary>
+                            <pre className="mt-2 p-3 bg-gray-100 rounded-lg text-xs text-gray-600 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                              {extractedText}
+                            </pre>
+                          </details>
                         )}
 
                         {/* 정답 입력 그리드 */}
