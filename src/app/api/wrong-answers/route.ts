@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, getTokenFromCookies } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const tkn = request.cookies.get('token')?.value;
+    const tkn = getTokenFromCookies(request);
     if (!tkn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const decoded = verifyToken(tkn);
     if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const tkn = request.cookies.get('token')?.value;
+    const tkn = getTokenFromCookies(request);
     if (!tkn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const decoded = verifyToken(tkn);
     if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
