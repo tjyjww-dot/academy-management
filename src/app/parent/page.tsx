@@ -14,6 +14,9 @@ export default function ParentPage() {
   const [showCounselForm, setShowCounselForm] = useState(false);
   const [counselType, setCounselType] = useState('PHONE');
   const [counselDesc, setCounselDesc] = useState('');
+  const [wrongAnswers, setWrongAnswers] = useState<any[]>([]);
+  const [waStats, setWaStats] = useState<any>(null);
+  const [expandedWA, setExpandedWA] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // 영구 로그인: localStorage에서 토큰 복원
@@ -29,7 +32,7 @@ export default function ParentPage() {
       .then(d => {
         if (d) {
           setData(d);
-          if (d.students?.[0]) fetchMemos(d.students[0].id);
+          if (d.students?.[0]) { fetchMemos(d.students[0].id); fetchWrongAnswers(d.students[0].id); }
           // 로그인 성공 시 토큰 저장
           const tokenMatch = document.cookie.match(/auth-token-js=([^;]+)/);
           if (tokenMatch && typeof window !== 'undefined') {
@@ -43,6 +46,16 @@ export default function ParentPage() {
 
   const fetchMemos = (sid: string) => {
     fetch('/api/parent/memo?studentId=' + sid).then(r => r.json()).then(setMemos).catch(() => {});
+  };
+
+  const fetchWrongAnswers = (sid: string) => {
+    fetch(`/api/wrong-answers?studentId=${sid}`).then(r => r.json()).then(data => {
+      const list = Array.isArray(data) ? data : [];
+      setWrongAnswers(list);
+      const active = list.filter((wa: any) => wa.status === 'ACTIVE').length;
+      const mastered = list.filter((wa: any) => wa.status === 'MASTERED').length;
+      setWaStats({ active, mastered, total: list.length, rate: list.length > 0 ? Math.round(mastered / list.length * 100) : 0 });
+    }).catch(() => {});
   };
 
   const sendMemo = async () => {
@@ -136,7 +149,8 @@ export default function ParentPage() {
     {id:'attendance',label:'출결',icon:'📅'},
     {id:'video',label:'수업영상',icon:'🎬'},
     {id:'counsel',label:'상담요청',icon:'💬'},
-    {id:'memo',label:'메모',icon:'💭'}
+    {id:'memo',label:'메모',icon:'💭'},
+    {id:'wrongAnswers',label:'오답노트',icon:'⚠️'}
   ];
 
   // 과제완성도 데이터 파싱 (attitude 필드: "GRADE::MEMO" 형식)
@@ -449,6 +463,69 @@ export default function ParentPage() {
             <input type="text" value={newMemo} onChange={e=>setNewMemo(e.target.value)} placeholder="메모를 입력하세요..." className="flex-1 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none transition-all bg-white" onKeyDown={e=>e.key==='Enter'&&sendMemo()}/>
             <button onClick={sendMemo} disabled={!newMemo.trim()} className="px-5 py-3 rounded-xl text-sm font-medium text-white disabled:opacity-40 transition-all" style={{background:'linear-gradient(135deg,#3b82f6,#4f46e5)',boxShadow:newMemo.trim()?'0 4px 12px rgba(59,130,246,0.25)':'none'}}>전송</button>
           </div>
+        </div>)}
+
+        {tab==='wrongAnswers'&&(<div className="space-y-3">
+          <h2 className="text-base font-bold text-slate-800 px-1">오답노트</h2>
+          {waStats && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
+                <p className="text-xl font-bold text-red-600">{waStats.active}</p>
+                <p className="text-xs text-red-400">미해결</p>
+              </div>
+              <div className="bg-green-50 rounded-2xl p-3 text-center border border-green-100">
+                <p className="text-xl font-bold text-green-600">{waStats.mastered}</p>
+                <p className="text-xs text-green-400">해결</p>
+              </div>
+              <div className="bg-blue-50 rounded-2xl p-3 text-center border border-blue-100">
+                <p className="text-xl font-bold text-blue-600">{waStats.rate}%</p>
+                <p className="text-xs text-blue-400">습득률</p>
+              </div>
+            </div>
+          )}
+          {wrongAnswers.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100">
+              <p className="text-slate-400 text-sm">등록된 오답이 없습니다.</p>
+            </div>
+          ) : (
+            Object.entries(
+              wrongAnswers.reduce<Record<string, any[]>>((acc, wa) => {
+                if (!acc[wa.testName]) acc[wa.testName] = [];
+                acc[wa.testName].push(wa);
+                return acc;
+              }, {})
+            ).map(([testName, items]) => (
+              <div key={testName} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => setExpandedWA(prev => {
+                    const next = new Set(prev);
+                    next.has(testName) ? next.delete(testName) : next.add(testName);
+                    return next;
+                  })}
+                  className="w-full flex items-center justify-between p-4 text-left"
+                >
+                  <div>
+                    <p className="font-medium text-slate-800">{testName}</p>
+                    <p className="text-xs text-slate-400">
+                      미해결 {items.filter((i: any) => i.status === 'ACTIVE').length}개 /
+                      해결 {items.filter((i: any) => i.status === 'MASTERED').length}개
+                    </p>
+                  </div>
+                  <span className="text-slate-400">{expandedWA.has(testName) ? '▲' : '▼'}</span>
+                </button>
+                {expandedWA.has(testName) && (
+                  <div className="px-4 pb-4 flex flex-wrap gap-1.5">
+                    {items.sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => (
+                      <span key={wa.id}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium ${wa.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                        {wa.problemNumber}번{wa.round > 1 ? ` (${wa.round}회)` : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>)}
 
       </div>

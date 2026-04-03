@@ -20,6 +20,8 @@ const navLinks = [
   { href: '/payments', label: '수강료 수납', icon: 'payments' },
   { href: '/announcements', label: '공지관리', icon: 'announcements' },
   { href: '/requests', label: '요청사항', icon: 'requests' },
+  { href: '/wrong-answers', label: '오답관리', icon: 'wrongAnswers' },
+  { href: '/wrong-test', label: '오답테스트', icon: 'wrongTest' },
 ];
 
 // 관리자 전용 메뉴
@@ -92,6 +94,16 @@ function getIcon(name: string) {
     ),
     backup: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+    ),
+    wrongAnswers: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.97l-7-12a2 2 0 00-3.5 0l-7 12A2 2 0 005.07 19z" />
+      </svg>
+    ),
+    wrongTest: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
     ),
   };
 
