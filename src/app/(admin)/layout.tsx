@@ -19,6 +19,7 @@ const navLinks = [
   { href: '/attendance', label: '출결관리', icon: 'attendance' },
   { href: '/payments', label: '수강료 수납', icon: 'payments' },
   { href: '/wrong-answers', label: '오답관리', icon: 'wrongAnswers' },
+  { href: '/wrong-test', label: '오답테스트', icon: 'wrongTest' },
   { href: '/announcements', label: '공지관리', icon: 'announcements' },
   { href: '/requests', label: '요청사항', icon: 'requests' },
 ];
@@ -78,8 +79,12 @@ function getIcon(name: string) {
     ),
     wrongAnswers: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l2 2 4-4" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.97l-7-12a2 2 0 00-3.5 0l-7 12A2 2 0 005.07 19z" />
+      </svg>
+    ),
+    wrongTest: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
     announcements: (

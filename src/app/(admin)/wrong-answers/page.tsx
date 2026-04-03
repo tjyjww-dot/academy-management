@@ -1,10 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface ClassroomOption {
   id: string;
   name: string;
+}
+
+interface TestPaperPage {
+  id: string;
+  pageNumber: number;
+  imageUrl: string;
+}
+
+interface TestPaper {
+  id: string;
+  name: string;
+  totalProblems: number;
+  createdAt: string;
+  classroom: { id: string; name: string };
+  pages: TestPaperPage[];
+  _count?: { wrongAnswers: number };
 }
 
 interface WrongAnswer {
@@ -20,19 +36,6 @@ interface WrongAnswer {
   student: { id: string; name: string; studentNumber: string | null };
   classroom: { id: string; name: string };
   testPaper?: { id: string; name: string; pages: { imageUrl: string }[] } | null;
-}
-
-interface WrongAnswerTest {
-  id: string;
-  studentId: string;
-  classroomId: string;
-  round: number;
-  status: string;
-  createdAt: string;
-  gradedAt: string | null;
-  student: { id: string; name: string; studentNumber: string | null };
-  classroom: { id: string; name: string };
-  items: { id: string; wrongAnswerId: string; isCorrect: boolean | null; wrongAnswer: WrongAnswer }[];
 }
 
 interface Stats {
@@ -53,23 +56,29 @@ export default function WrongAnswersPage() {
   const [classrooms, setClassrooms] = useState<ClassroomOption[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState('');
   const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
-  const [tests, setTests] = useState<WrongAnswerTest[]>([]);
   const [stats, setStats] = useState<Stats>({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'list' | 'tests' | 'register'>('list');
+  const [activeTab, setActiveTab] = useState<'papers' | 'register' | 'list'>('papers');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
-  // Register tab state
+  // 시험지 관리 state
+  const [testPapers, setTestPapers] = useState<TestPaper[]>([]);
+  const [paperName, setPaperName] = useState('');
+  const [paperTotal, setPaperTotal] = useState('');
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 오답 등록 state
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [selectedStudent, setSelectedStudent] = useState('');
+  const [selectedPaper, setSelectedPaper] = useState('');
+  const [selectedProblems, setSelectedProblems] = useState<Set<number>>(new Set());
   const [regTestName, setRegTestName] = useState('');
   const [regProblemNumbers, setRegProblemNumbers] = useState('');
   const [registering, setRegistering] = useState(false);
-
-  // Grade modal state
-  const [gradingTest, setGradingTest] = useState<WrongAnswerTest | null>(null);
-  const [gradeResults, setGradeResults] = useState<Record<string, boolean>>({});
+  const [registerMode, setRegisterMode] = useState<'paper' | 'manual'>('paper');
 
   useEffect(() => {
     fetchClassrooms();
@@ -78,7 +87,7 @@ export default function WrongAnswersPage() {
   const showMessage = (msg: string, type: 'success' | 'error' = 'success') => {
     setMessage(msg);
     setMessageType(type);
-    setTimeout(() => setMessage(''), 3000);
+    setTimeout(() => setMessage(''), 4000);
   };
 
   const fetchClassrooms = async () => {
@@ -96,9 +105,11 @@ export default function WrongAnswersPage() {
 
   const handleClassroomChange = async (classroomId: string) => {
     setSelectedClassroom(classroomId);
+    setSelectedPaper('');
+    setSelectedProblems(new Set());
     if (!classroomId) {
       setWrongAnswers([]);
-      setTests([]);
+      setTestPapers([]);
       setStats({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
       setStudents([]);
       return;
@@ -106,9 +117,9 @@ export default function WrongAnswersPage() {
 
     setLoading(true);
     try {
-      const [waRes, testRes, statsRes, classRes] = await Promise.all([
+      const [waRes, papersRes, statsRes, classRes] = await Promise.all([
         fetch(`/api/wrong-answers?classroomId=${classroomId}`),
-        fetch(`/api/wrong-answers/tests?classroomId=${classroomId}`),
+        fetch(`/api/test-papers?classroomId=${classroomId}`),
         fetch(`/api/wrong-answers/stats?classroomId=${classroomId}`),
         fetch(`/api/classes/${classroomId}`),
       ]);
@@ -117,9 +128,9 @@ export default function WrongAnswersPage() {
         const waData = await waRes.json();
         setWrongAnswers(Array.isArray(waData) ? waData : []);
       }
-      if (testRes.ok) {
-        const testData = await testRes.json();
-        setTests(Array.isArray(testData) ? testData : []);
+      if (papersRes.ok) {
+        const papersData = await papersRes.json();
+        setTestPapers(Array.isArray(papersData) ? papersData : []);
       }
       if (statsRes.ok) {
         const statsData = await statsRes.json();
@@ -142,7 +153,109 @@ export default function WrongAnswersPage() {
     }
   };
 
-  const handleRegisterWrongAnswers = async () => {
+  // 시험지 업로드
+  const handleUploadPaper = async () => {
+    if (!paperName || !paperTotal || !selectedClassroom) {
+      showMessage('시험명, 총 문항수, 반을 모두 입력해주세요', 'error');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', paperName);
+      formData.append('totalProblems', paperTotal);
+      formData.append('classroomId', selectedClassroom);
+      uploadFiles.forEach(file => formData.append('images', file));
+
+      const res = await fetch('/api/test-papers', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '업로드 실패');
+      }
+
+      showMessage('시험지가 업로드되었습니다');
+      setPaperName('');
+      setPaperTotal('');
+      setUploadFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      handleClassroomChange(selectedClassroom);
+    } catch (error: any) {
+      showMessage(error.message || '시험지 업로드에 실패했습니다', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 시험지 삭제
+  const handleDeletePaper = async (id: string) => {
+    if (!confirm('이 시험지를 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/test-papers/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed');
+      showMessage('시험지가 삭제되었습니다');
+      handleClassroomChange(selectedClassroom);
+    } catch {
+      showMessage('삭제에 실패했습니다', 'error');
+    }
+  };
+
+  // 문제번호 토글 (시험지 기반 등록)
+  const toggleProblem = (num: number) => {
+    setSelectedProblems(prev => {
+      const next = new Set(prev);
+      if (next.has(num)) next.delete(num);
+      else next.add(num);
+      return next;
+    });
+  };
+
+  // 오답 등록 (시험지 기반)
+  const handleRegisterFromPaper = async () => {
+    if (!selectedStudent || !selectedPaper || selectedProblems.size === 0) {
+      showMessage('학생, 시험지, 문제를 모두 선택해주세요', 'error');
+      return;
+    }
+
+    const paper = testPapers.find(p => p.id === selectedPaper);
+    if (!paper) return;
+
+    setRegistering(true);
+    try {
+      const res = await fetch('/api/wrong-answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: selectedStudent,
+          classroomId: selectedClassroom,
+          testName: paper.name,
+          problemNumbers: Array.from(selectedProblems).sort((a, b) => a - b),
+          testPaperId: paper.id,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed');
+      }
+
+      showMessage(`${selectedProblems.size}개 오답이 등록되었습니다`);
+      setSelectedProblems(new Set());
+      setSelectedStudent('');
+      handleClassroomChange(selectedClassroom);
+    } catch (error: any) {
+      showMessage(error.message || '오답 등록에 실패했습니다', 'error');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  // 오답 등록 (수동 입력)
+  const handleRegisterManual = async () => {
     if (!selectedStudent || !regTestName || !regProblemNumbers) {
       showMessage('모든 필드를 입력해주세요', 'error');
       return;
@@ -184,6 +297,7 @@ export default function WrongAnswersPage() {
     }
   };
 
+  // 오답 삭제
   const handleDeleteWrongAnswer = async (id: string) => {
     if (!confirm('이 오답을 삭제하시겠습니까?')) return;
     try {
@@ -196,66 +310,13 @@ export default function WrongAnswersPage() {
     }
   };
 
-  const handleCreateTest = async (studentId: string) => {
-    try {
-      const res = await fetch('/api/wrong-answers/tests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, classroomId: selectedClassroom }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed');
-      }
-      showMessage('테스트가 생성되었습니다');
-      handleClassroomChange(selectedClassroom);
-    } catch (error: any) {
-      showMessage(error.message || '테스트 생성에 실패했습니다', 'error');
-    }
-  };
-
-  const handleStartGrading = (test: WrongAnswerTest) => {
-    setGradingTest(test);
-    const initial: Record<string, boolean> = {};
-    test.items.forEach(item => {
-      initial[item.wrongAnswerId] = item.isCorrect ?? false;
-    });
-    setGradeResults(initial);
-  };
-
-  const handleSubmitGrade = async () => {
-    if (!gradingTest) return;
-    try {
-      const results = Object.entries(gradeResults).map(([wrongAnswerId, isCorrect]) => ({
-        wrongAnswerId,
-        isCorrect,
-      }));
-
-      const res = await fetch(`/api/wrong-answers/tests/${gradingTest.id}/grade`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ results }),
-      });
-
-      if (!res.ok) throw new Error('Failed');
-      showMessage('채점이 완료되었습니다');
-      setGradingTest(null);
-      handleClassroomChange(selectedClassroom);
-    } catch {
-      showMessage('채점에 실패했습니다', 'error');
-    }
-  };
-
-  // Group wrong answers by student
+  // 학생별 오답 그룹핑
   const groupedByStudent = wrongAnswers.reduce((acc, wa) => {
     const key = wa.studentId;
     if (!acc[key]) acc[key] = { name: wa.student.name, items: [] };
     acc[key].items.push(wa);
     return acc;
   }, {} as Record<string, { name: string; items: WrongAnswer[] }>);
-
-  const activeWrongAnswers = wrongAnswers.filter(wa => wa.status === 'ACTIVE');
-  const masteredWrongAnswers = wrongAnswers.filter(wa => wa.status === 'MASTERED');
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -310,9 +371,9 @@ export default function WrongAnswersPage() {
           {/* Tabs */}
           <div className="flex border-b border-gray-200 mb-6">
             {[
-              { key: 'list' as const, label: '오답 목록' },
-              { key: 'tests' as const, label: '테스트 관리' },
+              { key: 'papers' as const, label: '시험지 관리' },
               { key: 'register' as const, label: '오답 등록' },
+              { key: 'list' as const, label: '오답 현황' },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -334,7 +395,274 @@ export default function WrongAnswersPage() {
             </div>
           ) : (
             <>
-              {/* Tab: Wrong Answer List */}
+              {/* Tab: 시험지 관리 */}
+              {activeTab === 'papers' && (
+                <div>
+                  {/* 시험지 업로드 */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">시험지 업로드</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
+                          <input
+                            type="text"
+                            value={paperName}
+                            onChange={e => setPaperName(e.target.value)}
+                            placeholder="예: 3월 모의고사"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">총 문항수</label>
+                          <input
+                            type="number"
+                            value={paperTotal}
+                            onChange={e => setPaperTotal(e.target.value)}
+                            placeholder="예: 30"
+                            min="1"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          시험지 이미지 (선택사항)
+                        </label>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={e => setUploadFiles(Array.from(e.target.files || []))}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          시험지 페이지 이미지를 업로드하세요. 여러 장 선택 가능합니다.
+                        </p>
+                      </div>
+                      {uploadFiles.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {uploadFiles.map((file, i) => (
+                            <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
+                              {file.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        onClick={handleUploadPaper}
+                        disabled={uploading || !paperName || !paperTotal}
+                        className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        {uploading ? '업로드 중...' : '시험지 등록'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 등록된 시험지 목록 */}
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">등록된 시험지</h3>
+                  {testPapers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 bg-white rounded-xl border border-gray-200">
+                      등록된 시험지가 없습니다.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {testPapers.map(paper => (
+                        <div key={paper.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-semibold text-gray-800">{paper.name}</h4>
+                              <p className="text-sm text-gray-500 mt-1">
+                                {paper.totalProblems}문항 | 이미지 {paper.pages.length}장
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(paper.createdAt).toLocaleDateString('ko-KR')}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleDeletePaper(paper.id)}
+                              className="text-red-500 hover:text-red-700 text-xs px-2 py-1"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                          {paper.pages.length > 0 && (
+                            <div className="mt-3 flex gap-2 overflow-x-auto">
+                              {paper.pages.map(page => (
+                                <img
+                                  key={page.id}
+                                  src={page.imageUrl}
+                                  alt={`${paper.name} 페이지 ${page.pageNumber}`}
+                                  className="h-20 w-auto rounded border border-gray-200 cursor-pointer hover:opacity-80"
+                                  onClick={() => window.open(page.imageUrl, '_blank')}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: 오답 등록 */}
+              {activeTab === 'register' && (
+                <div className="max-w-2xl">
+                  {/* 등록 방식 선택 */}
+                  <div className="flex gap-2 mb-6">
+                    <button
+                      onClick={() => setRegisterMode('paper')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        registerMode === 'paper'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      시험지 기반 등록
+                    </button>
+                    <button
+                      onClick={() => setRegisterMode('manual')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        registerMode === 'manual'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      수동 입력
+                    </button>
+                  </div>
+
+                  {registerMode === 'paper' ? (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4">시험지 기반 오답 등록</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">학생</label>
+                          <select
+                            value={selectedStudent}
+                            onChange={e => setSelectedStudent(e.target.value)}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          >
+                            <option value="">학생을 선택하세요</option>
+                            {students.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">시험지</label>
+                          <select
+                            value={selectedPaper}
+                            onChange={e => { setSelectedPaper(e.target.value); setSelectedProblems(new Set()); }}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          >
+                            <option value="">시험지를 선택하세요</option>
+                            {testPapers.map(p => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.totalProblems}문항)</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {selectedPaper && (() => {
+                          const paper = testPapers.find(p => p.id === selectedPaper);
+                          if (!paper) return null;
+                          return (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                틀린 문제를 클릭하세요 ({selectedProblems.size}개 선택)
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                {Array.from({ length: paper.totalProblems }, (_, i) => i + 1).map(num => (
+                                  <button
+                                    key={num}
+                                    onClick={() => toggleProblem(num)}
+                                    className={`w-11 h-11 rounded-lg text-sm font-medium transition-all ${
+                                      selectedProblems.has(num)
+                                        ? 'bg-red-500 text-white shadow-md scale-110'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    {num}
+                                  </button>
+                                ))}
+                              </div>
+                              {selectedProblems.size > 0 && (
+                                <p className="mt-2 text-sm text-red-600">
+                                  선택된 문제: {Array.from(selectedProblems).sort((a, b) => a - b).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        <button
+                          onClick={handleRegisterFromPaper}
+                          disabled={registering || !selectedStudent || !selectedPaper || selectedProblems.size === 0}
+                          className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {registering ? '등록 중...' : `오답 ${selectedProblems.size}개 등록`}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4">수동 오답 등록</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">학생</label>
+                          <select
+                            value={selectedStudent}
+                            onChange={e => setSelectedStudent(e.target.value)}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          >
+                            <option value="">학생을 선택하세요</option>
+                            {students.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
+                          <input
+                            type="text"
+                            value={regTestName}
+                            onChange={e => setRegTestName(e.target.value)}
+                            placeholder="예: 3월 모의고사"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            틀린 문제 번호 (쉼표로 구분)
+                          </label>
+                          <input
+                            type="text"
+                            value={regProblemNumbers}
+                            onChange={e => setRegProblemNumbers(e.target.value)}
+                            placeholder="예: 3, 7, 12, 15"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleRegisterManual}
+                          disabled={registering}
+                          className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {registering ? '등록 중...' : '오답 등록'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: 오답 현황 */}
               {activeTab === 'list' && (
                 <div>
                   {Object.keys(groupedByStudent).length === 0 ? (
@@ -354,14 +682,6 @@ export default function WrongAnswersPage() {
                                 활성: {active.length} / 마스터: {mastered.length}
                               </span>
                             </div>
-                            {active.length > 0 && (
-                              <button
-                                onClick={() => handleCreateTest(studentId)}
-                                className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                              >
-                                테스트 생성
-                              </button>
-                            )}
                           </div>
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm">
@@ -416,191 +736,9 @@ export default function WrongAnswersPage() {
                   )}
                 </div>
               )}
-
-              {/* Tab: Tests */}
-              {activeTab === 'tests' && (
-                <div>
-                  {tests.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      생성된 테스트가 없습니다.
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {tests.map(test => (
-                        <div key={test.id} className="bg-white rounded-xl border border-gray-200 p-5">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <span className="font-semibold text-gray-800">{test.student.name}</span>
-                              <span className="ml-3 text-sm text-gray-500">
-                                {test.round}회차 | {test.items.length}문항
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                test.status === 'GRADED'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-yellow-100 text-yellow-700'
-                              }`}>
-                                {test.status === 'GRADED' ? '채점완료' : '채점대기'}
-                              </span>
-                              {test.status === 'PENDING' && (
-                                <button
-                                  onClick={() => handleStartGrading(test)}
-                                  className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                                >
-                                  채점하기
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            생성: {new Date(test.createdAt).toLocaleDateString('ko-KR')}
-                            {test.gradedAt && ` | 채점: ${new Date(test.gradedAt).toLocaleDateString('ko-KR')}`}
-                          </div>
-                          {test.status === 'GRADED' && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {test.items.map(item => (
-                                <span
-                                  key={item.id}
-                                  className={`inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold ${
-                                    item.isCorrect
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-red-100 text-red-700'
-                                  }`}
-                                >
-                                  {item.wrongAnswer.problemNumber}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: Register */}
-              {activeTab === 'register' && (
-                <div className="max-w-lg">
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">오답 등록</h3>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">학생</label>
-                        <select
-                          value={selectedStudent}
-                          onChange={e => setSelectedStudent(e.target.value)}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-                        >
-                          <option value="">학생을 선택하세요</option>
-                          {students.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
-                        <input
-                          type="text"
-                          value={regTestName}
-                          onChange={e => setRegTestName(e.target.value)}
-                          placeholder="예: 3월 모의고사"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          틀린 문제 번호 (쉼표로 구분)
-                        </label>
-                        <input
-                          type="text"
-                          value={regProblemNumbers}
-                          onChange={e => setRegProblemNumbers(e.target.value)}
-                          placeholder="예: 3, 7, 12, 15"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-
-                      <button
-                        onClick={handleRegisterWrongAnswers}
-                        disabled={registering}
-                        className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {registering ? '등록 중...' : '오답 등록'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </>
-      )}
-
-      {/* Grading Modal */}
-      {gradingTest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-800 mb-1">채점</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              {gradingTest.student.name} - {gradingTest.round}회차
-            </p>
-
-            <div className="space-y-3">
-              {gradingTest.items.map(item => (
-                <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full font-semibold text-sm">
-                      {item.wrongAnswer.problemNumber}
-                    </span>
-                    <span className="text-sm text-gray-600">{item.wrongAnswer.testName}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setGradeResults(prev => ({ ...prev, [item.wrongAnswerId]: true }))}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        gradeResults[item.wrongAnswerId] === true
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-green-50'
-                      }`}
-                    >
-                      O
-                    </button>
-                    <button
-                      onClick={() => setGradeResults(prev => ({ ...prev, [item.wrongAnswerId]: false }))}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        gradeResults[item.wrongAnswerId] === false
-                          ? 'bg-red-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-red-50'
-                      }`}
-                    >
-                      X
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setGradingTest(null)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleSubmitGrade}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-              >
-                채점 완료
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
