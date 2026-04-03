@@ -42,6 +42,45 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const token = getTokenFromCookies(request);
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    const updateData: Record<string, unknown> = {};
+    if (body.answers !== undefined) updateData.answers = body.answers;
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.totalProblems !== undefined) updateData.totalProblems = body.totalProblems;
+
+    const testPaper = await prisma.testPaper.update({
+      where: { id },
+      data: updateData,
+      include: {
+        pages: { orderBy: { pageNumber: 'asc' } },
+        classroom: true,
+      }
+    });
+
+    return NextResponse.json(testPaper);
+  } catch (error) {
+    console.error('Failed to update test paper:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

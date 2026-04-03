@@ -55,26 +55,28 @@ export async function POST(request: NextRequest) {
     const classroomId = formData.get('classroomId') as string;
     const totalProblems = parseInt(formData.get('totalProblems') as string);
     const answers = formData.get('answers') as string | null;
-    const images = formData.getAll('images') as File[];
+    const files = formData.getAll('images') as File[];
 
-    if (!name || !classroomId || !totalProblems || images.length === 0) {
+    if (!name || !classroomId || !totalProblems) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Upload images to Vercel Blob
+    // Upload files to Vercel Blob (supports PDF and images)
     const pageData: { pageNumber: number; imageUrl: string }[] = [];
-    
-    for (let i = 0; i < images.length; i++) {
-      const image = images[i];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
       const blob = await put(
-        `test-papers/${classroomId}/${Date.now()}-page${i + 1}.png`,
-        image,
-        { access: 'public', contentType: 'image/png' }
+        `test-papers/${classroomId}/${Date.now()}-page${i + 1}.${ext}`,
+        file,
+        { access: 'public', contentType }
       );
       pageData.push({ pageNumber: i + 1, imageUrl: blob.url });
     }
 
-    // Create test paper with pages
+    // Create test paper with pages (pages are optional)
     const testPaper = await prisma.testPaper.create({
       data: {
         name,
@@ -82,9 +84,7 @@ export async function POST(request: NextRequest) {
         uploadedById: decoded.userId,
         totalProblems,
         answers: answers || undefined,
-        pages: {
-          create: pageData
-        }
+        ...(pageData.length > 0 ? { pages: { create: pageData } } : {}),
       },
       include: {
         pages: { orderBy: { pageNumber: 'asc' } },
