@@ -212,13 +212,18 @@ export default function WrongAnswersPage() {
         body: formData,
       });
 
+      const responseData = await res.json();
+
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '업로드 실패');
+        throw new Error(responseData.error || '업로드 실패');
       }
 
-      const newPaper = await res.json();
-      showMessage('시험지가 등록되었습니다! 정답을 입력해주세요.');
+      const newPaper = responseData;
+      if (newPaper.uploadWarning) {
+        showMessage(`시험지 등록 완료! (${newPaper.uploadWarning}) 정답을 입력해주세요.`);
+      } else {
+        showMessage('시험지가 등록되었습니다! 정답을 입력해주세요.');
+      }
 
       // 정답 입력 모드로 전환
       const total = parseInt(paperTotal);

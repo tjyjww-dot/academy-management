@@ -58,25 +58,34 @@ export async function POST(request: NextRequest) {
     const files = formData.getAll('images') as File[];
 
     if (!name || !classroomId || !totalProblems) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: '시험명, 반, 총 문항수를 모두 입력해주세요' }, { status: 400 });
     }
 
     // Upload files to Vercel Blob (supports PDF and images)
     const pageData: { pageNumber: number; imageUrl: string }[] = [];
+    let uploadWarning = '';
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
-      const blob = await put(
-        `test-papers/${classroomId}/${Date.now()}-page${i + 1}.${ext}`,
-        file,
-        { access: 'public', contentType }
-      );
-      pageData.push({ pageNumber: i + 1, imageUrl: blob.url });
+    if (files.length > 0 && files[0].size > 0) {
+      try {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (!file || file.size === 0) continue;
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+          const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
+          const blob = await put(
+            `test-papers/${classroomId}/${Date.now()}-page${i + 1}.${ext}`,
+            file,
+            { access: 'public', contentType }
+          );
+          pageData.push({ pageNumber: i + 1, imageUrl: blob.url });
+        }
+      } catch (blobError: any) {
+        console.error('Blob upload failed:', blobError?.message || blobError);
+        uploadWarning = '파일 업로드에 실패했지만 시험지는 등록됩니다.';
+      }
     }
 
-    // Create test paper with pages (pages are optional)
+    // Create test paper (even if file upload failed)
     const testPaper = await prisma.testPaper.create({
       data: {
         name,
@@ -92,9 +101,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json(testPaper);
-  } catch (error) {
-    console.error('Failed to create test paper:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ ...testPaper, uploadWarning });
+  } catch (error: any) {
+    console.error('Failed to create test paper:', error?.message || error, error?.stack);
+    return NextResponse.json({ error: `시험지 등록 실패: ${error?.message || '서버 오류'}` }, { status: 500 });
   }
 }
