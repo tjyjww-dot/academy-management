@@ -150,7 +150,7 @@ export default function ParentPage() {
     {id:'video',label:'수업영상',icon:'🎬'},
     {id:'counsel',label:'상담요청',icon:'💬'},
     {id:'memo',label:'메모',icon:'💭'},
-    {id:'wrongAnswers',label:'오답노트',icon:'⚠️'}
+    {id:'wrongAnswers',label:'오답노트(준비중)',icon:'⚠️'}
   ];
 
   // 과제완성도 데이터 파싱 (attitude 필드: "GRADE::MEMO" 형식)
@@ -466,7 +466,7 @@ export default function ParentPage() {
         </div>)}
 
         {tab==='wrongAnswers'&&(<div className="space-y-3">
-          <h2 className="text-base font-bold text-slate-800 px-1">오답노트</h2>
+          <h2 className="text-base font-bold text-slate-800 px-1">오답노트 <span className="text-xs font-normal text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">준비중</span></h2>
           {waStats && (
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
