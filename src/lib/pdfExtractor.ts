@@ -17,6 +17,14 @@ export interface DetectedProblem {
   confidence: number;
 }
 
+export interface DetectedAnswer {
+  problemNumber: number;
+  answerText: string;
+  y: number;
+  pageNumber: number;
+  confidence: number;
+}
+
 export interface ExtractedProblem {
   id: string;
   number: number;
@@ -42,6 +50,8 @@ const PROBLEM_PATTERNS = [
   /^Q\.?\s*(\d{1,3})/,
   /^제\s*(\d{1,3})\s*문/,
   /^(\d{1,3})[\.\)]\s*/,
+  /^(\d{1,3})번/,
+  /^\((\d{1,3})\)/,
 ];
 
 const CIRCLED_NUMBER_MAP: Record<string, number> = {
@@ -50,6 +60,12 @@ const CIRCLED_NUMBER_MAP: Record<string, number> = {
   '⑪': 11, '⑫': 12, '⑬': 13, '⑭': 14, '⑮': 15,
   '⑯': 16, '⑰': 17, '⑱': 18, '⑲': 19, '⑳': 20,
 };
+
+// Answer detection patterns - matches "1. ②" or "1) 3" format
+const ANSWER_PATTERNS = [
+  /^(\d{1,3})\.\s*(.+)$/,
+  /^(\d{1,3})\)\s*(.+)$/,
+];
 
 function detectProblemNumber(text: string): { number: number; confidence: number } | null {
   const trimmed = text.trim();
@@ -67,6 +83,26 @@ function detectProblemNumber(text: string): { number: number; confidence: number
       if (num > 0 && num <= 200) {
         const confidence = i < 3 ? 0.9 : 0.7;
         return { number: num, confidence };
+      }
+    }
+  }
+  return null;
+}
+
+function detectAnswerNumber(text: string): { problemNumber: number; answerText: string; confidence: number } | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  for (const pattern of ANSWER_PATTERNS) {
+    const match = trimmed.match(pattern);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > 0 && num <= 200) {
+        return {
+          problemNumber: num,
+          answerText: match[2] || '',
+          confidence: 0.85,
+        };
       }
     }
   }
@@ -113,12 +149,17 @@ export async function detectProblemsOnPage(
     return a.y - b.y;
   });
 
+  // Calculate average height for adaptive threshold
+  const heights = items.map(i => i.height).filter(h => h > 0);
+  const avgHeight = heights.length > 0 ? heights.reduce((a, b) => a + b) / heights.length : 10;
+  const yThreshold = Math.max(8, avgHeight * 0.8);
+
   const lines: { items: TextItem[]; y: number; minX: number; maxX: number }[] = [];
   let currentLine: TextItem[] = [];
   let currentY = -1;
 
   for (const item of sortedItems) {
-    if (currentY < 0 || Math.abs(item.y - currentY) > 8) {
+    if (currentY < 0 || Math.abs(item.y - currentY) > yThreshold) {
       if (currentLine.length > 0) {
         const minX = Math.min(...currentLine.map(i => i.x));
         const maxX = Math.max(...currentLine.map(i => i.x + i.width));
@@ -177,6 +218,72 @@ export async function detectProblemsOnPage(
   return unique;
 }
 
+export async function detectAnswersOnPage(
+  pdf: any,
+  pageNum: number
+): Promise<DetectedAnswer[]> {
+  const { items, viewport } = await getPageTextItems(pdf, pageNum);
+  const detected: DetectedAnswer[] = [];
+
+  const sortedItems = [...items].sort((a, b) => {
+    if (Math.abs(a.y - b.y) < 5) return a.x - b.x;
+    return a.y - b.y;
+  });
+
+  // Calculate average height for adaptive threshold
+  const heights = items.map(i => i.height).filter(h => h > 0);
+  const avgHeight = heights.length > 0 ? heights.reduce((a, b) => a + b) / heights.length : 10;
+  const yThreshold = Math.max(8, avgHeight * 0.8);
+
+  const lines: { items: TextItem[]; y: number; minX: number; maxX: number }[] = [];
+  let currentLine: TextItem[] = [];
+  let currentY = -1;
+
+  for (const item of sortedItems) {
+    if (currentY < 0 || Math.abs(item.y - currentY) > yThreshold) {
+      if (currentLine.length > 0) {
+        const minX = Math.min(...currentLine.map(i => i.x));
+        const maxX = Math.max(...currentLine.map(i => i.x + i.width));
+        lines.push({ items: [...currentLine], y: currentY, minX, maxX });
+      }
+      currentLine = [item];
+      currentY = item.y;
+    } else {
+      currentLine.push(item);
+    }
+  }
+  if (currentLine.length > 0) {
+    const minX = Math.min(...currentLine.map(i => i.x));
+    const maxX = Math.max(...currentLine.map(i => i.x + i.width));
+    lines.push({ items: [...currentLine], y: currentY, minX, maxX });
+  }
+
+  for (const line of lines) {
+    const sortedByX = [...line.items].sort((a, b) => a.x - b.x);
+    const firstItem = sortedByX[0];
+
+    let lineStart = '';
+    for (const item of sortedByX.slice(0, 3)) {
+      lineStart += item.text;
+    }
+
+    const result = detectAnswerNumber(lineStart) || detectAnswerNumber(firstItem.text);
+    if (result) {
+      detected.push({
+        problemNumber: result.problemNumber,
+        answerText: result.answerText,
+        y: line.y,
+        pageNumber: pageNum,
+        confidence: result.confidence,
+      });
+    }
+  }
+
+  detected.sort((a, b) => a.problemNumber - b.problemNumber);
+
+  return detected;
+}
+
 export async function detectAllProblems(
   pdf: any,
   startPage: number = 1,
@@ -209,6 +316,23 @@ export async function detectAllProblems(
   }
 
   return allProblems;
+}
+
+export async function detectAnswersOnPages(
+  pdf: any,
+  startPage: number = 1,
+  endPage?: number
+): Promise<DetectedAnswer[]> {
+  const totalPages = pdf.numPages;
+  const last = endPage || totalPages;
+  const allAnswers: DetectedAnswer[] = [];
+
+  for (let p = startPage; p <= last; p++) {
+    const answers = await detectAnswersOnPage(pdf, p);
+    allAnswers.push(...answers);
+  }
+
+  return allAnswers;
 }
 
 export async function renderPageToCanvas(
@@ -322,7 +446,83 @@ export async function extractAllProblemImages(
   return results;
 }
 
-/** dataURL을 Blob으로 변환하는 유틸 */
+export async function extractAnswerImages(
+  pdf: any,
+  answers: DetectedAnswer[],
+  scale: number = 2.0,
+  onProgress?: (current: number, total: number) => void
+): Promise<ExtractedProblem[]> {
+  const results: ExtractedProblem[] = [];
+  const answerBboxMap: Record<number, DetectedAnswer> = {};
+
+  // Map answers by problem number, keeping highest confidence
+  for (const answer of answers) {
+    if (!answerBboxMap[answer.problemNumber] || answer.confidence > answerBboxMap[answer.problemNumber].confidence) {
+      answerBboxMap[answer.problemNumber] = answer;
+    }
+  }
+
+  const uniqueAnswers = Object.values(answerBboxMap);
+
+  for (let i = 0; i < uniqueAnswers.length; i++) {
+    const answer = uniqueAnswers[i];
+    if (onProgress) onProgress(i + 1, uniqueAnswers.length);
+
+    try {
+      const fullCanvas = await renderPageToCanvas(pdf, answer.pageNumber, scale);
+      const viewport = fullCanvas.width;
+      const itemHeight = 30 * scale; // Estimate answer line height
+
+      const sx = 0;
+      const sy = answer.y * scale;
+      const sw = viewport;
+      const sh = itemHeight;
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = Math.max(1, sw);
+      cropCanvas.height = Math.max(1, sh);
+
+      const ctx = cropCanvas.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+      ctx.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      const imageDataUrl = trimWhitespace(cropCanvas);
+
+      results.push({
+        id: `ans${answer.pageNumber}-n${answer.problemNumber}`,
+        number: answer.problemNumber,
+        pageNumber: answer.pageNumber,
+        imageDataUrl,
+        bbox: { x: 0, y: answer.y, width: viewport, height: itemHeight },
+      });
+    } catch (err) {
+      console.error(`Failed to extract answer image for problem ${answer.problemNumber}:`, err);
+    }
+  }
+
+  return results;
+}
+
+export function matchProblemsToAnswers(
+  problems: ExtractedProblem[],
+  answers: ExtractedProblem[]
+): ExtractedProblem[] {
+  const answerMap: Record<number, ExtractedProblem> = {};
+  for (const answer of answers) {
+    answerMap[answer.number] = answer;
+  }
+
+  return problems.map(problem => {
+    const matchedAnswer = answerMap[problem.number];
+    return {
+      ...problem,
+      answerPageNumber: matchedAnswer?.pageNumber,
+      answerImageDataUrl: matchedAnswer?.imageDataUrl,
+    };
+  });
+}
+
 export function dataURLtoBlob(dataURL: string): Blob {
   const parts = dataURL.split(',');
   const mime = parts[0].match(/:(.*?);/)![1];

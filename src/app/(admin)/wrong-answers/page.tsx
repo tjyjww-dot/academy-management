@@ -66,17 +66,12 @@ export default function WrongAnswersPage() {
   const [extractProgress, setExtractProgress] = useState({ current: 0, total: 0, message: '' });
   const [extractedProblems, setExtractedProblems] = useState<ExtractedProblem[]>([]);
   const [totalPages, setTotalPages] = useState(0);
-  const [pageRange, setPageRange] = useState({ start: 1, end: 1 });
+  const [problemPageRange, setProblemPageRange] = useState({ start: 1, end: 1 });
+  const [answerPageRange, setAnswerPageRange] = useState({ start: 1, end: 1 });
   const [workbookName, setWorkbookName] = useState('');
   const [selectedProblem, setSelectedProblem] = useState<ExtractedProblem | null>(null);
   const [extractError, setExtractError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-
-  // Answer linking state
-  const [answerStartPage, setAnswerStartPage] = useState(1);
-  const [answerMappings, setAnswerMappings] = useState<Record<string, number>>({});
-  const [answerPreview, setAnswerPreview] = useState('');
-  const [answerPreviewPage, setAnswerPreviewPage] = useState(0);
 
   // Register wrong answers state
   const [regClassroom, setRegClassroom] = useState('');
@@ -168,7 +163,8 @@ export default function WrongAnswersPage() {
           const { loadPdf } = await import('@/lib/pdfExtractor');
           const pdf = await loadPdf(f);
           setTotalPages(pdf.numPages);
-          setPageRange({ start: 1, end: pdf.numPages });
+          setProblemPageRange({ start: 1, end: pdf.numPages });
+          setAnswerPageRange({ start: pdf.numPages + 1, end: pdf.numPages + 1 });
         } catch { /* ignore */ }
       })();
     }
@@ -209,7 +205,8 @@ export default function WrongAnswersPage() {
           const { loadPdf } = await import('@/lib/pdfExtractor');
           const pdf = await loadPdf(f);
           setTotalPages(pdf.numPages);
-          setPageRange({ start: 1, end: pdf.numPages });
+          setProblemPageRange({ start: 1, end: pdf.numPages });
+          setAnswerPageRange({ start: pdf.numPages + 1, end: pdf.numPages + 1 });
         } catch { /* ignore */ }
       })();
     } else {
@@ -221,55 +218,53 @@ export default function WrongAnswersPage() {
     if (!pdfFile) return;
     try {
       setExtractState('detecting');
-      setExtractProgress({ current: 0, total: 0, message: '문제를 감지하고 있습니다...' });
+      setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 감지하고 있습니다...' });
       setExtractedProblems([]);
       setExtractError('');
 
-      const { loadPdf, detectAllProblems, extractAllProblemImages } = await import('@/lib/pdfExtractor');
+      const { loadPdf, detectAllProblems, detectAnswersOnPages, extractAllProblemImages, extractAnswerImages, matchProblemsToAnswers } = await import('@/lib/pdfExtractor');
       const pdf = await loadPdf(pdfFile);
 
-      const detected = await detectAllProblems(pdf, pageRange.start, pageRange.end);
+      // Step 1: Detect problems
+      setExtractProgress({ current: 0, total: 0, message: '문제 페이지에서 문제를 감지 중...' });
+      const detected = await detectAllProblems(pdf, problemPageRange.start, problemPageRange.end);
       if (detected.length === 0) {
         setExtractError('문제를 감지하지 못했습니다. 페이지 범위를 확인해주세요.');
         setExtractState('error'); return;
       }
 
-      setExtractProgress({ current: 0, total: detected.length, message: `${detected.length}개 문제 발견. 이미지 추출 중...` });
+      // Step 2: Extract problem images
+      setExtractProgress({ current: 0, total: detected.length, message: `${detected.length}개 문제 발견. 문제 이미지 추출 중...` });
       setExtractState('extracting');
-
-      const extracted = await extractAllProblemImages(pdf, detected, 2.0, (cur, tot) => {
+      const problemImages = await extractAllProblemImages(pdf, detected, 2.0, (cur, tot) => {
         setExtractProgress({ current: cur, total: tot, message: `문제 이미지 추출 중... (${cur}/${tot})` });
       });
 
-      setExtractedProblems(extracted);
+      // Step 3: Detect answers
+      setExtractProgress({ current: 0, total: 0, message: '답지 페이지에서 답을 감지 중...' });
+      const answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end);
+
+      // Step 4: Extract answer images
+      let answerImages: any[] = [];
+      if (answersDetected.length > 0) {
+        setExtractProgress({ current: 0, total: answersDetected.length, message: `답 이미지 추출 중...` });
+        answerImages = await extractAnswerImages(pdf, answersDetected, 2.0, (cur, tot) => {
+          setExtractProgress({ current: cur, total: tot, message: `답 이미지 추출 중... (${cur}/${tot})` });
+        });
+      }
+
+      // Step 5: Match problems to answers
+      setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 매칭 중...' });
+      const matched = matchProblemsToAnswers(problemImages, answerImages);
+
+      setExtractedProblems(matched);
       setExtractState('done');
-      // Auto-set answer start page
-      const lastPage = Math.max(...extracted.map(p => p.pageNumber));
-      setAnswerStartPage(lastPage + 1);
     } catch (err: any) {
       setExtractError('추출 오류: ' + err.message);
       setExtractState('error');
     }
-  }, [pdfFile, pageRange]);
+  }, [pdfFile, problemPageRange, answerPageRange]);
 
-  const handleAnswerPreview = useCallback(async (pageNum: number) => {
-    if (!pdfFile || pageNum < 1 || pageNum > totalPages) return;
-    try {
-      const { loadPdf, renderPageToCanvas } = await import('@/lib/pdfExtractor');
-      const pdf = await loadPdf(pdfFile);
-      const canvas = await renderPageToCanvas(pdf, pageNum, 1.5);
-      setAnswerPreview(canvas.toDataURL('image/png'));
-      setAnswerPreviewPage(pageNum);
-    } catch (err) { console.error(err); }
-  }, [pdfFile, totalPages]);
-
-  const handleBulkAnswerMapping = useCallback(() => {
-    const m: Record<string, number> = {};
-    extractedProblems.forEach(p => { m[p.id] = answerStartPage; });
-    setAnswerMappings(m);
-  }, [extractedProblems, answerStartPage]);
-
-  /* Save test paper to DB: upload images to Google Drive, create TestPaper record */
   const handleSaveTestPaper = useCallback(async () => {
     if (!regClassroom || extractedProblems.length === 0) {
       showMsg('반을 선택하고 문제를 추출해주세요', 'error'); return;
@@ -287,20 +282,18 @@ export default function WrongAnswersPage() {
       formData.append('classroomId', regClassroom);
       formData.append('totalProblems', String(extractedProblems.length));
 
-      // Build answers JSON from answer mappings
+      // Build answers JSON from matching
       const answersObj: Record<string, string> = {};
       extractedProblems.forEach(p => {
-        if (answerMappings[p.id]) answersObj[String(p.number)] = `p.${answerMappings[p.id]}`;
+        if (p.answerPageNumber) answersObj[String(p.number)] = `p.${p.answerPageNumber}`;
       });
       formData.append('answers', JSON.stringify(answersObj));
 
       // Upload problem images
-      const imageFiles: File[] = [];
       for (let i = 0; i < extractedProblems.length; i++) {
         const p = extractedProblems[i];
         const blob = dataURLtoBlob(p.imageDataUrl);
         const file = new File([blob], `problem-${p.number}.png`, { type: 'image/png' });
-        imageFiles.push(file);
         formData.append('images', file);
         setExtractProgress({ current: i + 1, total: extractedProblems.length, message: `이미지 업로드 중 (${i + 1}/${extractedProblems.length})` });
       }
@@ -317,7 +310,7 @@ export default function WrongAnswersPage() {
       showMsg('저장 실패: ' + err.message, 'error');
       setExtractState('done');
     }
-  }, [regClassroom, extractedProblems, workbookName, pdfFile, answerMappings]);
+  }, [regClassroom, extractedProblems, workbookName, pdfFile]);
 
   const handleDeleteTestPaper = async (id: string) => {
     if (!confirm('이 시험지를 삭제하시겠습니까?')) return;
@@ -479,35 +472,63 @@ export default function WrongAnswersPage() {
                 )}
               </div>
 
-              {/* Extract Settings */}
+              {/* Page Range Settings */}
               {pdfFile && totalPages > 0 && extractState !== 'detecting' && extractState !== 'extracting' && extractState !== 'saving' && (
                 <div className="bg-white rounded-xl border p-5">
-                  <h3 className="font-semibold text-gray-800 mb-3">문제 추출 설정</h3>
-                  <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-800 mb-4">페이지 범위 설정</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Problem pages */}
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-3">문제 페이지 범위</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-blue-700 mb-1">시작 페이지</label>
+                          <input type="number" min={1} max={totalPages} value={problemPageRange.start}
+                            onChange={e => setProblemPageRange(p => ({ ...p, start: Math.max(1, parseInt(e.target.value) || 1) }))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-blue-700 mb-1">끝 페이지</label>
+                          <input type="number" min={1} max={totalPages} value={problemPageRange.end}
+                            onChange={e => setProblemPageRange(p => ({ ...p, end: Math.min(totalPages, parseInt(e.target.value) || totalPages) }))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <p className="text-xs text-blue-600">선택: {problemPageRange.start} ~ {problemPageRange.end}페이지</p>
+                      </div>
+                    </div>
+
+                    {/* Answer pages */}
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <h4 className="text-sm font-semibold text-green-900 mb-3">답지 페이지 범위</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-green-700 mb-1">시작 페이지</label>
+                          <input type="number" min={1} max={totalPages} value={answerPageRange.start}
+                            onChange={e => setAnswerPageRange(p => ({ ...p, start: Math.max(1, parseInt(e.target.value) || 1) }))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-green-700 mb-1">끝 페이지</label>
+                          <input type="number" min={1} max={totalPages} value={answerPageRange.end}
+                            onChange={e => setAnswerPageRange(p => ({ ...p, end: Math.min(totalPages, parseInt(e.target.value) || totalPages) }))}
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" />
+                        </div>
+                        <p className="text-xs text-green-600">선택: {answerPageRange.start} ~ {answerPageRange.end}페이지</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">시험지 이름</label>
                       <input type="text" value={workbookName} onChange={e => setWorkbookName(e.target.value)}
                         placeholder="예: 3월 모의고사"
                         className="w-full max-w-md px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
                     </div>
-                    <div className="flex gap-4 items-end">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">시작 페이지</label>
-                        <input type="number" min={1} max={totalPages} value={pageRange.start}
-                          onChange={e => setPageRange(p => ({ ...p, start: parseInt(e.target.value) || 1 }))}
-                          className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">끝 페이지</label>
-                        <input type="number" min={1} max={totalPages} value={pageRange.end}
-                          onChange={e => setPageRange(p => ({ ...p, end: parseInt(e.target.value) || totalPages }))}
-                          className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-                      </div>
-                      <span className="text-sm text-gray-500 pb-2">전체 {totalPages}페이지</span>
-                    </div>
+
                     <button onClick={handleExtract}
                       className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-                      🔍 문제 자동 추출 시작
+                      🔍 문제 및 답지 추출 시작
                     </button>
                   </div>
                 </div>
@@ -540,70 +561,37 @@ export default function WrongAnswersPage() {
               {/* Extracted Results */}
               {extractState === 'done' && extractedProblems.length > 0 && (
                 <>
-                  {/* Answer Linking */}
+                  {/* Problem Gallery with Answers */}
                   <div className="bg-white rounded-xl border p-5">
-                    <h3 className="font-semibold text-gray-800 mb-3">🔗 답지 페이지 연결</h3>
-                    <p className="text-xs text-gray-500 mb-4">각 문제의 답지/해설 페이지를 설정합니다.</p>
-
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <div>
-                          <label className="block text-xs text-blue-600 mb-1">답지 시작 페이지</label>
-                          <input type="number" min={1} max={totalPages} value={answerStartPage}
-                            onChange={e => setAnswerStartPage(parseInt(e.target.value) || 1)}
-                            className="w-20 px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-                        </div>
-                        <button onClick={handleBulkAnswerMapping}
-                          className="mt-4 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                          전체 적용
-                        </button>
-                        <button onClick={() => handleAnswerPreview(answerStartPage)}
-                          className="mt-4 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300">
-                          미리보기
-                        </button>
-                      </div>
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-800 mb-2">추출된 문제 및 답: {extractedProblems.length}개</h3>
+                      <p className="text-xs text-gray-500">문제 번호, 문제 이미지, 매칭된 답 이미지를 확인하세요.</p>
                     </div>
-
-                    {answerPreview && (
-                      <div className="mb-4 border rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">{answerPreviewPage}페이지 미리보기</span>
-                          <button onClick={() => setAnswerPreview('')} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
-                        </div>
-                        <img src={answerPreview} alt={`Page ${answerPreviewPage}`} className="max-h-64 mx-auto border rounded" />
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {extractedProblems.map(p => (
-                        <div key={p.id} className="flex items-center gap-1 p-1.5 bg-gray-50 rounded text-sm">
-                          <span className="font-bold text-blue-600 w-8">{p.number}번</span>
-                          <span className="text-gray-400">→</span>
-                          <input type="number" min={1} max={totalPages}
-                            value={answerMappings[p.id] || ''} placeholder="p."
-                            onChange={e => setAnswerMappings(m => ({ ...m, [p.id]: parseInt(e.target.value) || 0 }))}
-                            className="w-14 px-1.5 py-1 border rounded text-xs focus:ring-2 focus:ring-blue-500" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div key={p.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-bold text-blue-600 text-lg">{p.number}번</span>
+                              <span className="text-xs text-gray-400">p.{p.pageNumber}</span>
+                            </div>
+                            {!p.answerPageNumber && (
+                              <div className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 rounded px-2 py-1">
+                                답 미매칭
+                              </div>
+                            )}
+                          </div>
 
-                  {/* Problem Gallery */}
-                  <div className="bg-white rounded-xl border p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold text-gray-800">추출된 문제: {extractedProblems.length}개</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {extractedProblems.map(p => (
-                        <div key={p.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => setSelectedProblem(p)}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-bold text-blue-600">{p.number}번</span>
-                            <span className="text-xs text-gray-400">p.{p.pageNumber}</span>
+                          <div className="bg-gray-50 rounded overflow-hidden mb-2">
+                            <img src={p.imageDataUrl} alt={`문제 ${p.number}`} className="w-full object-contain max-h-40 cursor-pointer hover:opacity-75" onClick={() => setSelectedProblem(p)} />
                           </div>
-                          <div className="bg-gray-50 rounded overflow-hidden">
-                            <img src={p.imageDataUrl} alt={`문제 ${p.number}`} className="w-full object-contain max-h-40" />
-                          </div>
+
+                          {p.answerImageDataUrl && (
+                            <div className="bg-green-50 rounded overflow-hidden border border-green-200">
+                              <img src={p.answerImageDataUrl} alt={`답 ${p.number}`} className="w-full object-contain max-h-24" />
+                              <p className="text-xs text-green-600 text-center py-1">답지 p.{p.answerPageNumber}</p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
