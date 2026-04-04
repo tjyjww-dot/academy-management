@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [upcomingTests, setUpcomingTests] = useState<EntranceTest[]>([]);
   const [taskRequests, setTaskRequests] = useState<TaskRequest[]>([]);
   const [recentCounseling, setRecentCounseling] = useState<CounselingItem[]>([]);
+  const [userRole, setUserRole] = useState<string>('');
   const [parentMemos, setParentMemos] = useState<ParentMemo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMemo, setSelectedMemo] = useState<ParentMemo | null>(null);
@@ -83,6 +84,7 @@ export default function DashboardPage() {
           setStats(data.stats);
           setAnnouncements(data.announcements || []);
           setRecentCounseling(data.recentCounseling || []);
+          setUserRole(data.userRole || '');
           setUpcomingTests(data.upcomingTests || []);
           setTaskRequests(data.taskRequests || []);
           setParentMemos(data.parentMemos || []);
@@ -230,8 +232,8 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-        {/* 최근 1주일 상담 내용 */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+        {/* 최근 1주일 상담 내용 (관리자/데스크만) */}
+        {(userRole === 'ADMIN' || userRole === 'DESK') && <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">💬 최근 상담 내용 <span className="text-sm font-normal text-gray-500">(최근 7일)</span></h2>
             <Link href="/counseling" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
@@ -271,7 +273,7 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">

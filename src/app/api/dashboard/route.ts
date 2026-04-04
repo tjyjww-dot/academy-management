@@ -101,20 +101,24 @@ export async function GET(request: NextRequest) {
         (c: { enrollments: { studentId: string }[] }) => c.enrollments.map((e: { studentId: string }) => e.studentId)
       ) || [];
 
-      // 최근 1주일 신규 상담 내용
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      const recentCounseling = await prisma.counselingRequest.findMany({
-        where: {
-          createdAt: { gte: oneWeekAgo },
-        },
-        include: {
-          student: { select: { id: true, name: true } },
-          parent: { select: { name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      });
+      // 최근 1주일 신규 상담 내용 (관리자/데스크만)
+      const isAdminOrDesk = decoded.role === 'ADMIN' || decoded.role === 'DESK';
+      let recentCounseling: any[] = [];
+      if (isAdminOrDesk) {
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        recentCounseling = await prisma.counselingRequest.findMany({
+          where: {
+            createdAt: { gte: oneWeekAgo },
+          },
+          include: {
+            student: { select: { id: true, name: true } },
+            parent: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        });
+      }
 
       const parentMemos = await prisma.memo.findMany({
         where: {
@@ -143,6 +147,7 @@ export async function GET(request: NextRequest) {
             pendingCounseling: pendingCounselingCount,
             todayTests: todayTestCount,
           },
+          userRole: decoded.role,
           announcements,
           recentCounseling,
           upcomingTests,
