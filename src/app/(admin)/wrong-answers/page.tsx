@@ -72,6 +72,8 @@ export default function WrongAnswersPage() {
   const [selectedProblem, setSelectedProblem] = useState<ExtractedProblem | null>(null);
   const [extractError, setExtractError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Register wrong answers state
   const [regClassroom, setRegClassroom] = useState('');
@@ -221,39 +223,49 @@ export default function WrongAnswersPage() {
       setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 감지하고 있습니다...' });
       setExtractedProblems([]);
       setExtractError('');
+      setDebugInfo(null);
 
       const { loadPdf, detectAllProblems, detectAnswersOnPages, extractAllProblemImages, extractAnswerImages, matchProblemsToAnswers } = await import('@/lib/pdfExtractor');
       const pdf = await loadPdf(pdfFile);
 
+      // Collect debug info
+      const debug = { pages: [] as any[] };
+
       // Step 1: Detect problems
       setExtractProgress({ current: 0, total: 0, message: '문제 페이지에서 문제를 감지 중...' });
-      const detected = await detectAllProblems(pdf, problemPageRange.start, problemPageRange.end);
+      const detected = await detectAllProblems(pdf, problemPageRange.start, problemPageRange.end, debug);
+
+      // Step 2: Detect answers
+      setExtractProgress({ current: 0, total: 0, message: '답지 페이지에서 답을 감지 중...' });
+      const answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end, debug);
+
+      // Save debug info regardless of result
+      setDebugInfo({ ...debug, problemCount: detected.length, answerCount: answersDetected.length });
+
       if (detected.length === 0) {
-        setExtractError('문제를 감지하지 못했습니다. 페이지 범위를 확인해주세요.');
-        setExtractState('error'); return;
+        setExtractError('문제를 감지하지 못했습니다. 아래 디버그 정보를 확인해주세요.');
+        setExtractState('error');
+        setShowDebug(true);
+        return;
       }
 
-      // Step 2: Extract problem images
+      // Step 3: Extract problem images
       setExtractProgress({ current: 0, total: detected.length, message: `${detected.length}개 문제 발견. 문제 이미지 추출 중...` });
       setExtractState('extracting');
       const problemImages = await extractAllProblemImages(pdf, detected, 2.0, (cur, tot) => {
         setExtractProgress({ current: cur, total: tot, message: `문제 이미지 추출 중... (${cur}/${tot})` });
       });
 
-      // Step 3: Detect answers
-      setExtractProgress({ current: 0, total: 0, message: '답지 페이지에서 답을 감지 중...' });
-      const answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end);
-
       // Step 4: Extract answer images
       let answerImages: any[] = [];
       if (answersDetected.length > 0) {
-        setExtractProgress({ current: 0, total: answersDetected.length, message: `답 이미지 추출 중...` });
+        setExtractProgress({ current: 0, total: answersDetected.length, message: `${answersDetected.length}개 답 발견. 답 이미지 추출 중...` });
         answerImages = await extractAnswerImages(pdf, answersDetected, 2.0, (cur, tot) => {
           setExtractProgress({ current: cur, total: tot, message: `답 이미지 추출 중... (${cur}/${tot})` });
         });
       }
 
-      // Step 5: Match problems to answers
+      // Step 5: Match
       setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 매칭 중...' });
       const matched = matchProblemsToAnswers(problemImages, answerImages);
 
@@ -644,6 +656,49 @@ export default function WrongAnswersPage() {
                     </div>
                   </div>
                 </>
+              )}
+
+              {/* Debug Info Panel */}
+              {debugInfo && (
+                <div className="bg-white rounded-xl border p-5 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-800">
+                      디버그 정보 (문제: {debugInfo.problemCount}개, 답: {debugInfo.answerCount}개)
+                    </h3>
+                    <button onClick={() => setShowDebug(!showDebug)} className="text-sm text-blue-600 hover:underline">
+                      {showDebug ? '접기' : '펼치기'}
+                    </button>
+                  </div>
+                  {showDebug && debugInfo.pages && debugInfo.pages.map((pg: any, idx: number) => (
+                    <div key={idx} className="mb-4 border rounded p-3 bg-gray-50 text-xs font-mono overflow-x-auto">
+                      <div className="font-bold text-sm mb-2">
+                        📄 페이지 {pg.pageNum} | {pg.isTwoColumn ? '2단' : '1단'} | 폭:{pg.pageWidth}px
+                        {pg.isTwoColumn && ` | 경계:${pg.columnBoundary}px`}
+                        | 텍스트:{pg.totalItems}개 (좌:{pg.leftItems} 우:{pg.rightItems})
+                      </div>
+                      {pg.detectedProblems?.length > 0 && (
+                        <div className="text-green-700 mb-1">
+                          ✅ 감지된 문제: {pg.detectedProblems.map((d: any) => `${d.number}번(y:${d.y},col:${d.column})`).join(', ')}
+                        </div>
+                      )}
+                      {pg.detectedAnswers?.length > 0 && (
+                        <div className="text-blue-700 mb-1">
+                          📝 감지된 답: {pg.detectedAnswers.map((d: any) => `${d.number}번(y:${d.y},col:${d.column})`).join(', ')}
+                        </div>
+                      )}
+                      <details>
+                        <summary className="cursor-pointer text-gray-600 hover:text-gray-800">텍스트 라인 보기 ({pg.lines?.length || 0}줄)</summary>
+                        <div className="mt-1 max-h-60 overflow-y-auto">
+                          {pg.lines?.map((ln: any, li: number) => (
+                            <div key={li} className="py-0.5 border-b border-gray-200">
+                              <span className="text-gray-400">[{ln.column}|y:{ln.y}]</span> {ln.text}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
