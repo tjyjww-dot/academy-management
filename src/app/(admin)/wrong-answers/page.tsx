@@ -678,12 +678,12 @@ export default function WrongAnswersPage() {
                       </div>
                       {pg.detectedProblems?.length > 0 && (
                         <div className="text-green-700 mb-1">
-                          ✅ 감지된 문제: {pg.detectedProblems.map((d: any) => `${d.number}번(y:${d.y},col:${d.column})`).join(', ')}
+                          ✅ 감지된 문제: {pg.detectedProblems.map((d: any) => `${d.number}번(y:${d.y},col:${d.column},${d.method||''})`).join(', ')}
                         </div>
                       )}
                       {pg.detectedAnswers?.length > 0 && (
                         <div className="text-blue-700 mb-1">
-                          📝 감지된 답: {pg.detectedAnswers.map((d: any) => `${d.number}번(y:${d.y},col:${d.column})`).join(', ')}
+                          📝 감지된 답: {pg.detectedAnswers.map((d: any) => `${d.number}번(y:${d.y},col:${d.column})${d.text ? '→'+d.text : ''}`).join(', ')}
                         </div>
                       )}
                       <details>
