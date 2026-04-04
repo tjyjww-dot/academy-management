@@ -488,8 +488,8 @@ export async function detectAllProblems(
     const rightEnd = pw;
 
     const columns = [
-      { items: left, index: 0, startX: leftStart, endX: globalBoundary + pw * 0.03 },
-      { items: right, index: 1, startX: globalBoundary - pw * 0.02, endX: rightEnd },
+      { items: left, index: 0, startX: leftStart, endX: globalBoundary - pw * 0.005 },
+      { items: right, index: 1, startX: globalBoundary + pw * 0.005, endX: rightEnd },
     ];
 
     for (const col of columns) {
@@ -557,36 +557,32 @@ export async function detectAllProblems(
       }
     }
 
-    // Text height for Y adjustment
+    // Text height for Y adjustment (baseline → top of character)
     const textH = cur._textHeight || 15;
     const topPad = textH + 5;
 
-    // Determine content range for this problem
+    // Top of problem: above the number text
     const problemTop = cur.bbox.y - topPad;
     let problemBottom: number;
 
     if (nextInCol) {
-      // Stop before the next problem's number
+      // Extend to just before the next problem number's top
+      // Use generous height to capture graphs/figures, trimWhitespace will remove excess
       const nextTextH = nextInCol._textHeight || 15;
-      problemBottom = nextInCol.bbox.y - nextTextH - 3;
+      problemBottom = nextInCol.bbox.y - nextTextH - 2;
     } else {
-      // Last in column: find the Y of the last content item in this problem's area
-      const footerY = pi.height * 0.90;
-      const belowItems = colItems.filter(item => item.y >= cur.bbox.y - 5 && item.y < footerY);
-      if (belowItems.length > 0) {
-        const lastItemY = Math.max(...belowItems.map(item => item.y + Math.max(item.height, 3)));
-        problemBottom = lastItemY + 5;
-      } else {
-        problemBottom = cur.bbox.y + 50;
-      }
+      // Last problem in this column on this page
+      // Extend to the footer boundary to capture any graphs/figures
+      const footerY = pi.height * 0.92;
+      problemBottom = footerY;
     }
 
     cur.bbox.y = Math.max(0, problemTop);
     cur.bbox.height = Math.max(25, problemBottom - cur.bbox.y);
 
-    // Cap at 52% of page height
-    if (cur.bbox.height > pi.height * 0.52) {
-      cur.bbox.height = pi.height * 0.52;
+    // Cap at 55% of page height
+    if (cur.bbox.height > pi.height * 0.55) {
+      cur.bbox.height = pi.height * 0.55;
     }
   }
 
@@ -607,8 +603,8 @@ export async function detectProblemsOnPage(
   const all: DetectedProblem[] = [];
   for (const [colItems, idx] of [[left, 0], [right, 1]] as [TextItem[], number][]) {
     if (colItems.length === 0) continue;
-    const startX = idx === 0 ? 0 : layout.columnBoundary;
-    const endX = idx === 0 ? layout.columnBoundary : viewport.width;
+    const startX = idx === 0 ? 0 : layout.columnBoundary + viewport.width * 0.005;
+    const endX = idx === 0 ? layout.columnBoundary - viewport.width * 0.005 : viewport.width;
     all.push(...detectProblemsInColumn(colItems, pageNum, idx, startX, endX, viewport.height));
   }
   return all;
@@ -753,35 +749,50 @@ export async function extractProblemImage(pdf: any, problem: DetectedProblem, sc
 
 /**
  * Trim whitespace from canvas edges.
- * Uses aggressive trimming to remove empty areas.
+ * Row/column scanning: a row or column is "content" if enough non-white pixels exist.
+ * This prevents stray pixels from inflating bounds and catches thin lines/graphs.
  */
 function trimWhitespace(canvas: HTMLCanvasElement): string {
   const ctx = canvas.getContext('2d')!;
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const { data, width, height } = imageData;
 
-  let top = height, bottom = 0, left = width, right = 0;
+  const THRESHOLD = 230; // slightly off-white threshold
+  const MIN_PIXELS = 3;  // minimum non-white pixels for a row/col to count
 
-  // Scan for non-white pixels (threshold 235 for slightly off-white)
+  // Count non-white pixels per row
+  const rowCounts = new Int32Array(height);
+  const colCounts = new Int32Array(width);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
-      if (data[idx] < 235 || data[idx + 1] < 235 || data[idx + 2] < 235) {
-        if (y < top) top = y;
-        if (y > bottom) bottom = y;
-        if (x < left) left = x;
-        if (x > right) right = x;
+      if (data[idx] < THRESHOLD || data[idx + 1] < THRESHOLD || data[idx + 2] < THRESHOLD) {
+        rowCounts[y]++;
+        colCounts[x]++;
       }
     }
   }
 
+  // Find top/bottom rows with content
+  let top = 0, bottom = height - 1;
+  while (top < height && rowCounts[top] < MIN_PIXELS) top++;
+  while (bottom > top && rowCounts[bottom] < MIN_PIXELS) bottom--;
+
+  // Find left/right cols with content
+  let left = 0, right = width - 1;
+  while (left < width && colCounts[left] < MIN_PIXELS) left++;
+  while (right > left && colCounts[right] < MIN_PIXELS) right--;
+
   if (top >= bottom || left >= right) return canvas.toDataURL('image/png');
 
-  const pad = 12;
-  top = Math.max(0, top - pad);
-  bottom = Math.min(height - 1, bottom + pad);
-  left = Math.max(0, left - pad);
-  right = Math.min(width - 1, right + pad);
+  // Small padding around content
+  const padTop = 8;
+  const padBottom = 10;
+  const padLR = 8;
+  top = Math.max(0, top - padTop);
+  bottom = Math.min(height - 1, bottom + padBottom);
+  left = Math.max(0, left - padLR);
+  right = Math.min(width - 1, right + padLR);
 
   const trimW = right - left + 1;
   const trimH = bottom - top + 1;
