@@ -329,6 +329,15 @@ function parseProblemNumber(text: string): { number: number; confidence: number 
   m = t.match(/^(\d{1,3})번/);
   if (m) { const n = parseInt(m[1], 10); if (n > 0 && n <= 50) return { number: n, confidence: 0.88 }; }
 
+  // "N text" - number followed by space then Korean/text content
+  // Common format: "3 다음 두 일차방정식의..." or "4 어떤 옷의..."
+  m = t.match(/^(\d{1,2})\s+[가-힣a-zA-Z(]/);
+  if (m) { const n = parseInt(m[1], 10); if (n > 0 && n <= 50) return { number: n, confidence: 0.82 }; }
+
+  // "N text" - number followed by any non-digit content (wider catch)
+  m = t.match(/^(\d{1,2})\s{2,}/);
+  if (m) { const n = parseInt(m[1], 10); if (n > 0 && n <= 50) return { number: n, confidence: 0.75 }; }
+
   // Bare number (standalone)
   m = t.match(/^(\d{1,2})$/);
   if (m) { const n = parseInt(m[1], 10); if (n > 0 && n <= 50) return { number: n, confidence: 0.70 }; }
@@ -611,10 +620,13 @@ export async function detectAllProblems(
       debug.pages.push(debugPage);
     }
 
+    // Add 5% padding to column width to prevent content cutting at edges
+    const colWidthPadding = layout.isTwoColumn ? (layout.columnBoundary - layout.leftStart) * 0.08 : 0;
+
     const columns = layout.isTwoColumn
       ? [
-          { items: left, index: 0, startX: layout.leftStart, width: layout.leftEnd - layout.leftStart },
-          { items: right, index: 1, startX: layout.rightStart, width: layout.rightEnd - layout.rightStart },
+          { items: left, index: 0, startX: layout.leftStart, width: layout.leftEnd - layout.leftStart + colWidthPadding },
+          { items: right, index: 1, startX: layout.rightStart - colWidthPadding, width: layout.rightEnd - layout.rightStart + colWidthPadding },
         ]
       : [{ items: left, index: 0, startX: 0, width: viewport.width }];
 
@@ -635,6 +647,17 @@ export async function detectAllProblems(
       const detected = detectProblemsInColumn(
         col.items, p, col.index, col.startX, col.width, viewport.height
       );
+
+      console.log(`[page ${p}] col${col.index}: ${col.items.length} items, detected: ${detected.map(d => d.number).join(',') || 'none'}`);
+
+      // Log first few lines for debugging
+      if (detected.length === 0 && col.items.length > 0) {
+        const lines = groupIntoLines(col.items.filter(i => i.y < viewport.height * 0.90));
+        const leftMarginX = col.items.map(i => i.x).sort((a, b) => a - b)[Math.max(0, Math.floor(col.items.length * 0.03))];
+        console.log(`[page ${p}] col${col.index} leftMargin: ${leftMarginX?.toFixed(1)}, first 5 lines:`,
+          lines.slice(0, 5).map(l => `[x:${l.minX.toFixed(1)},y:${l.y.toFixed(1)}] "${l.text.substring(0, 50)}"`));
+      }
+
       allProblems.push(...detected);
 
       if (debugPage) {
@@ -686,33 +709,32 @@ export async function detectAllProblems(
     const textHeight = current._textHeight || 15;
     const topPadding = textHeight + 8; // text height + extra padding above
 
+    // Determine the Y range for this problem's content
+    const rawTop = current.bbox.y - topPadding;
+    let rawBottom: number;
+
     if (nextInColumn) {
-      // Height = from current to next problem
-      // But we need to account for the upward Y adjustment
-      const rawTop = current.bbox.y - topPadding;
-      const rawBottom = nextInColumn.bbox.y - 5; // stop just before next problem
-      current.bbox.y = Math.max(0, rawTop);
-      current.bbox.height = rawBottom - current.bbox.y;
+      // Stop before next problem (subtract next problem's text height for its top padding)
+      const nextTextH = nextInColumn._textHeight || 15;
+      rawBottom = nextInColumn.bbox.y - nextTextH - 5;
     } else {
-      // Last problem in column: extend to content bottom
+      // Last problem: find actual bottom of content in this problem's area
       const footerY = viewport.height * 0.90;
       const contentItems = colItems.filter(item => item.y >= current.bbox.y && item.y < footerY);
-      const contentBottom = contentItems.length > 0
-        ? Math.max(...contentItems.map(item => item.y + Math.max(item.height, 5))) + 10
-        : current.bbox.y + 80;
-
-      current.bbox.y = Math.max(0, current.bbox.y - topPadding);
-      current.bbox.height = contentBottom - current.bbox.y;
+      if (contentItems.length > 0) {
+        rawBottom = Math.max(...contentItems.map(item => item.y + Math.max(item.height, 5))) + 8;
+      } else {
+        rawBottom = current.bbox.y + 60;
+      }
     }
+
+    current.bbox.y = Math.max(0, rawTop);
+    current.bbox.height = Math.max(30, rawBottom - current.bbox.y);
 
     // Safety: cap height at 55% of page
     const maxHeight = viewport.height * 0.55;
     if (current.bbox.height > maxHeight) {
       current.bbox.height = maxHeight;
-    }
-    // Minimum height
-    if (current.bbox.height < 30) {
-      current.bbox.height = 30;
     }
   }
 
