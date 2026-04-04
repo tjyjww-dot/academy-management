@@ -38,6 +38,21 @@ interface TaskRequest {
   createdAt: string;
 }
 
+interface CounselingItem {
+  id: string;
+  title: string;
+  description: string | null;
+  counselingType: string;
+  status: string;
+  preferredDate: string | null;
+  sessionDate: string | null;
+  sessionNotes: string | null;
+  adminNotes: string | null;
+  createdAt: string;
+  student: { id: string; name: string };
+  parent: { name: string } | null;
+}
+
 interface ParentMemo {
   id: string;
   content: string;
@@ -52,6 +67,7 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [upcomingTests, setUpcomingTests] = useState<EntranceTest[]>([]);
   const [taskRequests, setTaskRequests] = useState<TaskRequest[]>([]);
+  const [recentCounseling, setRecentCounseling] = useState<CounselingItem[]>([]);
   const [parentMemos, setParentMemos] = useState<ParentMemo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMemo, setSelectedMemo] = useState<ParentMemo | null>(null);
@@ -66,6 +82,7 @@ export default function DashboardPage() {
           const data = await response.json();
           setStats(data.stats);
           setAnnouncements(data.announcements || []);
+          setRecentCounseling(data.recentCounseling || []);
           setUpcomingTests(data.upcomingTests || []);
           setTaskRequests(data.taskRequests || []);
           setParentMemos(data.parentMemos || []);
@@ -213,6 +230,49 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+        {/* 최근 1주일 상담 내용 */}
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">💬 최근 상담 내용 <span className="text-sm font-normal text-gray-500">(최근 7일)</span></h2>
+            <Link href="/counseling" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
+          </div>
+          {recentCounseling.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">최근 1주일간 신규 상담이 없습니다.</p>
+          ) : (
+            <div className="space-y-3">
+              {recentCounseling.map((c) => (
+                <Link key={c.id} href={`/counseling`} className="block border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          c.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                          c.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-700' :
+                          c.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {c.status === 'PENDING' ? '대기' : c.status === 'CONFIRMED' ? '확정' : c.status === 'COMPLETED' ? '완료' : '취소'}
+                        </span>
+                        <span className="text-xs font-medium text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">{c.student.name}</span>
+                        <span className="text-xs text-gray-500">{c.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
+                      </div>
+                      <p className="font-medium text-gray-900 truncate">{c.title}</p>
+                      {c.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-1">{c.description}</p>}
+                      {c.sessionNotes && (
+                        <p className="text-sm text-green-700 bg-green-50 rounded px-2 py-1 mt-1 line-clamp-2">📝 {c.sessionNotes}</p>
+                      )}
+                    </div>
+                    <div className="text-right ml-3 flex-shrink-0">
+                      <p className="text-xs text-gray-500">{new Date(c.createdAt).toLocaleDateString('ko-KR')}</p>
+                      {c.preferredDate && <p className="text-xs text-blue-500 mt-0.5">희망: {c.preferredDate}</p>}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">

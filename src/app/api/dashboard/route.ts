@@ -101,6 +101,21 @@ export async function GET(request: NextRequest) {
         (c: { enrollments: { studentId: string }[] }) => c.enrollments.map((e: { studentId: string }) => e.studentId)
       ) || [];
 
+      // 최근 1주일 신규 상담 내용
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const recentCounseling = await prisma.counselingRequest.findMany({
+        where: {
+          createdAt: { gte: oneWeekAgo },
+        },
+        include: {
+          student: { select: { id: true, name: true } },
+          parent: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
+
       const parentMemos = await prisma.memo.findMany({
         where: {
           studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] },
@@ -129,6 +144,7 @@ export async function GET(request: NextRequest) {
             todayTests: todayTestCount,
           },
           announcements,
+          recentCounseling,
           upcomingTests,
           taskRequests: taskRequestsForUser,
           parentMemos,
