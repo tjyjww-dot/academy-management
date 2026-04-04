@@ -48,7 +48,7 @@ export interface DebugInfo {
     leftItems: number;
     rightItems: number;
     lines: { y: number; text: string; column: string }[];
-    detectedProblems: { number: number; y: number; column: number }[];
+    detectedProblems: { number: number; y: number; column: number; method: string }[];
     detectedAnswers: { number: number; y: number; column: number }[];
   }[];
 }
@@ -81,7 +81,6 @@ function detectColumnLayout(items: TextItem[], pageWidth: number): ColumnLayout 
 
   if (items.length < 10) return singleCol;
 
-  // Build histogram of X positions (binned)
   const binSize = 5;
   const bins: Record<number, number> = {};
   for (const item of items) {
@@ -89,7 +88,6 @@ function detectColumnLayout(items: TextItem[], pageWidth: number): ColumnLayout 
     bins[bin] = (bins[bin] || 0) + 1;
   }
 
-  // Find gap in the middle region (30%-70% of page width)
   const gapStart = pageWidth * 0.3;
   const gapEnd = pageWidth * 0.7;
 
@@ -166,7 +164,7 @@ interface LineGroup {
   minX: number;
   maxX: number;
   text: string;
-  maxItemHeight: number; // largest font size in this line
+  maxItemHeight: number;
 }
 
 function groupIntoLines(items: TextItem[]): LineGroup[] {
@@ -212,46 +210,179 @@ function finalizeLine(items: TextItem[], y: number, lines: LineGroup[]) {
 }
 
 /* ================================================================
-   Problem detection - FONT SIZE + LEFT MARGIN based
+   Problem detection - MULTI-STRATEGY approach
 
-   Key insight from user's screenshots:
-   - Problem numbers are LARGE standalone numbers (5, 6, 7, 8)
-   - They appear at the absolute LEFT MARGIN of each column
-   - They are visually bigger than equation text numbers
-   - 4 problems per page consistently (2 per column)
+   Strategy A: Line-based - check if a line starts with a problem number pattern
+   Strategy B: Item-based - find standalone number items near left margin
+   Both strategies are combined; duplicates resolved by confidence
    ================================================================ */
 
 /**
- * Calculate statistics about text item heights in a column.
- * Returns median height (typical body text size) for comparison.
- */
-function calcHeightStats(items: TextItem[]): { median: number; p75: number } {
-  const heights = items.map(i => i.height).filter(h => h > 0).sort((a, b) => a - b);
-  if (heights.length === 0) return { median: 10, p75: 12 };
-  const median = heights[Math.floor(heights.length / 2)];
-  const p75 = heights[Math.floor(heights.length * 0.75)];
-  return { median, p75 };
-}
-
-/**
- * Find the leftmost X position (the column margin) for a set of items.
+ * Find the left margin X position for a column (5th percentile of X values)
  */
 function findColumnLeftMargin(items: TextItem[]): number {
   if (items.length === 0) return 0;
   const xValues = items.map(i => i.x).sort((a, b) => a - b);
-  // Take the 5th percentile as the left margin
-  const idx = Math.max(0, Math.floor(xValues.length * 0.05));
+  const idx = Math.max(0, Math.floor(xValues.length * 0.03));
   return xValues[idx];
 }
 
 /**
- * Detect problem numbers in a column using font size + left margin strategy.
- *
- * Strategy:
- * 1. Find items that are standalone numbers (bare "5", "6" or "5." etc.)
- * 2. Filter by font size: must be >= 1.2x median text height (problem numbers are LARGE)
- * 3. Filter by position: must be near the left margin of the column (within 15px)
- * 4. Validate: detected numbers should form a reasonable sequence
+ * Try to parse a problem number from text.
+ * Returns number + confidence, or null.
+ */
+function parseProblemNumber(text: string): { number: number; confidence: number } | null {
+  const t = text.trim();
+  if (!t) return null;
+
+  // "N. " or "N." alone
+  let m = t.match(/^(\d{1,3})\.\s*/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n > 0 && n <= 50) return { number: n, confidence: 0.95 };
+  }
+
+  // "N)"
+  m = t.match(/^(\d{1,3})\)\s*/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n > 0 && n <= 50) return { number: n, confidence: 0.90 };
+  }
+
+  // "[N]"
+  m = t.match(/^\[(\d{1,3})\]/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n > 0 && n <= 50) return { number: n, confidence: 0.90 };
+  }
+
+  // "N번"
+  m = t.match(/^(\d{1,3})번/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n > 0 && n <= 50) return { number: n, confidence: 0.88 };
+  }
+
+  // Bare number: "5" or "12" (standalone, no other text)
+  m = t.match(/^(\d{1,2})$/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (n > 0 && n <= 50) return { number: n, confidence: 0.70 };
+  }
+
+  return null;
+}
+
+/**
+ * Detect problems using LINE-based approach.
+ * Check each line's beginning for a problem number pattern.
+ */
+function detectByLines(
+  lines: LineGroup[],
+  leftMargin: number,
+  marginTolerance: number,
+): { number: number; y: number; confidence: number; method: string }[] {
+  const results: { number: number; y: number; confidence: number; method: string }[] = [];
+
+  for (const line of lines) {
+    const sx = line.items;
+    if (sx.length === 0) continue;
+
+    // Only check lines that start near the left margin
+    if (Math.abs(line.minX - leftMargin) > marginTolerance) continue;
+
+    // Try first item alone
+    let detected = parseProblemNumber(sx[0].text);
+
+    // Try first two items concatenated (handles "1" + "." split)
+    if (!detected && sx.length > 1) {
+      detected = parseProblemNumber(sx[0].text.trim() + sx[1].text.trim());
+    }
+
+    // Try concatenation of first 3 items
+    if (!detected && sx.length > 2) {
+      const concat = sx.slice(0, 3).map(i => i.text).join('');
+      detected = parseProblemNumber(concat);
+    }
+
+    if (detected) {
+      results.push({
+        number: detected.number,
+        y: line.y,
+        confidence: detected.confidence,
+        method: 'line',
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Detect problems using ITEM-based approach.
+ * Find standalone number items near the left margin of the column.
+ * This catches bare numbers like "5", "6" that start a problem.
+ */
+function detectByItems(
+  items: TextItem[],
+  leftMargin: number,
+  marginTolerance: number,
+): { number: number; y: number; confidence: number; method: string }[] {
+  const results: { number: number; y: number; confidence: number; method: string }[] = [];
+
+  // Calculate median height for font-size bonus
+  const heights = items.map(i => i.height).filter(h => h > 0).sort((a, b) => a - b);
+  const medianHeight = heights.length > 0 ? heights[Math.floor(heights.length / 2)] : 10;
+
+  for (const item of items) {
+    const text = item.text.trim();
+    if (!text) continue;
+
+    // Must be near left margin
+    const distFromMargin = Math.abs(item.x - leftMargin);
+    if (distFromMargin > marginTolerance) continue;
+
+    const parsed = parseProblemNumber(text);
+    if (!parsed) continue;
+
+    let confidence = parsed.confidence;
+
+    // Bonus: if font is larger than median, boost confidence
+    if (item.height > medianHeight * 1.1) {
+      confidence += 0.1;
+    }
+
+    // Bonus: if very close to left margin (< 5px), boost
+    if (distFromMargin < 5) {
+      confidence += 0.05;
+    }
+
+    // For bare numbers (confidence 0.70), check additional criteria:
+    // - Must be the leftmost item on its Y line (no items to its left)
+    if (parsed.confidence === 0.70) {
+      const sameLineItems = items.filter(
+        other => other !== item && Math.abs(other.y - item.y) < 5 && other.x < item.x
+      );
+      if (sameLineItems.length > 0) {
+        // Not the leftmost item - probably not a problem number
+        continue;
+      }
+    }
+
+    results.push({
+      number: parsed.number,
+      y: item.y,
+      confidence: Math.min(confidence, 1.0),
+      method: 'item',
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Main problem detection for a column.
+ * Combines line-based and item-based strategies.
  */
 function detectProblemsInColumn(
   items: TextItem[],
@@ -262,110 +393,40 @@ function detectProblemsInColumn(
 ): DetectedProblem[] {
   if (items.length < 3) return [];
 
-  const { median: medianHeight } = calcHeightStats(items);
   const leftMargin = findColumnLeftMargin(items);
-  const marginTolerance = 15; // pixels from left margin
+  const marginTolerance = 20; // 20px tolerance from left margin
 
-  // Font size threshold: problem numbers should be noticeably larger
-  // Use 1.15x as minimum - allows some tolerance for rendering differences
-  const fontSizeThreshold = medianHeight * 1.15;
+  const lines = groupIntoLines(items);
 
-  const candidates: DetectedProblem[] = [];
+  // Get candidates from both strategies
+  const lineResults = detectByLines(lines, leftMargin, marginTolerance);
+  const itemResults = detectByItems(items, leftMargin, marginTolerance);
 
-  for (const item of items) {
-    const text = item.text.trim();
-    if (!text) continue;
+  // Merge: for each problem number, keep highest confidence
+  const merged = new Map<number, { number: number; y: number; confidence: number; method: string }>();
 
-    // Check if this item is near the left margin
-    const distFromMargin = Math.abs(item.x - leftMargin);
-    if (distFromMargin > marginTolerance) continue;
-
-    // Check various problem number patterns
-    let num: number | null = null;
-    let confidence = 0;
-
-    // Pattern 1: "N." or "N. " (number with period)
-    const dotMatch = text.match(/^(\d{1,3})\.\s*$/);
-    if (dotMatch) {
-      num = parseInt(dotMatch[1], 10);
-      confidence = 0.95;
-    }
-
-    // Pattern 2: "N.text" (number with period, no space - PDF rendering)
-    if (!num) {
-      const dotMatch2 = text.match(/^(\d{1,3})\.(?=[^\d])/);
-      if (dotMatch2) {
-        num = parseInt(dotMatch2[1], 10);
-        confidence = 0.90;
-      }
-    }
-
-    // Pattern 3: Bare number - ONLY if font is large enough
-    if (!num) {
-      const bareMatch = text.match(/^(\d{1,2})$/);
-      if (bareMatch && item.height >= fontSizeThreshold) {
-        num = parseInt(bareMatch[1], 10);
-        confidence = 0.85;
-      }
-    }
-
-    // Pattern 4: "N)" format (sometimes used for problems too)
-    if (!num) {
-      const parenMatch = text.match(/^(\d{1,3})\)\s*/);
-      if (parenMatch) {
-        num = parseInt(parenMatch[1], 10);
-        confidence = 0.90;
-      }
-    }
-
-    // Pattern 5: Check if first item is a number and next item on same line is "."
-    // (handles split "1" + "." case)
-    if (!num) {
-      const bareNum = text.match(/^(\d{1,2})$/);
-      if (bareNum) {
-        // Look for a "." item very close to this one on the same Y
-        const nearby = items.find(other =>
-          other !== item &&
-          Math.abs(other.y - item.y) < 5 &&
-          other.x > item.x &&
-          other.x - (item.x + item.width) < 10 &&
-          other.text.trim().startsWith('.')
-        );
-        if (nearby && item.height >= fontSizeThreshold) {
-          num = parseInt(bareNum[1], 10);
-          confidence = 0.88;
-        }
-      }
-    }
-
-    if (num && num > 0 && num <= 50) {
-      candidates.push({
-        number: num,
-        pageNumber: pageNum,
-        bbox: { x: colStartX, y: item.y, width: colWidth, height: 0 },
-        confidence,
-        column: columnIndex,
-      });
+  for (const r of [...lineResults, ...itemResults]) {
+    const existing = merged.get(r.number);
+    if (!existing || r.confidence > existing.confidence) {
+      merged.set(r.number, r);
     }
   }
 
-  // Deduplicate: if same number appears multiple times, keep highest confidence
-  const deduped = new Map<number, DetectedProblem>();
-  for (const c of candidates) {
-    const existing = deduped.get(c.number);
-    if (!existing || c.confidence > existing.confidence) {
-      deduped.set(c.number, c);
-    }
-  }
-
-  return [...deduped.values()].sort((a, b) => a.bbox.y - b.bbox.y);
+  // Convert to DetectedProblem
+  return [...merged.values()]
+    .sort((a, b) => a.y - b.y)
+    .map(r => ({
+      number: r.number,
+      pageNumber: pageNum,
+      bbox: { x: colStartX, y: r.y, width: colWidth, height: 0 },
+      confidence: r.confidence,
+      column: columnIndex,
+      _method: r.method, // for debug
+    } as DetectedProblem & { _method?: string }));
 }
 
 /* ================================================================
    Answer detection - "N)" format in two-column layout
-
-   User says answers consistently use "1)", "2)", "3)" format.
-   Left answer column has detailed solutions, right has short answers.
    ================================================================ */
 
 function detectAnswersInColumn(
@@ -381,52 +442,72 @@ function detectAnswersInColumn(
   const results: DetectedAnswer[] = [];
 
   for (const line of lines) {
-    const sortedByX = line.items;
-    if (sortedByX.length === 0) continue;
+    const sx = line.items;
+    if (sx.length === 0) continue;
 
-    // Try to detect "N)" pattern in different ways
+    let ansNum: number | null = null;
+    let ansText = '';
+    let conf = 0;
 
-    // Strategy 1: Check first item alone
-    const firstText = sortedByX[0].text.trim();
-    let detected = matchAnswerPattern(firstText);
-
-    // Strategy 2: First two items concatenated (handles "1" + ")" split)
-    if (!detected && sortedByX.length > 1) {
-      const firstTwo = firstText + sortedByX[1].text.trim();
-      detected = matchAnswerPattern(firstTwo);
+    // Strategy 1: First item matches "N)"
+    const first = sx[0].text.trim();
+    let m = first.match(/^(\d{1,3})\)\s*(.*)$/);
+    if (m) {
+      ansNum = parseInt(m[1], 10);
+      ansText = m[2] || '';
+      conf = 0.95;
     }
 
-    // Strategy 3: Full line start (first ~3 items)
-    if (!detected) {
-      let lineStart = '';
-      for (const item of sortedByX.slice(0, 4)) {
-        lineStart += item.text;
-      }
-      detected = matchAnswerPattern(lineStart.trim());
-    }
-
-    // Strategy 4: Check each individual item for "N)" pattern
-    // (sometimes the number and bracket are in a single text item)
-    if (!detected) {
-      for (const item of sortedByX.slice(0, 3)) {
-        detected = matchAnswerPattern(item.text.trim());
-        if (detected) break;
+    // Strategy 2: First item is just a number, second is ")"
+    if (!ansNum && sx.length > 1) {
+      const numMatch = first.match(/^(\d{1,3})$/);
+      const secondText = sx[1].text.trim();
+      if (numMatch && secondText.startsWith(')')) {
+        ansNum = parseInt(numMatch[1], 10);
+        ansText = secondText.substring(1).trim();
+        conf = 0.93;
       }
     }
 
-    if (detected) {
-      // Collect the rest of the line as answer text
-      const fullText = sortedByX.map(i => i.text).join('').trim();
-      // Remove the "N)" prefix from the full text to get the answer
-      const answerText = detected.answerText || fullText.replace(/^\d{1,3}\)\s*/, '').trim();
+    // Strategy 3: Concatenate first 2-3 items and check
+    if (!ansNum) {
+      let concat = '';
+      for (const item of sx.slice(0, 4)) {
+        concat += item.text;
+      }
+      m = concat.trim().match(/^(\d{1,3})\)\s*(.*)$/);
+      if (m) {
+        ansNum = parseInt(m[1], 10);
+        ansText = m[2] || '';
+        conf = 0.90;
+      }
+    }
+
+    // Strategy 4: Check each item individually for "N)" pattern
+    if (!ansNum) {
+      for (const item of sx.slice(0, 3)) {
+        m = item.text.trim().match(/^(\d{1,3})\)\s*(.*)$/);
+        if (m) {
+          ansNum = parseInt(m[1], 10);
+          ansText = m[2] || '';
+          conf = 0.88;
+          break;
+        }
+      }
+    }
+
+    if (ansNum && ansNum > 0 && ansNum <= 100) {
+      // Collect full line text as answer
+      const fullText = sx.map(i => i.text).join('').trim();
+      const cleanAnswer = ansText || fullText.replace(/^\d{1,3}\)\s*/, '').trim();
 
       results.push({
-        problemNumber: detected.problemNumber,
-        answerText,
+        problemNumber: ansNum,
+        answerText: cleanAnswer,
         y: line.y,
-        x: colStartX,
+        x: line.minX,
         pageNumber: pageNum,
-        confidence: detected.confidence,
+        confidence: conf,
         column: columnIndex,
       });
     }
@@ -435,55 +516,21 @@ function detectAnswersInColumn(
   return results;
 }
 
-function matchAnswerPattern(text: string): { problemNumber: number; answerText: string; confidence: number } | null {
-  if (!text) return null;
-
-  const patterns: { re: RegExp; conf: number }[] = [
-    // "1) ②" or "1) 3" or "1) -8" — primary format user specified
-    { re: /^(\d{1,3})\)\s*(.*)$/, conf: 0.95 },
-    // "1)" alone at end of text
-    { re: /^(\d{1,3})\)\s*$/, conf: 0.93 },
-  ];
-
-  for (const { re, conf } of patterns) {
-    const match = text.match(re);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (num > 0 && num <= 100) {
-        return { problemNumber: num, answerText: match[2] || '', confidence: conf };
-      }
-    }
-  }
-
-  return null;
-}
-
 /* ================================================================
-   Sequential validation - filter out false positives
-
-   After detecting all problems across pages, validate that:
-   1. Numbers form a reasonable ascending sequence
-   2. No large gaps (>3) in sequence
-   3. Remove outliers that don't fit the pattern
+   Sequential validation - filter false positives across all pages
    ================================================================ */
 
 function validateAndFilterProblems(problems: DetectedProblem[]): DetectedProblem[] {
   if (problems.length <= 1) return problems;
 
-  // Sort by page, then column, then Y position
+  // Sort by page, column, Y
   const sorted = [...problems].sort((a, b) => {
     if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
     if (a.column !== b.column) return a.column - b.column;
     return a.bbox.y - b.bbox.y;
   });
 
-  // Check if numbers are roughly sequential
-  const numbers = sorted.map(p => p.number);
-  const minNum = Math.min(...numbers);
-  const maxNum = Math.max(...numbers);
-
-  // If the range is reasonable (e.g., 1-24 for 24 problems), keep numbers in that range
-  // Remove duplicates: keep the one with higher confidence
+  // Deduplicate: keep highest confidence per number
   const bestByNumber = new Map<number, DetectedProblem>();
   for (const p of sorted) {
     const existing = bestByNumber.get(p.number);
@@ -492,39 +539,37 @@ function validateAndFilterProblems(problems: DetectedProblem[]): DetectedProblem
     }
   }
 
-  // Get unique sorted list
   const unique = [...bestByNumber.values()].sort((a, b) => a.number - b.number);
 
-  // Check for sequential pattern: most numbers should be consecutive or close
-  // Count how many form a good sequence vs. outliers
+  // If we have a reasonable set (e.g. 20-30 problems for a typical test),
+  // check for outliers: numbers that are way outside the expected range
   if (unique.length > 3) {
-    // Find the longest increasing subsequence that's roughly consecutive
-    // Simple approach: check if removing outliers gives a better sequence
-    const expectedCount = maxNum - minNum + 1;
-    const actualCount = unique.length;
+    const numbers = unique.map(p => p.number);
+    const minNum = Math.min(...numbers);
+    const maxNum = Math.max(...numbers);
+    const expectedRange = maxNum - minNum + 1;
 
-    // If we have way more detections than expected range, something's wrong
-    // But if close, it's probably fine
-    if (actualCount > expectedCount * 1.5) {
-      // Too many detections - try to find the best consecutive sequence
-      // Group by consecutive ranges
-      const sequences: DetectedProblem[][] = [];
-      let currentSeq: DetectedProblem[] = [unique[0]];
+    // If detected count is close to expected range, it's good
+    // If way more detected than the range allows, filter outliers
+    if (unique.length > expectedRange * 1.3) {
+      // Find the largest consecutive group
+      const groups: DetectedProblem[][] = [];
+      let currentGroup: DetectedProblem[] = [unique[0]];
 
       for (let i = 1; i < unique.length; i++) {
         const gap = unique[i].number - unique[i - 1].number;
-        if (gap <= 2) { // allow small gaps
-          currentSeq.push(unique[i]);
+        if (gap <= 3) {
+          currentGroup.push(unique[i]);
         } else {
-          sequences.push(currentSeq);
-          currentSeq = [unique[i]];
+          groups.push(currentGroup);
+          currentGroup = [unique[i]];
         }
       }
-      sequences.push(currentSeq);
+      groups.push(currentGroup);
 
-      // Pick the longest sequence
-      sequences.sort((a, b) => b.length - a.length);
-      return sequences[0];
+      // Return the largest group
+      groups.sort((a, b) => b.length - a.length);
+      return groups[0];
     }
   }
 
@@ -565,7 +610,6 @@ export async function getPageTextItems(
 
 /**
  * Detect problems on a single page with two-column support.
- * Uses font size + left margin strategy for accurate detection.
  */
 export async function detectProblemsOnPage(
   pdf: any,
@@ -578,7 +622,6 @@ export async function detectProblemsOnPage(
   const layout = detectColumnLayout(items, viewport.width);
   const { left, right } = splitByColumn(items, layout);
 
-  // Debug info
   if (debugPage) {
     debugPage.pageNum = pageNum;
     debugPage.isTwoColumn = layout.isTwoColumn;
@@ -606,13 +649,12 @@ export async function detectProblemsOnPage(
   for (const col of columns) {
     if (col.items.length === 0) continue;
 
-    // Debug: record lines
     if (debugPage) {
       const lines = groupIntoLines(col.items);
-      for (const line of lines.slice(0, 30)) {
+      for (const line of lines.slice(0, 40)) {
         debugPage.lines.push({
           y: Math.round(line.y),
-          text: line.text.substring(0, 80),
+          text: line.text.substring(0, 100),
           column: col.index === 0 ? 'L' : 'R',
         });
       }
@@ -626,7 +668,10 @@ export async function detectProblemsOnPage(
 
   if (debugPage) {
     debugPage.detectedProblems = allDetected.map(d => ({
-      number: d.number, y: Math.round(d.bbox.y), column: d.column,
+      number: d.number,
+      y: Math.round(d.bbox.y),
+      column: d.column,
+      method: (d as any)._method || '',
     }));
   }
 
@@ -676,10 +721,10 @@ export async function detectAnswersOnPage(
 
     if (debugPage) {
       const lines = groupIntoLines(col.items);
-      for (const line of lines.slice(0, 30)) {
+      for (const line of lines.slice(0, 40)) {
         debugPage.lines.push({
           y: Math.round(line.y),
-          text: line.text.substring(0, 80),
+          text: line.text.substring(0, 100),
           column: col.index === 0 ? 'L' : 'R',
         });
       }
@@ -691,7 +736,7 @@ export async function detectAnswersOnPage(
     allDetected.push(...detected);
   }
 
-  // Deduplicate: keep highest confidence per problem number
+  // Deduplicate per problem number (keep highest confidence)
   const unique = new Map<number, DetectedAnswer>();
   for (const d of allDetected) {
     const existing = unique.get(d.problemNumber);
@@ -712,8 +757,7 @@ export async function detectAnswersOnPage(
 }
 
 /**
- * Detect all problems across pages, with debug info collection.
- * Includes sequential validation to eliminate false positives.
+ * Detect all problems across pages with validation.
  */
 export async function detectAllProblems(
   pdf: any,
@@ -735,19 +779,23 @@ export async function detectAllProblems(
     allProblems.push(...problems);
   }
 
-  // Validate and filter: remove false positives, deduplicate across pages
+  // Validate and deduplicate across pages
   const validated = validateAndFilterProblems(allProblems);
 
-  // Sort by page number, column, Y position for correct ordering
+  // Sort by page, column, Y for correct visual order
   validated.sort((a, b) => {
     if (a.pageNumber !== b.pageNumber) return a.pageNumber - b.pageNumber;
     if (a.column !== b.column) return a.column - b.column;
     return a.bbox.y - b.bbox.y;
   });
 
-  // Calculate bounding box heights
+  // Calculate bounding box heights based on content, not next problem
   for (let i = 0; i < validated.length; i++) {
     const current = validated[i];
+    const { items, viewport } = await getPageTextItems(pdf, current.pageNumber);
+    const layout = detectColumnLayout(items, viewport.width);
+    const { left, right } = splitByColumn(items, layout);
+    const colItems = current.column === 0 ? left : right;
 
     // Find next problem in same page AND same column
     let nextInColumn: DetectedProblem | null = null;
@@ -759,16 +807,30 @@ export async function detectAllProblems(
     }
 
     if (nextInColumn) {
+      // Height = distance to next problem (with small padding)
       current.bbox.height = nextInColumn.bbox.y - current.bbox.y;
     } else {
-      const page = await pdf.getPage(current.pageNumber);
-      const viewport = page.getViewport({ scale: 1.0 });
-      current.bbox.height = viewport.height - current.bbox.y;
+      // Last problem in this column: find the actual bottom of content
+      // Instead of extending to page bottom, find the lowest text item in this column
+      const itemsBelow = colItems.filter(item => item.y >= current.bbox.y);
+      if (itemsBelow.length > 0) {
+        const maxY = Math.max(...itemsBelow.map(item => item.y + item.height));
+        current.bbox.height = maxY - current.bbox.y + 10;
+      } else {
+        current.bbox.height = 100; // fallback
+      }
     }
 
-    const padding = 10;
+    // Add padding
+    const padding = 8;
     current.bbox.y = Math.max(0, current.bbox.y - padding);
     current.bbox.height += padding * 2;
+
+    // Safety cap: don't exceed half page height (for 2 problems per column)
+    const maxHeight = viewport.height * 0.55;
+    if (current.bbox.height > maxHeight) {
+      current.bbox.height = maxHeight;
+    }
   }
 
   return validated;
@@ -890,7 +952,7 @@ function trimWhitespace(canvas: HTMLCanvasElement): string {
 
   if (top >= bottom || left >= right) return canvas.toDataURL('image/png');
 
-  const pad = 15;
+  const pad = 10;
   top = Math.max(0, top - pad);
   bottom = Math.min(height - 1, bottom + pad);
   left = Math.max(0, left - pad);
@@ -969,12 +1031,12 @@ export async function extractAnswerImages(
 
       const page = await pdf.getPage(answer.pageNumber);
       const vp = page.getViewport({ scale: 1.0 });
-      const answerHeight = nextY ? (nextY - answer.y) : Math.min(40, vp.height - answer.y);
+      const answerHeight = nextY ? (nextY - answer.y) : Math.min(60, vp.height - answer.y);
 
       const sx = Math.max(0, answer.x * scale);
-      const sy = Math.max(0, (answer.y - 3) * scale);
+      const sy = Math.max(0, (answer.y - 5) * scale);
       const sw = Math.min(fullCanvas.width - sx, (vp.width - answer.x) * scale);
-      const sh = (answerHeight + 6) * scale;
+      const sh = Math.max(20, (answerHeight + 10) * scale);
 
       const cropCanvas = document.createElement('canvas');
       cropCanvas.width = Math.max(1, Math.round(sw));
@@ -1007,6 +1069,7 @@ export function matchProblemsToAnswers(
 ): ExtractedProblem[] {
   const answerMap: Record<number, ExtractedProblem> = {};
   for (const a of answers) answerMap[a.number] = a;
+
   return problems.map(p => ({
     ...p,
     answerPageNumber: answerMap[p.number]?.pageNumber,
