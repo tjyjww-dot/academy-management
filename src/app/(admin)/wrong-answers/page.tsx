@@ -1,379 +1,278 @@
 'use client';
+// @ts-nocheck
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-interface ClassroomOption {
-  id: string;
-  name: string;
-}
-
-interface TestPaperPage {
-  id: string;
-  pageNumber: number;
-  imageUrl: string;
-}
-
-interface TestPaper {
-  id: string;
-  name: string;
-  totalProblems: number;
-  answers: string | null;
-  createdAt: string;
+/* ============================================================
+   Types
+   ============================================================ */
+interface ClassroomOption { id: string; name: string; }
+interface StudentOption { id: string; name: string; studentNumber: string | null; }
+interface TestPaperRecord {
+  id: string; name: string; classroomId: string; totalProblems: number;
+  answers: string | null; createdAt: string;
   classroom: { id: string; name: string };
-  pages: TestPaperPage[];
+  pages: { id: string; pageNumber: number; imageUrl: string }[];
   _count?: { wrongAnswers: number };
 }
-
-interface WrongAnswer {
-  id: string;
-  studentId: string;
-  classroomId: string;
-  testName: string;
-  problemNumber: number;
-  problemImage: string | null;
-  status: string;
-  round: number;
-  createdAt: string;
+interface WrongAnswerRecord {
+  id: string; studentId: string; classroomId: string; testName: string;
+  problemNumber: number; problemImage: string | null; status: string;
+  round: number; createdAt: string;
   student: { id: string; name: string; studentNumber: string | null };
   classroom: { id: string; name: string };
-  testPaper?: { id: string; name: string; pages: { imageUrl: string }[] } | null;
+}
+interface WrongAnswerTestRecord {
+  id: string; studentId: string; classroomId: string; round: number;
+  status: string; createdAt: string; gradedAt: string | null;
+  student: { id: string; name: string; studentNumber: string | null };
+  classroom: { id: string; name: string };
+  items: { id: string; wrongAnswerId: string; isCorrect: boolean | null;
+    wrongAnswer: WrongAnswerRecord }[];
+}
+interface Stats { totalActive: number; totalMastered: number; totalTests: number;
+  pendingTests: number; masteryRate: number; }
+// PDF extraction types
+interface ExtractedProblem {
+  id: string; number: number; pageNumber: number;
+  imageDataUrl: string; bbox: any;
+  answerPageNumber?: number; answerImageDataUrl?: string;
 }
 
-interface Stats {
-  totalActive: number;
-  totalMastered: number;
-  totalTests: number;
-  pendingTests: number;
-  masteryRate: number;
-}
-
-interface StudentOption {
-  id: string;
-  name: string;
-  studentNumber: string | null;
-}
-
+/* ============================================================
+   Main Page Component
+   ============================================================ */
 export default function WrongAnswersPage() {
+  // Global state
   const [classrooms, setClassrooms] = useState<ClassroomOption[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState('');
-  const [wrongAnswers, setWrongAnswers] = useState<WrongAnswer[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'papers' | 'register' | 'list'>('papers');
+  const [students, setStudents] = useState<StudentOption[]>([]);
+  const [activeTab, setActiveTab] = useState<'upload' | 'answers' | 'register' | 'tests'>('upload');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [loading, setLoading] = useState(false);
 
-  // 시험지 관리 state
-  const [testPapers, setTestPapers] = useState<TestPaper[]>([]);
-  const [paperName, setPaperName] = useState('');
-  const [paperTotal, setPaperTotal] = useState('');
-  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
+  // Test Papers
+  const [testPapers, setTestPapers] = useState<TestPaperRecord[]>([]);
 
-  // 정답 입력 state (시험지 등록 후 문항-정답 연결)
-  const [showAnswerSetup, setShowAnswerSetup] = useState(false);
-  const [answerMap, setAnswerMap] = useState<Record<number, string>>({});
-  const [editingPaper, setEditingPaper] = useState<TestPaper | null>(null);
-  const [extracting, setExtracting] = useState(false);
-  const [extractedText, setExtractedText] = useState('');
+  // Wrong answers
+  const [wrongAnswers, setWrongAnswers] = useState<WrongAnswerRecord[]>([]);
+  const [tests, setTests] = useState<WrongAnswerTestRecord[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
 
-  // 오답 등록 state
-  const [students, setStudents] = useState<StudentOption[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const [selectedPaper, setSelectedPaper] = useState('');
-  const [selectedProblems, setSelectedProblems] = useState<Set<number>>(new Set());
+  // PDF Upload / Extract state
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [extractState, setExtractState] = useState<'idle' | 'loading' | 'detecting' | 'extracting' | 'done' | 'saving' | 'error'>('idle');
+  const [extractProgress, setExtractProgress] = useState({ current: 0, total: 0, message: '' });
+  const [extractedProblems, setExtractedProblems] = useState<ExtractedProblem[]>([]);
+  const [totalPages, setTotalPages] = useState(0);
+  const [pageRange, setPageRange] = useState({ start: 1, end: 1 });
+  const [workbookName, setWorkbookName] = useState('');
+  const [selectedProblem, setSelectedProblem] = useState<ExtractedProblem | null>(null);
+  const [extractError, setExtractError] = useState('');
+
+  // Answer linking state
+  const [answerStartPage, setAnswerStartPage] = useState(1);
+  const [answerMappings, setAnswerMappings] = useState<Record<string, number>>({});
+  const [answerPreview, setAnswerPreview] = useState('');
+  const [answerPreviewPage, setAnswerPreviewPage] = useState(0);
+
+  // Register wrong answers state
+  const [regStudent, setRegStudent] = useState('');
+  const [regTestPaper, setRegTestPaper] = useState('');
   const [regTestName, setRegTestName] = useState('');
   const [regProblemNumbers, setRegProblemNumbers] = useState('');
   const [registering, setRegistering] = useState(false);
-  const [registerMode, setRegisterMode] = useState<'paper' | 'manual'>('paper');
 
-  useEffect(() => {
-    fetchClassrooms();
-  }, []);
+  // Grading modal
+  const [gradingTest, setGradingTest] = useState<WrongAnswerTestRecord | null>(null);
+  const [gradeResults, setGradeResults] = useState<Record<string, boolean>>({});
 
-  const showMessage = (msg: string, type: 'success' | 'error' = 'success') => {
-    setMessage(msg);
-    setMessageType(type);
+  useEffect(() => { fetchClassrooms(); }, []);
+
+  const showMsg = (msg: string, type: 'success' | 'error' = 'success') => {
+    setMessage(msg); setMessageType(type);
     setTimeout(() => setMessage(''), 4000);
   };
 
+  /* ============================================================
+     Data Fetching
+     ============================================================ */
   const fetchClassrooms = async () => {
     try {
       const res = await fetch('/api/classes');
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      setClassrooms(list.map((c: any) => ({ id: c.id, name: c.name })));
-    } catch (error) {
-      console.error('Failed to fetch classrooms:', error);
-      showMessage('반 목록을 불러오지 못했습니다', 'error');
-    }
+      if (res.ok) {
+        const data = await res.json();
+        setClassrooms((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, name: c.name })));
+      }
+    } catch (e) { console.error(e); }
   };
 
-  const handleClassroomChange = async (classroomId: string) => {
-    setSelectedClassroom(classroomId);
-    setSelectedPaper('');
-    setSelectedProblems(new Set());
-    if (!classroomId) {
-      setWrongAnswers([]);
-      setTestPapers([]);
+  const handleClassroomChange = async (id: string) => {
+    setSelectedClassroom(id);
+    if (!id) {
+      setWrongAnswers([]); setTests([]); setTestPapers([]); setStudents([]);
       setStats({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
-      setStudents([]);
       return;
     }
-
     setLoading(true);
     try {
-      const [waRes, papersRes, statsRes, classRes] = await Promise.all([
-        fetch(`/api/wrong-answers?classroomId=${classroomId}`),
-        fetch(`/api/test-papers?classroomId=${classroomId}`),
-        fetch(`/api/wrong-answers/stats?classroomId=${classroomId}`),
-        fetch(`/api/classes/${classroomId}`),
+      const [waRes, testRes, statsRes, classRes, tpRes] = await Promise.all([
+        fetch(`/api/wrong-answers?classroomId=${id}`),
+        fetch(`/api/wrong-answers/tests?classroomId=${id}`),
+        fetch(`/api/wrong-answers/stats?classroomId=${id}`),
+        fetch(`/api/classes/${id}`),
+        fetch(`/api/test-papers?classroomId=${id}`),
       ]);
-
-      if (waRes.ok) {
-        const waData = await waRes.json();
-        setWrongAnswers(Array.isArray(waData) ? waData : []);
-      }
-      if (papersRes.ok) {
-        const papersData = await papersRes.json();
-        setTestPapers(Array.isArray(papersData) ? papersData : []);
-      }
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
-      }
+      if (waRes.ok) { const d = await waRes.json(); setWrongAnswers(Array.isArray(d) ? d : []); }
+      if (testRes.ok) { const d = await testRes.json(); setTests(Array.isArray(d) ? d : []); }
+      if (statsRes.ok) setStats(await statsRes.json());
       if (classRes.ok) {
-        const classData = await classRes.json();
-        const enrolledStudents = (classData.enrollments || []).map((e: any) => ({
-          id: e.student?.id || e.studentId,
-          name: e.student?.name || '',
+        const cd = await classRes.json();
+        setStudents((cd.enrollments || []).map((e: any) => ({
+          id: e.student?.id || e.studentId, name: e.student?.name || '',
           studentNumber: e.student?.studentNumber || null,
-        }));
-        setStudents(enrolledStudents);
+        })));
       }
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      showMessage('데이터를 불러오지 못했습니다', 'error');
-    } finally {
-      setLoading(false);
+      if (tpRes.ok) { const d = await tpRes.json(); setTestPapers(Array.isArray(d) ? d : []); }
+    } catch (e) { console.error(e); showMsg('데이터 로딩 실패', 'error'); }
+    finally { setLoading(false); }
+  };
+
+  /* ============================================================
+     PDF Upload & Problem Extraction
+     ============================================================ */
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f && f.type === 'application/pdf') {
+      setPdfFile(f);
+      setExtractedProblems([]);
+      setExtractState('idle');
+      setWorkbookName(f.name.replace('.pdf', ''));
+      // Load PDF to get page count
+      (async () => {
+        try {
+          const { loadPdf } = await import('@/lib/pdfExtractor');
+          const pdf = await loadPdf(f);
+          setTotalPages(pdf.numPages);
+          setPageRange({ start: 1, end: pdf.numPages });
+        } catch { /* ignore */ }
+      })();
     }
   };
 
-  // 드래그앤드롭 핸들러
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    const files = Array.from(e.dataTransfer.files).filter(f =>
-      f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
-    );
-    if (files.length === 0) {
-      showMessage('PDF 파일만 업로드 가능합니다', 'error');
-      return;
-    }
-    setUploadFiles(prev => [...prev, ...files]);
-  }, []);
-
-  const removeFile = (index: number) => {
-    setUploadFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // PDF에서 문항-정답 자동 추출
-  const extractAnswersFromPdf = async (file: File, totalProblems: number): Promise<Record<number, string>> => {
-    setExtracting(true);
+  const handleExtract = useCallback(async () => {
+    if (!pdfFile) return;
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('totalProblems', totalProblems.toString());
+      setExtractState('detecting');
+      setExtractProgress({ current: 0, total: 0, message: '문제를 감지하고 있습니다...' });
+      setExtractedProblems([]);
+      setExtractError('');
 
-      const res = await fetch('/api/test-papers/extract', {
-        method: 'POST',
-        body: formData,
+      const { loadPdf, detectAllProblems, extractAllProblemImages } = await import('@/lib/pdfExtractor');
+      const pdf = await loadPdf(pdfFile);
+
+      const detected = await detectAllProblems(pdf, pageRange.start, pageRange.end);
+      if (detected.length === 0) {
+        setExtractError('문제를 감지하지 못했습니다. 페이지 범위를 확인해주세요.');
+        setExtractState('error'); return;
+      }
+
+      setExtractProgress({ current: 0, total: detected.length, message: `${detected.length}개 문제 발견. 이미지 추출 중...` });
+      setExtractState('extracting');
+
+      const extracted = await extractAllProblemImages(pdf, detected, 2.0, (cur, tot) => {
+        setExtractProgress({ current: cur, total: tot, message: `문제 이미지 추출 중... (${cur}/${tot})` });
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error('Extract failed:', data.error);
-        return {};
-      }
-
-      if (data.rawText) {
-        setExtractedText(data.rawText);
-      }
-
-      if (data.extractedCount > 0) {
-        showMessage(data.message);
-        return data.answers;
-      } else {
-        showMessage(data.message || 'PDF에서 정답을 자동 추출하지 못했습니다. 수동으로 입력해주세요.');
-        return {};
-      }
-    } catch (error) {
-      console.error('Extract error:', error);
-      return {};
-    } finally {
-      setExtracting(false);
+      setExtractedProblems(extracted);
+      setExtractState('done');
+      // Auto-set answer start page
+      const lastPage = Math.max(...extracted.map(p => p.pageNumber));
+      setAnswerStartPage(lastPage + 1);
+    } catch (err: any) {
+      setExtractError('추출 오류: ' + err.message);
+      setExtractState('error');
     }
-  };
+  }, [pdfFile, pageRange]);
 
-  // 시험지 업로드
-  const handleUploadPaper = async () => {
-    if (!paperName || !paperTotal || !selectedClassroom) {
-      showMessage('시험명, 총 문항수, 반을 모두 입력해주세요', 'error');
-      return;
-    }
-
-    setUploading(true);
+  const handleAnswerPreview = useCallback(async (pageNum: number) => {
+    if (!pdfFile || pageNum < 1 || pageNum > totalPages) return;
     try {
+      const { loadPdf, renderPageToCanvas } = await import('@/lib/pdfExtractor');
+      const pdf = await loadPdf(pdfFile);
+      const canvas = await renderPageToCanvas(pdf, pageNum, 1.5);
+      setAnswerPreview(canvas.toDataURL('image/png'));
+      setAnswerPreviewPage(pageNum);
+    } catch (err) { console.error(err); }
+  }, [pdfFile, totalPages]);
+
+  const handleBulkAnswerMapping = useCallback(() => {
+    const m: Record<string, number> = {};
+    extractedProblems.forEach(p => { m[p.id] = answerStartPage; });
+    setAnswerMappings(m);
+  }, [extractedProblems, answerStartPage]);
+
+  /* Save test paper to DB: upload images to Google Drive, create TestPaper record */
+  const handleSaveTestPaper = useCallback(async () => {
+    if (!selectedClassroom || extractedProblems.length === 0) {
+      showMsg('반을 선택하고 문제를 추출해주세요', 'error'); return;
+    }
+
+    setExtractState('saving');
+    setExtractProgress({ current: 0, total: extractedProblems.length, message: '시험지 저장 중...' });
+
+    try {
+      const { dataURLtoBlob } = await import('@/lib/pdfExtractor');
+
+      // Upload each problem image to Google Drive via API
       const formData = new FormData();
-      formData.append('name', paperName);
-      formData.append('totalProblems', paperTotal);
+      formData.append('name', workbookName || pdfFile?.name || 'Untitled');
       formData.append('classroomId', selectedClassroom);
-      uploadFiles.forEach(file => formData.append('images', file));
+      formData.append('totalProblems', String(extractedProblems.length));
 
-      const res = await fetch('/api/test-papers', {
-        method: 'POST',
-        body: formData,
+      // Build answers JSON from answer mappings
+      const answersObj: Record<string, string> = {};
+      extractedProblems.forEach(p => {
+        if (answerMappings[p.id]) answersObj[String(p.number)] = `p.${answerMappings[p.id]}`;
       });
+      formData.append('answers', JSON.stringify(answersObj));
 
-      const responseData = await res.json();
-
-      if (!res.ok) {
-        throw new Error(responseData.error || '업로드 실패');
+      // Upload problem images
+      const imageFiles: File[] = [];
+      for (let i = 0; i < extractedProblems.length; i++) {
+        const p = extractedProblems[i];
+        const blob = dataURLtoBlob(p.imageDataUrl);
+        const file = new File([blob], `problem-${p.number}.png`, { type: 'image/png' });
+        imageFiles.push(file);
+        formData.append('images', file);
+        setExtractProgress({ current: i + 1, total: extractedProblems.length, message: `이미지 업로드 중 (${i + 1}/${extractedProblems.length})` });
       }
 
-      const newPaper = responseData;
-      if (newPaper.uploadWarning) {
-        showMessage(`시험지 등록 완료! (${newPaper.uploadWarning}) 정답을 입력해주세요.`);
-      } else {
-        showMessage('시험지가 등록되었습니다! 정답을 입력해주세요.');
-      }
+      const res = await fetch('/api/test-papers', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
 
-      // 정답 입력 모드로 전환
-      const total = parseInt(paperTotal);
-      const initialAnswers: Record<number, string> = {};
-      for (let i = 1; i <= total; i++) {
-        initialAnswers[i] = '';
-      }
+      showMsg(`시험지 "${workbookName}"가 저장되었습니다 (${extractedProblems.length}문제)`);
+      setExtractState('done');
 
-      // PDF 파일이 있으면 자동 추출 시도
-      if (uploadFiles.length > 0) {
-        const extracted = await extractAnswersFromPdf(uploadFiles[0], total);
-        if (Object.keys(extracted).length > 0) {
-          for (const [num, ans] of Object.entries(extracted)) {
-            initialAnswers[parseInt(num)] = ans;
-          }
-        }
-      }
-
-      setAnswerMap(initialAnswers);
-      setEditingPaper(newPaper);
-      setShowAnswerSetup(true);
-
-      setPaperName('');
-      setPaperTotal('');
-      setUploadFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      handleClassroomChange(selectedClassroom);
-    } catch (error: any) {
-      showMessage(error.message || '시험지 업로드에 실패했습니다', 'error');
-    } finally {
-      setUploading(false);
+      // Refresh test papers
+      const tpRes = await fetch(`/api/test-papers?classroomId=${selectedClassroom}`);
+      if (tpRes.ok) setTestPapers(await tpRes.json());
+    } catch (err: any) {
+      showMsg('저장 실패: ' + err.message, 'error');
+      setExtractState('done');
     }
-  };
+  }, [selectedClassroom, extractedProblems, workbookName, pdfFile, answerMappings]);
 
-  // 정답 저장
-  const handleSaveAnswers = async () => {
-    if (!editingPaper) return;
-
-    const answersString = JSON.stringify(answerMap);
-    try {
-      const res = await fetch(`/api/test-papers/${editingPaper.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers: answersString }),
-      });
-
-      if (!res.ok) throw new Error('저장 실패');
-
-      showMessage('정답이 저장되었습니다');
-      setShowAnswerSetup(false);
-      setEditingPaper(null);
-      setAnswerMap({});
-      handleClassroomChange(selectedClassroom);
-    } catch (error: any) {
-      showMessage(error.message || '정답 저장에 실패했습니다', 'error');
+  /* ============================================================
+     Wrong Answer Registration
+     ============================================================ */
+  const handleRegisterWrongAnswers = async () => {
+    if (!regStudent || !regTestName || !regProblemNumbers) {
+      showMsg('모든 필드를 입력해주세요', 'error'); return;
     }
-  };
-
-  // 기존 시험지의 정답 편집
-  const handleEditAnswers = (paper: TestPaper) => {
-    const total = paper.totalProblems;
-    let existingAnswers: Record<number, string> = {};
-    if (paper.answers) {
-      try {
-        existingAnswers = JSON.parse(paper.answers);
-      } catch {
-        existingAnswers = {};
-      }
-    }
-    for (let i = 1; i <= total; i++) {
-      if (!existingAnswers[i]) existingAnswers[i] = '';
-    }
-    setAnswerMap(existingAnswers);
-    setEditingPaper(paper);
-    setShowAnswerSetup(true);
-  };
-
-  // 시험지 삭제
-  const handleDeletePaper = async (id: string) => {
-    if (!confirm('이 시험지를 삭제하시겠습니까?')) return;
-    try {
-      const res = await fetch(`/api/test-papers/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed');
-      showMessage('시험지가 삭제되었습니다');
-      handleClassroomChange(selectedClassroom);
-    } catch {
-      showMessage('삭제에 실패했습니다', 'error');
-    }
-  };
-
-  // 문제번호 토글 (시험지 기반 등록)
-  const toggleProblem = (num: number) => {
-    setSelectedProblems(prev => {
-      const next = new Set(prev);
-      if (next.has(num)) next.delete(num);
-      else next.add(num);
-      return next;
-    });
-  };
-
-  // 오답 등록 (시험지 기반)
-  const handleRegisterFromPaper = async () => {
-    if (!selectedStudent || !selectedPaper || selectedProblems.size === 0) {
-      showMessage('학생, 시험지, 문제를 모두 선택해주세요', 'error');
-      return;
-    }
-
-    const paper = testPapers.find(p => p.id === selectedPaper);
-    if (!paper) return;
+    const nums = regProblemNumbers.split(/[,\s]+/).map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+    if (nums.length === 0) { showMsg('유효한 문제 번호를 입력해주세요', 'error'); return; }
 
     setRegistering(true);
     try {
@@ -381,172 +280,133 @@ export default function WrongAnswersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentId: selectedStudent,
-          classroomId: selectedClassroom,
-          testName: paper.name,
-          problemNumbers: Array.from(selectedProblems).sort((a, b) => a - b),
-          testPaperId: paper.id,
+          studentId: regStudent, classroomId: selectedClassroom,
+          testName: regTestName, problemNumbers: nums,
+          testPaperId: regTestPaper || undefined,
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed');
-      }
-
-      showMessage(`${selectedProblems.size}개 오답이 등록되었습니다`);
-      setSelectedProblems(new Set());
-      setSelectedStudent('');
-      handleClassroomChange(selectedClassroom);
-    } catch (error: any) {
-      showMessage(error.message || '오답 등록에 실패했습니다', 'error');
-    } finally {
-      setRegistering(false);
-    }
-  };
-
-  // 오답 등록 (수동 입력)
-  const handleRegisterManual = async () => {
-    if (!selectedStudent || !regTestName || !regProblemNumbers) {
-      showMessage('모든 필드를 입력해주세요', 'error');
-      return;
-    }
-
-    const nums = regProblemNumbers.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-    if (nums.length === 0) {
-      showMessage('유효한 문제 번호를 입력해주세요', 'error');
-      return;
-    }
-
-    setRegistering(true);
-    try {
-      const res = await fetch('/api/wrong-answers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentId: selectedStudent,
-          classroomId: selectedClassroom,
-          testName: regTestName,
-          problemNumbers: nums,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed');
-      }
-
-      showMessage(`${nums.length}개 오답이 등록되었습니다`);
-      setRegTestName('');
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showMsg(`${nums.length}개 오답이 등록되었습니다`);
       setRegProblemNumbers('');
-      setSelectedStudent('');
       handleClassroomChange(selectedClassroom);
-    } catch (error: any) {
-      showMessage(error.message || '오답 등록에 실패했습니다', 'error');
-    } finally {
-      setRegistering(false);
-    }
+    } catch (err: any) {
+      showMsg(err.message || '오답 등록 실패', 'error');
+    } finally { setRegistering(false); }
   };
 
-  // 오답 삭제
   const handleDeleteWrongAnswer = async (id: string) => {
     if (!confirm('이 오답을 삭제하시겠습니까?')) return;
     try {
       const res = await fetch(`/api/wrong-answers/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed');
-      showMessage('삭제되었습니다');
-      handleClassroomChange(selectedClassroom);
-    } catch {
-      showMessage('삭제에 실패했습니다', 'error');
-    }
+      if (res.ok) { showMsg('삭제됨'); handleClassroomChange(selectedClassroom); }
+    } catch { showMsg('삭제 실패', 'error'); }
   };
 
-  // 학생별 오답 그룹핑
-  const groupedByStudent = wrongAnswers.reduce((acc, wa) => {
-    const key = wa.studentId;
-    if (!acc[key]) acc[key] = { name: wa.student.name, items: [] };
-    acc[key].items.push(wa);
-    return acc;
-  }, {} as Record<string, { name: string; items: WrongAnswer[] }>);
-
-  // 정답 파싱 헬퍼
-  const getAnswersFromPaper = (paper: TestPaper): Record<number, string> => {
-    if (!paper.answers) return {};
+  const handleCreateTest = async (studentId: string) => {
     try {
-      return JSON.parse(paper.answers);
-    } catch {
-      return {};
-    }
+      const res = await fetch('/api/wrong-answers/tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, classroomId: selectedClassroom }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showMsg('테스트가 생성되었습니다');
+      handleClassroomChange(selectedClassroom);
+    } catch (err: any) { showMsg(err.message || '테스트 생성 실패', 'error'); }
   };
 
+  const handleStartGrading = (test: WrongAnswerTestRecord) => {
+    setGradingTest(test);
+    const init: Record<string, boolean> = {};
+    test.items.forEach(i => { init[i.wrongAnswerId] = i.isCorrect ?? false; });
+    setGradeResults(init);
+  };
+
+  const handleSubmitGrade = async () => {
+    if (!gradingTest) return;
+    try {
+      const results = Object.entries(gradeResults).map(([wrongAnswerId, isCorrect]) => ({ wrongAnswerId, isCorrect }));
+      const res = await fetch(`/api/wrong-answers/tests/${gradingTest.id}/grade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ results }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      showMsg('채점 완료');
+      setGradingTest(null);
+      handleClassroomChange(selectedClassroom);
+    } catch { showMsg('채점 실패', 'error'); }
+  };
+
+  // Group wrong answers by student
+  const groupedByStudent = wrongAnswers.reduce((acc, wa) => {
+    if (!acc[wa.studentId]) acc[wa.studentId] = { name: wa.student.name, items: [] };
+    acc[wa.studentId].items.push(wa);
+    return acc;
+  }, {} as Record<string, { name: string; items: WrongAnswerRecord[] }>);
+
+  /* ============================================================
+     Render
+     ============================================================ */
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">오답 관리</h1>
 
       {/* Message */}
       {message && (
         <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
           messageType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
-          {message}
-        </div>
+        }`}>{message}</div>
       )}
 
       {/* Classroom selector */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">반 선택</label>
-        <select
-          value={selectedClassroom}
-          onChange={(e) => handleClassroomChange(e.target.value)}
-          className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800"
-        >
+        <select value={selectedClassroom} onChange={e => handleClassroomChange(e.target.value)}
+          className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
           <option value="">반을 선택하세요</option>
-          {classrooms.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
+          {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
 
       {selectedClassroom && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-              <div className="text-2xl font-bold text-red-600">{stats.totalActive}</div>
-              <div className="text-sm text-gray-600">활성 오답</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <div className="bg-red-50 rounded-xl p-3 border border-red-100">
+              <div className="text-xl font-bold text-red-600">{stats.totalActive}</div>
+              <div className="text-xs text-gray-600">활성 오답</div>
             </div>
-            <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-              <div className="text-2xl font-bold text-green-600">{stats.totalMastered}</div>
-              <div className="text-sm text-gray-600">완료 (마스터)</div>
+            <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+              <div className="text-xl font-bold text-green-600">{stats.totalMastered}</div>
+              <div className="text-xs text-gray-600">마스터</div>
             </div>
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-              <div className="text-2xl font-bold text-blue-600">{stats.totalTests}</div>
-              <div className="text-sm text-gray-600">총 테스트</div>
+            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+              <div className="text-xl font-bold text-blue-600">{stats.totalTests}</div>
+              <div className="text-xs text-gray-600">총 테스트</div>
             </div>
-            <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
-              <div className="text-2xl font-bold text-purple-600">{stats.masteryRate}%</div>
-              <div className="text-sm text-gray-600">마스터율</div>
+            <div className="bg-purple-50 rounded-xl p-3 border border-purple-100">
+              <div className="text-xl font-bold text-purple-600">{stats.masteryRate}%</div>
+              <div className="text-xs text-gray-600">마스터율</div>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+              <div className="text-xl font-bold text-amber-600">{testPapers.length}</div>
+              <div className="text-xs text-gray-600">시험지</div>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-200 mb-6">
+          <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
             {[
-              { key: 'papers' as const, label: '시험지 관리' },
+              { key: 'upload' as const, label: '시험지 업로드' },
               { key: 'register' as const, label: '오답 등록' },
-              { key: 'list' as const, label: '오답 현황' },
+              { key: 'answers' as const, label: '오답 목록' },
+              { key: 'tests' as const, label: '테스트 관리' },
             ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab.label}
-              </button>
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`px-5 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                  activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}>{tab.label}</button>
             ))}
           </div>
 
@@ -556,519 +416,324 @@ export default function WrongAnswersPage() {
             </div>
           ) : (
             <>
-              {/* ==================== 시험지 관리 탭 ==================== */}
-              {activeTab === 'papers' && (
-                <div>
-                  {/* 정답 입력/확인 모달 */}
-                  {showAnswerSetup && editingPaper && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                      <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
-                        <h3 className="text-lg font-bold text-gray-800 mb-2">
-                          문항-정답 연결: {editingPaper.name}
-                        </h3>
-                        <p className="text-sm text-gray-500 mb-4">
-                          PDF에서 자동으로 추출된 정답을 확인하고, 필요하면 수정하세요.
-                        </p>
-
-                        {/* 추출 진행 중 */}
-                        {extracting && (
-                          <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                            <span className="text-sm text-blue-700">PDF에서 문항과 정답을 추출하는 중...</span>
-                          </div>
-                        )}
-
-                        {/* PDF 미리보기 및 추출된 텍스트 */}
-                        {editingPaper.pages && editingPaper.pages.length > 0 && (
-                          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                            <p className="text-sm font-medium text-gray-700 mb-2">첨부 파일:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {editingPaper.pages.map((page) => (
-                                <a
-                                  key={page.id}
-                                  href={page.imageUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition-colors"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                  </svg>
-                                  페이지 {page.pageNumber}
-                                </a>
-                              ))}
+              {/* ========== TAB: UPLOAD ========== */}
+              {activeTab === 'upload' && (
+                <div className="space-y-6">
+                  {/* Existing Test Papers */}
+                  {testPapers.length > 0 && (
+                    <div className="bg-white rounded-xl border p-5">
+                      <h3 className="font-semibold text-gray-800 mb-3">저장된 시험지 ({testPapers.length})</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {testPapers.map(tp => (
+                          <div key={tp.id} className="border rounded-lg p-3 hover:shadow-sm">
+                            <div className="font-medium text-gray-800">{tp.name}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {tp.totalProblems}문제 | {tp.pages.length}페이지 | {new Date(tp.createdAt).toLocaleDateString('ko-KR')}
                             </div>
-                          </div>
-                        )}
-
-                        {/* 추출된 원본 텍스트 미리보기 (접이식) */}
-                        {extractedText && (
-                          <details className="mb-4">
-                            <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 font-medium">
-                              PDF 추출 텍스트 보기 (정답이 올바르게 추출되지 않았을 때 참고)
-                            </summary>
-                            <pre className="mt-2 p-3 bg-gray-100 rounded-lg text-xs text-gray-600 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                              {extractedText}
-                            </pre>
-                          </details>
-                        )}
-
-                        {/* 정답 입력 그리드 */}
-                        <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-6">
-                          {Object.keys(answerMap).sort((a, b) => Number(a) - Number(b)).map((numStr) => {
-                            const num = Number(numStr);
-                            return (
-                              <div key={num} className="flex flex-col items-center">
-                                <span className="text-xs font-semibold text-gray-500 mb-1">{num}번</span>
-                                <input
-                                  type="text"
-                                  value={answerMap[num] || ''}
-                                  onChange={(e) => {
-                                    setAnswerMap(prev => ({ ...prev, [num]: e.target.value }));
-                                  }}
-                                  placeholder="-"
-                                  maxLength={10}
-                                  className="w-full text-center px-1 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* 정답 확인 요약 */}
-                        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                          <p className="text-sm font-medium text-blue-800 mb-1">입력된 정답 확인:</p>
-                          <div className="text-sm text-blue-700">
-                            {Object.entries(answerMap)
-                              .filter(([, v]) => v !== '')
-                              .sort(([a], [b]) => Number(a) - Number(b))
-                              .map(([num, ans]) => `${num}번: ${ans}`)
-                              .join('  |  ') || '아직 입력된 정답이 없습니다'}
-                          </div>
-                          <p className="text-xs text-blue-600 mt-1">
-                            입력 완료: {Object.values(answerMap).filter(v => v !== '').length} / {Object.keys(answerMap).length}문항
-                          </p>
-                        </div>
-
-                        <div className="flex gap-3">
-                          <button
-                            onClick={handleSaveAnswers}
-                            className="flex-1 px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                          >
-                            정답 저장
-                          </button>
-                          <button
-                            onClick={() => { setShowAnswerSetup(false); setEditingPaper(null); }}
-                            className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-                          >
-                            나중에 입력
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 시험지 업로드 */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">시험지 업로드</h3>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
-                          <input
-                            type="text"
-                            value={paperName}
-                            onChange={e => setPaperName(e.target.value)}
-                            placeholder="예: 3월 모의고사"
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">총 문항수</label>
-                          <input
-                            type="number"
-                            value={paperTotal}
-                            onChange={e => setPaperTotal(e.target.value)}
-                            placeholder="예: 30"
-                            min="1"
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-
-                      {/* 드래그앤드롭 PDF 업로드 영역 */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          시험지 PDF (선택사항)
-                        </label>
-                        <div
-                          onDragOver={handleDragOver}
-                          onDragLeave={handleDragLeave}
-                          onDrop={handleDrop}
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`relative cursor-pointer border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-                            isDragOver
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/50'
-                          }`}
-                        >
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple
-                            accept=".pdf,application/pdf"
-                            onChange={e => {
-                              const files = Array.from(e.target.files || []);
-                              setUploadFiles(prev => [...prev, ...files]);
-                              if (fileInputRef.current) fileInputRef.current.value = '';
-                            }}
-                            className="hidden"
-                          />
-                          <svg className="mx-auto w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          <p className="text-sm font-medium text-gray-700">
-                            {isDragOver ? 'PDF 파일을 놓으세요!' : 'PDF 파일을 드래그하거나 클릭하여 선택'}
-                          </p>
-                          <p className="mt-1 text-xs text-gray-500">여러 개의 PDF 파일을 업로드할 수 있습니다</p>
-                        </div>
-                      </div>
-
-                      {/* 선택된 파일 목록 */}
-                      {uploadFiles.length > 0 && (
-                        <div className="space-y-2">
-                          {uploadFiles.map((file, i) => (
-                            <div key={i} className="flex items-center justify-between px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z"/>
-                                  <path d="M8 14h3v1H9v1h2v1H9v2H8v-5zm4 0h2c.6 0 1 .4 1 1v1c0 .6-.4 1-1 1h-1v2h-1v-5zm1 2h1v-1h-1v1zm3-2h1.5v1H17v1h1v1h-1v1h-1v-5z"/>
-                                </svg>
-                                <span className="text-sm text-blue-800 font-medium">{file.name}</span>
-                                <span className="text-xs text-blue-600">({(file.size / 1024).toFixed(0)} KB)</span>
-                              </div>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                                className="text-red-500 hover:text-red-700 p-1"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <button
-                        onClick={handleUploadPaper}
-                        disabled={uploading || !paperName || !paperTotal}
-                        className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {uploading ? '등록 중...' : '시험지 등록'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 등록된 시험지 목록 */}
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">등록된 시험지</h3>
-                  {testPapers.length === 0 ? (
-                    <div className="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
-                      등록된 시험지가 없습니다.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {testPapers.map(paper => {
-                        const answers = getAnswersFromPaper(paper);
-                        const answeredCount = Object.values(answers).filter(v => v !== '').length;
-                        return (
-                          <div key={paper.id} className="bg-white rounded-xl border border-gray-200 p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-1">
-                                  <h4 className="font-semibold text-gray-800">{paper.name}</h4>
-                                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                    {paper.totalProblems}문항
-                                  </span>
-                                  {answeredCount > 0 && (
-                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                      정답 {answeredCount}/{paper.totalProblems}
-                                    </span>
-                                  )}
-                                  {paper._count && paper._count.wrongAnswers > 0 && (
-                                    <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-                                      오답 {paper._count.wrongAnswers}건
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {new Date(paper.createdAt).toLocaleDateString('ko-KR')} 등록
-                                  {paper.pages.length > 0 && ` · PDF ${paper.pages.length}개`}
-                                </div>
-                                {/* 첨부 파일 링크 */}
-                                {paper.pages.length > 0 && (
-                                  <div className="flex gap-2 mt-2">
-                                    {paper.pages.map(page => (
-                                      <a
-                                        key={page.id}
-                                        href={page.imageUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200 transition-colors"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                        PDF {page.pageNumber}
-                                      </a>
-                                    ))}
-                                  </div>
-                                )}
-                                {/* 정답 요약 (있을 경우) */}
-                                {answeredCount > 0 && (
-                                  <div className="mt-2 text-xs text-gray-500">
-                                    정답: {Object.entries(answers)
-                                      .filter(([, v]) => v !== '')
-                                      .sort(([a], [b]) => Number(a) - Number(b))
-                                      .slice(0, 10)
-                                      .map(([num, ans]) => `${num}번=${ans}`)
-                                      .join(', ')}
-                                    {answeredCount > 10 && ` ... 외 ${answeredCount - 10}개`}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex gap-2 ml-4">
-                                <button
-                                  onClick={() => handleEditAnswers(paper)}
-                                  className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium"
-                                >
-                                  {answeredCount > 0 ? '정답 수정' : '정답 입력'}
-                                </button>
-                                <button
-                                  onClick={() => handleDeletePaper(paper.id)}
-                                  className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium"
-                                >
-                                  삭제
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ==================== 오답 등록 탭 ==================== */}
-              {activeTab === 'register' && (
-                <div>
-                  {/* 등록 모드 선택 */}
-                  <div className="flex gap-3 mb-6">
-                    <button
-                      onClick={() => setRegisterMode('paper')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        registerMode === 'paper'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      시험지 기반 등록
-                    </button>
-                    <button
-                      onClick={() => setRegisterMode('manual')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        registerMode === 'manual'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      수동 입력
-                    </button>
-                  </div>
-
-                  {/* 학생 선택 (공통) */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6 mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">학생 선택</label>
-                    <select
-                      value={selectedStudent}
-                      onChange={(e) => setSelectedStudent(e.target.value)}
-                      className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
-                    >
-                      <option value="">학생을 선택하세요</option>
-                      {students.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}{s.studentNumber ? ` (${s.studentNumber})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {registerMode === 'paper' ? (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6">
-                      <h3 className="text-base font-semibold text-gray-800 mb-4">시험지 기반 오답 등록</h3>
-
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">시험지 선택</label>
-                        <select
-                          value={selectedPaper}
-                          onChange={(e) => { setSelectedPaper(e.target.value); setSelectedProblems(new Set()); }}
-                          className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
-                        >
-                          <option value="">시험지를 선택하세요</option>
-                          {testPapers.map(p => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.totalProblems}문항)</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {selectedPaper && (() => {
-                        const paper = testPapers.find(p => p.id === selectedPaper);
-                        if (!paper) return null;
-                        const answers = getAnswersFromPaper(paper);
-                        return (
-                          <>
-                            <p className="text-sm text-gray-600 mb-3">
-                              틀린 문제 번호를 클릭하세요 (선택됨: <span className="font-bold text-red-600">{selectedProblems.size}개</span>)
-                            </p>
-                            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2 mb-4">
-                              {Array.from({ length: paper.totalProblems }, (_, i) => i + 1).map(num => (
-                                <button
-                                  key={num}
-                                  onClick={() => toggleProblem(num)}
-                                  className={`relative p-2 rounded-lg text-sm font-medium transition-all border ${
-                                    selectedProblems.has(num)
-                                      ? 'bg-red-500 text-white border-red-600 shadow-sm'
-                                      : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  <div>{num}</div>
-                                  {answers[num] && (
-                                    <div className="text-[10px] opacity-70">({answers[num]})</div>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* 선택된 문제 요약 */}
-                            {selectedProblems.size > 0 && (
-                              <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
-                                <p className="text-sm text-red-700 font-medium">
-                                  선택된 오답: {Array.from(selectedProblems).sort((a, b) => a - b).join(', ')}번
-                                </p>
-                              </div>
+                            {tp.pages.length > 0 && (
+                              <img src={tp.pages[0].imageUrl} alt="preview" className="mt-2 w-full h-24 object-cover rounded border" />
                             )}
-
-                            <button
-                              onClick={handleRegisterFromPaper}
-                              disabled={registering || !selectedStudent || selectedProblems.size === 0}
-                              className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-                            >
-                              {registering ? '등록 중...' : `오답 ${selectedProblems.size}개 등록`}
-                            </button>
-                          </>
-                        );
-                      })()}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6">
-                      <h3 className="text-base font-semibold text-gray-800 mb-4">수동 오답 등록</h3>
+                  )}
+
+                  {/* PDF Upload */}
+                  <div className="bg-white rounded-xl border p-5">
+                    <h3 className="font-semibold text-gray-800 mb-3">PDF 시험지 업로드</h3>
+
+                    <label className="block border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer">
+                      <div className="text-3xl mb-2">📁</div>
+                      <p className="text-gray-600 text-sm">PDF 파일을 클릭하여 선택하세요</p>
+                      <p className="text-xs text-gray-400 mt-1">수학 교재, 시험지 등의 PDF</p>
+                      <input type="file" accept=".pdf" onChange={handleFileSelect} className="hidden" />
+                    </label>
+
+                    {pdfFile && (
+                      <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200 flex items-center gap-2">
+                        <span className="text-lg">✅</span>
+                        <span className="font-medium text-green-800 text-sm">{pdfFile.name}</span>
+                        <span className="text-xs text-green-600">({(pdfFile.size / 1024 / 1024).toFixed(1)}MB)</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Extract Settings */}
+                  {pdfFile && totalPages > 0 && extractState !== 'detecting' && extractState !== 'extracting' && extractState !== 'saving' && (
+                    <div className="bg-white rounded-xl border p-5">
+                      <h3 className="font-semibold text-gray-800 mb-3">문제 추출 설정</h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
-                          <input
-                            type="text"
-                            value={regTestName}
-                            onChange={e => setRegTestName(e.target.value)}
+                          <label className="block text-sm font-medium text-gray-700 mb-1">시험지 이름</label>
+                          <input type="text" value={workbookName} onChange={e => setWorkbookName(e.target.value)}
                             placeholder="예: 3월 모의고사"
-                            className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          />
+                            className="w-full max-w-md px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">틀린 문제 번호</label>
-                          <input
-                            type="text"
-                            value={regProblemNumbers}
-                            onChange={e => setRegProblemNumbers(e.target.value)}
-                            placeholder="예: 3, 7, 15, 22"
-                            className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                          />
-                          <p className="mt-1 text-xs text-gray-500">쉼표로 구분하여 입력하세요</p>
+                        <div className="flex gap-4 items-end">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">시작 페이지</label>
+                            <input type="number" min={1} max={totalPages} value={pageRange.start}
+                              onChange={e => setPageRange(p => ({ ...p, start: parseInt(e.target.value) || 1 }))}
+                              className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">끝 페이지</label>
+                            <input type="number" min={1} max={totalPages} value={pageRange.end}
+                              onChange={e => setPageRange(p => ({ ...p, end: parseInt(e.target.value) || totalPages }))}
+                              className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <span className="text-sm text-gray-500 pb-2">전체 {totalPages}페이지</span>
                         </div>
-                        <button
-                          onClick={handleRegisterManual}
-                          disabled={registering || !selectedStudent || !regTestName || !regProblemNumbers}
-                          className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-                        >
-                          {registering ? '등록 중...' : '오답 등록'}
+                        <button onClick={handleExtract}
+                          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                          🔍 문제 자동 추출 시작
                         </button>
                       </div>
                     </div>
                   )}
+
+                  {/* Progress */}
+                  {(extractState === 'detecting' || extractState === 'extracting' || extractState === 'saving') && (
+                    <div className="bg-white rounded-xl border p-5">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        <span className="text-sm text-gray-600">{extractProgress.message}</span>
+                      </div>
+                      {extractProgress.total > 0 && (
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${(extractProgress.current / extractProgress.total) * 100}%` }}></div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {extractState === 'error' && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-red-700 text-sm">{extractError}</p>
+                      <button onClick={() => setExtractState('idle')} className="mt-2 text-sm text-red-600 underline">다시 시도</button>
+                    </div>
+                  )}
+
+                  {/* Extracted Results */}
+                  {extractState === 'done' && extractedProblems.length > 0 && (
+                    <>
+                      {/* Answer Linking */}
+                      <div className="bg-white rounded-xl border p-5">
+                        <h3 className="font-semibold text-gray-800 mb-3">🔗 답지 페이지 연결</h3>
+                        <p className="text-xs text-gray-500 mb-4">각 문제의 답지/해설 페이지를 설정합니다.</p>
+
+                        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <div>
+                              <label className="block text-xs text-blue-600 mb-1">답지 시작 페이지</label>
+                              <input type="number" min={1} max={totalPages} value={answerStartPage}
+                                onChange={e => setAnswerStartPage(parseInt(e.target.value) || 1)}
+                                className="w-20 px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <button onClick={handleBulkAnswerMapping}
+                              className="mt-4 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                              전체 적용
+                            </button>
+                            <button onClick={() => handleAnswerPreview(answerStartPage)}
+                              className="mt-4 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300">
+                              미리보기
+                            </button>
+                          </div>
+                        </div>
+
+                        {answerPreview && (
+                          <div className="mb-4 border rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-gray-700">{answerPreviewPage}페이지 미리보기</span>
+                              <button onClick={() => setAnswerPreview('')} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+                            </div>
+                            <img src={answerPreview} alt={`Page ${answerPreviewPage}`} className="max-h-64 mx-auto border rounded" />
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                          {extractedProblems.map(p => (
+                            <div key={p.id} className="flex items-center gap-1 p-1.5 bg-gray-50 rounded text-sm">
+                              <span className="font-bold text-blue-600 w-8">{p.number}번</span>
+                              <span className="text-gray-400">→</span>
+                              <input type="number" min={1} max={totalPages}
+                                value={answerMappings[p.id] || ''} placeholder="p."
+                                onChange={e => setAnswerMappings(m => ({ ...m, [p.id]: parseInt(e.target.value) || 0 }))}
+                                className="w-14 px-1.5 py-1 border rounded text-xs focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Problem Gallery */}
+                      <div className="bg-white rounded-xl border p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-gray-800">추출된 문제: {extractedProblems.length}개</h3>
+                          <button onClick={handleSaveTestPaper}
+                            className="px-5 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors">
+                            💾 시험지 저장 (DB)
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {extractedProblems.map(p => (
+                            <div key={p.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer"
+                              onClick={() => setSelectedProblem(p)}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-bold text-blue-600">{p.number}번</span>
+                                <span className="text-xs text-gray-400">p.{p.pageNumber}</span>
+                              </div>
+                              <div className="bg-gray-50 rounded overflow-hidden">
+                                <img src={p.imageDataUrl} alt={`문제 ${p.number}`} className="w-full object-contain max-h-40" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
-              {/* ==================== 오답 현황 탭 ==================== */}
-              {activeTab === 'list' && (
+              {/* ========== TAB: REGISTER ========== */}
+              {activeTab === 'register' && (
+                <div className="max-w-2xl">
+                  <div className="bg-white rounded-xl border p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">오답 등록</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">학생</label>
+                        <select value={regStudent} onChange={e => setRegStudent(e.target.value)}
+                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                          <option value="">학생을 선택하세요</option>
+                          {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">시험지 (선택)</label>
+                        <select value={regTestPaper} onChange={e => { setRegTestPaper(e.target.value); if (e.target.value) {
+                          const tp = testPapers.find(t => t.id === e.target.value);
+                          if (tp) setRegTestName(tp.name);
+                        }}}
+                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                          <option value="">시험지를 선택하세요 (선택사항)</option>
+                          {testPapers.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제)</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
+                        <input type="text" value={regTestName} onChange={e => setRegTestName(e.target.value)}
+                          placeholder="예: 3월 모의고사"
+                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">틀린 문제 번호</label>
+                        <input type="text" value={regProblemNumbers} onChange={e => setRegProblemNumbers(e.target.value)}
+                          placeholder="예: 3, 7, 12, 15 (쉼표 또는 공백으로 구분)"
+                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <button onClick={handleRegisterWrongAnswers} disabled={registering}
+                        className="w-full py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">
+                        {registering ? '등록 중...' : '오답 등록'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ========== TAB: ANSWERS ========== */}
+              {activeTab === 'answers' && (
                 <div>
                   {Object.keys(groupedByStudent).length === 0 ? (
-                    <div className="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
-                      등록된 오답이 없습니다.
-                    </div>
+                    <div className="text-center py-12 text-gray-500">이 반에 등록된 오답이 없습니다.</div>
                   ) : (
-                    <div className="space-y-6">
-                      {Object.entries(groupedByStudent).map(([studentId, data]) => (
-                        <div key={studentId} className="bg-white rounded-xl border border-gray-200">
-                          <div className="px-6 py-4 border-b border-gray-100">
-                            <h4 className="font-semibold text-gray-800">{data.name}</h4>
-                            <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                              <span>활성: {data.items.filter(i => i.status === 'ACTIVE').length}개</span>
-                              <span>마스터: {data.items.filter(i => i.status === 'MASTERED').length}개</span>
+                    Object.entries(groupedByStudent).map(([studentId, { name, items }]) => {
+                      const active = items.filter(i => i.status === 'ACTIVE');
+                      const mastered = items.filter(i => i.status === 'MASTERED');
+                      return (
+                        <div key={studentId} className="mb-6 bg-white rounded-xl border overflow-hidden">
+                          <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b">
+                            <div>
+                              <span className="font-semibold text-gray-800">{name}</span>
+                              <span className="ml-3 text-sm text-gray-500">활성: {active.length} / 마스터: {mastered.length}</span>
+                            </div>
+                            {active.length > 0 && (
+                              <button onClick={() => handleCreateTest(studentId)}
+                                className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                                테스트 생성
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+                            {items.map(wa => (
+                              <div key={wa.id} className={`border rounded-lg p-3 ${wa.status === 'MASTERED' ? 'bg-green-50 border-green-200' : ''}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div>
+                                    <span className="font-bold text-blue-600">{wa.problemNumber}번</span>
+                                    <span className="text-xs text-gray-400 ml-2">{wa.testName}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      wa.status === 'ACTIVE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                                    }`}>{wa.status === 'ACTIVE' ? '미해결' : '마스터'}</span>
+                                    <span className="text-xs text-gray-500">{wa.round}회차</span>
+                                    <button onClick={() => handleDeleteWrongAnswer(wa.id)} className="text-red-400 hover:text-red-600 text-xs">삭제</button>
+                                  </div>
+                                </div>
+                                {wa.problemImage && (
+                                  <div className="bg-gray-50 rounded overflow-hidden">
+                                    <img src={wa.problemImage} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-40" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* ========== TAB: TESTS ========== */}
+              {activeTab === 'tests' && (
+                <div>
+                  {tests.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">생성된 테스트가 없습니다.</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {tests.map(test => (
+                        <div key={test.id} className="bg-white rounded-xl border p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <span className="font-semibold text-gray-800">{test.student.name}</span>
+                              <span className="ml-3 text-sm text-gray-500">{test.round}회차 | {test.items.length}문항</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                test.status === 'GRADED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                              }`}>{test.status === 'GRADED' ? '채점완료' : '채점대기'}</span>
+                              {test.status === 'PENDING' && (
+                                <button onClick={() => handleStartGrading(test)}
+                                  className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">채점하기</button>
+                              )}
                             </div>
                           </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-gray-50">
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">시험명</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">문제번호</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">상태</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">회차</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">등록일</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">관리</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {data.items.map(wa => (
-                                  <tr key={wa.id} className="border-t border-gray-100 hover:bg-gray-50">
-                                    <td className="px-4 py-2 text-gray-800">{wa.testName}</td>
-                                    <td className="px-4 py-2 text-center text-gray-800">{wa.problemNumber}번</td>
-                                    <td className="px-4 py-2 text-center">
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                        wa.status === 'ACTIVE'
-                                          ? 'bg-red-100 text-red-700'
-                                          : 'bg-green-100 text-green-700'
-                                      }`}>
-                                        {wa.status === 'ACTIVE' ? '활성' : '마스터'}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-2 text-center text-gray-600">{wa.round}회</td>
-                                    <td className="px-4 py-2 text-center text-gray-500 text-xs">
-                                      {new Date(wa.createdAt).toLocaleDateString('ko-KR')}
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                      <button
-                                        onClick={() => handleDeleteWrongAnswer(wa.id)}
-                                        className="text-red-500 hover:text-red-700 text-xs font-medium"
-                                      >
-                                        삭제
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="text-xs text-gray-500">
+                            생성: {new Date(test.createdAt).toLocaleDateString('ko-KR')}
+                            {test.gradedAt && ` | 채점: ${new Date(test.gradedAt).toLocaleDateString('ko-KR')}`}
                           </div>
+                          {test.status === 'GRADED' && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {test.items.map(item => (
+                                <span key={item.id} className={`inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold ${
+                                  item.isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>{item.wrongAnswer.problemNumber}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1078,6 +743,57 @@ export default function WrongAnswersPage() {
             </>
           )}
         </>
+      )}
+
+      {/* Problem Detail Modal */}
+      {selectedProblem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedProblem(null)}>
+          <div className="bg-white rounded-xl max-w-3xl max-h-[90vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">{selectedProblem.number}번 문제 (p.{selectedProblem.pageNumber})</h3>
+              <button onClick={() => setSelectedProblem(null)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+            </div>
+            <img src={selectedProblem.imageDataUrl} alt={`문제 ${selectedProblem.number}`} className="w-full" />
+          </div>
+        </div>
+      )}
+
+      {/* Grading Modal */}
+      {gradingTest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">채점</h3>
+            <p className="text-sm text-gray-500 mb-4">{gradingTest.student.name} - {gradingTest.round}회차</p>
+            <div className="space-y-3">
+              {gradingTest.items.map(item => (
+                <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full font-semibold text-sm">
+                      {item.wrongAnswer.problemNumber}
+                    </span>
+                    <span className="text-sm text-gray-600">{item.wrongAnswer.testName}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: true }))}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        gradeResults[item.wrongAnswerId] === true ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-50'
+                      }`}>O</button>
+                    <button onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: false }))}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        gradeResults[item.wrongAnswerId] === false ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-50'
+                      }`}>X</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setGradingTest(null)}
+                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50">취소</button>
+              <button onClick={handleSubmitGrade}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">채점 완료</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { del } from '@vercel/blob';
 import { verifyToken, getTokenFromCookies } from '@/lib/auth';
+import { deleteFile, extractFileId } from '@/lib/googleDrive';
 
 export async function GET(
   request: NextRequest,
@@ -107,12 +107,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // Delete images from Vercel Blob
+    // Delete images from Google Drive
     for (const page of testPaper.pages) {
       try {
-        await del(page.imageUrl);
+        const fileId = extractFileId(page.imageUrl);
+        if (fileId) {
+          await deleteFile(fileId);
+        }
       } catch (e) {
-        console.error('Failed to delete blob:', e);
+        console.error('Failed to delete from Google Drive:', e);
       }
     }
 

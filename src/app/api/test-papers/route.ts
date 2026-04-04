@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { put } from '@vercel/blob';
 import { verifyToken, getTokenFromCookies } from '@/lib/auth';
+import { uploadFileFromBlob } from '@/lib/googleDrive';
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '시험명, 반, 총 문항수를 모두 입력해주세요' }, { status: 400 });
     }
 
-    // Upload files to Vercel Blob (supports PDF and images)
+    // Upload files to Google Drive
     const pageData: { pageNumber: number; imageUrl: string }[] = [];
     let uploadWarning = '';
 
@@ -70,17 +70,19 @@ export async function POST(request: NextRequest) {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           if (!file || file.size === 0) continue;
-          const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
           const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
-          const blob = await put(
-            `test-papers/${classroomId}/${Date.now()}-page${i + 1}.${ext}`,
+          const fileName = `${Date.now()}-page${i + 1}.${ext}`;
+          const result = await uploadFileFromBlob(
+            fileName,
             file,
-            { access: 'public', contentType }
+            contentType,
+            ['수탐학원', '시험지', name]
           );
-          pageData.push({ pageNumber: i + 1, imageUrl: blob.url });
+          pageData.push({ pageNumber: i + 1, imageUrl: result.url });
         }
-      } catch (blobError: any) {
-        console.error('Blob upload failed:', blobError?.message || blobError);
+      } catch (uploadError: any) {
+        console.error('Google Drive upload failed:', uploadError?.message || uploadError);
         uploadWarning = '파일 업로드에 실패했지만 시험지는 등록됩니다.';
       }
     }

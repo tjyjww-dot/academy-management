@@ -1,37 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SignJWT, importPKCS8 } from 'jose';
-
-// Google Drive API helper functions
-async function getAccessToken() {
-    const serviceAccountKey = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '{}');
-    const privateKey = await importPKCS8(serviceAccountKey.private_key, 'RS256');
-
-  const jwt = await new SignJWT({
-        scope: 'https://www.googleapis.com/auth/drive.readonly',
-  })
-      .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .setIssuer(serviceAccountKey.client_email)
-      .setSubject(serviceAccountKey.client_email)
-      .setAudience('https://oauth2.googleapis.com/token')
-      .sign(privateKey);
-
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-                grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                assertion: jwt,
-        }),
-  });
-
-  const tokenData = await tokenResponse.json();
-    if (!tokenData.access_token) {
-          throw new Error('Failed to get access token: ' + JSON.stringify(tokenData));
-    }
-    return tokenData.access_token;
-}
+import { getAccessToken } from '@/lib/googleDrive';
 
 async function listFiles(accessToken: string, folderId?: string) {
     let query: string;
