@@ -194,6 +194,8 @@ model CounselingRequest {
   adminNotes      String?
   sessionDate     String?
   sessionNotes    String?
+  createdById     String?
+  createdByName   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

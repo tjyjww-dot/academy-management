@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
             student: { select: { id: true, name: true } },
             parent: { select: { name: true } },
           },
+          // createdByName 포함 (select 없이 전체)
           orderBy: { createdAt: 'desc' },
           take: 10,
         });

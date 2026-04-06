@@ -51,6 +51,7 @@ interface CounselingItem {
   createdAt: string;
   student: { id: string; name: string };
   parent: { name: string } | null;
+  createdByName?: string | null;
 }
 
 interface ParentMemo {
@@ -266,6 +267,11 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right ml-3 flex-shrink-0">
                       <p className="text-xs text-gray-500">{new Date(c.createdAt).toLocaleDateString('ko-KR')}</p>
+                      {c.parent ? (
+                        <p className="text-xs text-gray-500 mt-0.5">학부모: {c.parent.name}</p>
+                      ) : c.createdByName ? (
+                        <p className="text-xs text-gray-500 mt-0.5">입력: {c.createdByName}</p>
+                      ) : null}
                       {c.preferredDate && <p className="text-xs text-blue-500 mt-0.5">희망: {c.preferredDate}</p>}
                     </div>
                   </div>

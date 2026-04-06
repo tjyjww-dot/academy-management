@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const token = getTokenFromCookies(request);
-    if (!token || !verifyToken(token)) {
+    const decoded = token ? verifyToken(token) : null;
+    if (!decoded) {
       return NextResponse.json({ error: '인증되지 않음' }, { status: 401 });
     }
 
@@ -68,6 +69,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 학부모 요청이 아니라 직원이 직접 입력한 경우 기본 상태는 '완료'
+    const defaultStatus = parentId ? 'PENDING' : 'COMPLETED';
+
     const counselingRequest = await prisma.counselingRequest.create({
       data: {
         parentId: parentId || null,
@@ -75,10 +79,12 @@ export async function POST(request: NextRequest) {
         title,
         description: description || null,
         preferredDate: preferredDate || null,
-        status: status || 'PENDING',
+        status: status || defaultStatus,
         sessionNotes: sessionNotes || null,
         adminNotes: adminNotes || null,
         sessionDate: sessionDate || null,
+        createdById: decoded.userId,
+        createdByName: decoded.name || null,
       },
       include: {
         parent: true,

@@ -16,6 +16,7 @@ interface CounselingRequest {
   adminNotes?: string;
   sessionDate?: string;
   sessionNotes?: string;
+  createdByName?: string | null;
   createdAt: string;
 }
 
@@ -281,7 +282,11 @@ export default function CounselingPage() {
                     }`}
                   >
                     <h3 className="font-bold text-gray-900 mb-1">{request.title}</h3>
-                    <p className="text-sm text-gray-600">학부모: {request.parent?.name}</p>
+                    {request.parent?.name ? (
+                      <p className="text-sm text-gray-600">학부모: {request.parent.name}</p>
+                    ) : request.createdByName ? (
+                      <p className="text-sm text-gray-600">입력: {request.createdByName}</p>
+                    ) : null}
                     <p className="text-sm text-gray-600">학생: {request.student.name}</p>
                     <p className="text-xs text-gray-500 mb-2">
                       요청일: {formatDate(request.createdAt)}
