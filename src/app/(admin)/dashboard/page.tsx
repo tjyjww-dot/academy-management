@@ -16,6 +16,8 @@ interface Announcement {
   id: string;
   title: string;
   content: string;
+  targetRole?: string;
+  expiryDate?: string | null;
   createdAt: string;
 }
 
@@ -75,6 +77,73 @@ export default function DashboardPage() {
   const [selectedMemo, setSelectedMemo] = useState<ParentMemo | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [replying, setReplying] = useState(false);
+  const [showAnnModal, setShowAnnModal] = useState(false);
+  const [editingAnn, setEditingAnn] = useState<Announcement | null>(null);
+  const [annForm, setAnnForm] = useState({ title: '', content: '', targetRole: 'ALL', expiryDate: '' });
+
+  const openNewAnn = () => {
+    setEditingAnn(null);
+    setAnnForm({ title: '', content: '', targetRole: 'ALL', expiryDate: '' });
+    setShowAnnModal(true);
+  };
+
+  const openEditAnn = (a: Announcement) => {
+    setEditingAnn(a);
+    setAnnForm({
+      title: a.title,
+      content: a.content,
+      targetRole: a.targetRole || 'ALL',
+      expiryDate: a.expiryDate || '',
+    });
+    setShowAnnModal(true);
+  };
+
+  const refreshAnnouncements = async () => {
+    const res = await fetch('/api/announcements');
+    if (res.ok) {
+      const data = await res.json();
+      setAnnouncements(data || []);
+    }
+  };
+
+  const saveAnn = async () => {
+    if (!annForm.title || !annForm.content) {
+      alert('제목과 내용을 입력해주세요.');
+      return;
+    }
+    try {
+      const url = editingAnn ? `/api/announcements/${editingAnn.id}` : '/api/announcements';
+      const method = editingAnn ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: annForm.title,
+          content: annForm.content,
+          targetRole: annForm.targetRole,
+          expiryDate: annForm.expiryDate || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setShowAnnModal(false);
+      await refreshAnnouncements();
+    } catch {
+      alert('저장에 실패했습니다.');
+    }
+  };
+
+  const deleteAnn = async () => {
+    if (!editingAnn) return;
+    if (!confirm('이 공지를 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/announcements/${editingAnn.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      setShowAnnModal(false);
+      await refreshAnnouncements();
+    } catch {
+      alert('삭제에 실패했습니다.');
+    }
+  };
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -213,14 +282,25 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">📢 공지사항</h2>
-            <Link href="/notifications" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
+            <button
+              onClick={openNewAnn}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-700 text-xl leading-none"
+              title="새 공지 작성"
+            >
+              +
+            </button>
           </div>
           {announcements.length === 0 ? (
             <p className="text-gray-500 text-center py-4">공지사항이 없습니다.</p>
           ) : (
             <div className="space-y-3">
               {announcements.map((a) => (
-                <div key={a.id} className="border-b pb-3 last:border-b-0">
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => openEditAnn(a)}
+                  className="w-full text-left border-b pb-3 last:border-b-0 hover:bg-gray-50 rounded px-2 py-1 transition-colors"
+                >
                   <div className="flex justify-between items-start">
                     <h3 className="font-medium text-gray-900">{a.title}</h3>
                     <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
@@ -228,11 +308,91 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-1 line-clamp-2">{a.content}</p>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
+
+        {showAnnModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                {editingAnn ? '공지 수정' : '새 공지 작성'}
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">제목</label>
+                  <input
+                    type="text"
+                    value={annForm.title}
+                    onChange={(e) => setAnnForm({ ...annForm, title: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">내용</label>
+                  <textarea
+                    value={annForm.content}
+                    onChange={(e) => setAnnForm({ ...annForm, content: e.target.value })}
+                    rows={5}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">대상</label>
+                    <select
+                      value={annForm.targetRole}
+                      onChange={(e) => setAnnForm({ ...annForm, targetRole: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    >
+                      <option value="ALL">전체</option>
+                      <option value="PARENT">학부모</option>
+                      <option value="INSTRUCTOR">강사</option>
+                      <option value="DESK">데스크</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">만료일</label>
+                    <input
+                      type="date"
+                      value={annForm.expiryDate}
+                      onChange={(e) => setAnnForm({ ...annForm, expiryDate: e.target.value })}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-between mt-6">
+                <div>
+                  {editingAnn && (
+                    <button
+                      onClick={deleteAnn}
+                      className="px-4 py-2 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                    >
+                      삭제
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowAnnModal(false)}
+                    className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={saveAnn}
+                    className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* 최근 1주일 상담 내용 (관리자/데스크만) */}
         {(userRole === 'ADMIN' || userRole === 'DESK') && <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">

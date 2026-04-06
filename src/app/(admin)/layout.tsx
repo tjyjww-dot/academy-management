@@ -19,8 +19,6 @@ const navLinks = [
   { href: '/attendance', label: '출결관리', icon: 'attendance' },
   { href: '/payments', label: '수강료 수납', icon: 'payments' },
   { href: '/wrong-answers', label: '오답관리', icon: 'wrongAnswers' },
-  { href: '/wrong-test', label: '오답테스트', icon: 'wrongTest' },
-  { href: '/announcements', label: '공지관리', icon: 'announcements' },
   { href: '/requests', label: '요청사항', icon: 'requests' },
 ];
 
