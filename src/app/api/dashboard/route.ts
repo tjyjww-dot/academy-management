@@ -121,11 +121,11 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // 대기중인 상담 요청 (학부모가 보낸 요청) - 강사는 담당 학생만, 관리자/데스크는 전체
+      // 대기중인 상담 요청 - 강사는 담당 학생만, 관리자/데스크는 전체
+      // parentId 유무와 무관하게 PENDING 상태면 모두 포함 (조치 필요)
       const pendingCounselingRequests = await prisma.counselingRequest.findMany({
         where: {
           status: 'PENDING',
-          parentId: { not: null }, // 학부모가 직접 요청한 것만
           ...(isAdminOrDesk ? {} : { studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] } }),
         },
         include: {
