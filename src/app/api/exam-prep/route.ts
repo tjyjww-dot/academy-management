@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       mathExamDate,
       mathExamTime,
       prepDate,
+      prepTime,
     } = body;
 
     if (!year || !semester || !examType || !studentId) {
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
       mathExamDate: mathExamDate || null,
       mathExamTime: mathExamTime || null,
       prepDate: prepDate || null,
+      prepTime: prepTime || null,
     };
 
     const entry = await prisma.examPrep.upsert({

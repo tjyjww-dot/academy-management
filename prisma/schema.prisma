@@ -214,6 +214,7 @@ model ExamPrep {
   mathExamDate   String?  // YYYY-MM-DD
   mathExamTime   String?  // e.g., "5시"
   prepDate       String?  // YYYY-MM-DD
+  prepTime       String?  // HH:MM
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
