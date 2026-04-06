@@ -16,7 +16,6 @@ const navLinks = [
   { href: '/entrance-test', label: '입학테스트 예약', icon: 'entrance' },
   { href: '/students', label: '원생관리', icon: 'students' },
   { href: '/classes', label: '반관리', icon: 'classrooms' },
-  { href: '/attendance', label: '출결관리', icon: 'attendance' },
   { href: '/payments', label: '수강료 수납', icon: 'payments' },
   { href: '/wrong-answers', label: '오답관리', icon: 'wrongAnswers' },
   { href: '/exam-prep', label: '직전대비', icon: 'examPrep' },

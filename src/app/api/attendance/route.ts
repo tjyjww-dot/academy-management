@@ -39,6 +39,28 @@ export async function GET(request: NextRequest) {
     }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const token = getTokenFromCookies(request);
+    if (!token || !verifyToken(token)) {
+      return NextResponse.json({ error: '인증되지 않음' }, { status: 401 });
+    }
+    const body = await request.json();
+    const { id, remarks } = body;
+    if (!id) {
+      return NextResponse.json({ error: 'id 필수' }, { status: 400 });
+    }
+    const updated = await prisma.attendanceRecord.update({
+      where: { id },
+      data: { remarks: remarks || null },
+    });
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Attendance PATCH error:', error);
+    return NextResponse.json({ error: '메모 저장 실패' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
     try {
           const token = getTokenFromCookies(request);

@@ -71,6 +71,8 @@ export default function DashboardPage() {
   const [upcomingTests, setUpcomingTests] = useState<EntranceTest[]>([]);
   const [taskRequests, setTaskRequests] = useState<TaskRequest[]>([]);
   const [pendingCounselingRequests, setPendingCounselingRequests] = useState<any[]>([]);
+  const [absentWithoutMemo, setAbsentWithoutMemo] = useState<any[]>([]);
+  const [absentMemoDraft, setAbsentMemoDraft] = useState<Record<string, string>>({});
   const [recentCounseling, setRecentCounseling] = useState<CounselingItem[]>([]);
   const [userRole, setUserRole] = useState<string>('');
   const [parentMemos, setParentMemos] = useState<ParentMemo[]>([]);
@@ -159,6 +161,7 @@ export default function DashboardPage() {
           setUpcomingTests(data.upcomingTests || []);
           setTaskRequests(data.taskRequests || []);
           setPendingCounselingRequests(data.pendingCounselingRequests || []);
+          setAbsentWithoutMemo(data.absentWithoutMemo || []);
           setParentMemos(data.parentMemos || []);
         }
       } catch (err) {
@@ -524,7 +527,60 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {taskRequests.length === 0 && parentMemos.length === 0 && pendingCounselingRequests.length === 0 ? (
+            {absentWithoutMemo.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-red-600 mb-2">🚨 결석 메모 미작성 ({absentWithoutMemo.length})</h3>
+                <div className="space-y-2">
+                  {absentWithoutMemo.map((ar) => (
+                    <div key={ar.id} className="border border-red-200 bg-red-50 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-xs font-medium text-red-700 bg-red-200 px-2 py-0.5 rounded-full">{ar.student?.name}</span>
+                        <span className="text-xs text-gray-600">{ar.classroom?.name}</span>
+                        <span className="text-xs text-gray-500">{ar.date}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={absentMemoDraft[ar.id] ?? ''}
+                          onChange={(e) => setAbsentMemoDraft((prev) => ({ ...prev, [ar.id]: e.target.value }))}
+                          placeholder="결석 사유/메모를 입력하세요"
+                          className="flex-1 border border-red-200 rounded px-2 py-1 text-sm text-gray-900"
+                        />
+                        <button
+                          onClick={async () => {
+                            const memo = absentMemoDraft[ar.id];
+                            if (!memo || !memo.trim()) {
+                              alert('메모를 입력해주세요.');
+                              return;
+                            }
+                            const res = await fetch('/api/attendance', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: ar.id, remarks: memo.trim() }),
+                            });
+                            if (res.ok) {
+                              setAbsentWithoutMemo((prev) => prev.filter((x) => x.id !== ar.id));
+                              setAbsentMemoDraft((prev) => {
+                                const n = { ...prev };
+                                delete n[ar.id];
+                                return n;
+                              });
+                            } else {
+                              alert('저장 실패');
+                            }
+                          }}
+                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          저장
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {taskRequests.length === 0 && parentMemos.length === 0 && pendingCounselingRequests.length === 0 && absentWithoutMemo.length === 0 ? (
               <p className="text-gray-500 text-center py-4">요청사항이 없습니다.</p>
             ) : taskRequests.length > 0 && (
               <div>

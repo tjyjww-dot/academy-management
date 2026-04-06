@@ -136,6 +136,21 @@ export async function GET(request: NextRequest) {
         take: 20,
       });
 
+      // 결석인데 메모(remarks)가 없는 출결 기록 - 강사는 담당 학생만, 관리자/데스크는 전체
+      const absentWithoutMemo = await prisma.attendanceRecord.findMany({
+        where: {
+          status: 'ABSENT',
+          OR: [{ remarks: null }, { remarks: '' }],
+          ...(isAdminOrDesk ? {} : { studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] } }),
+        },
+        include: {
+          student: { select: { id: true, name: true } },
+          classroom: { select: { id: true, name: true } },
+        },
+        orderBy: { date: 'desc' },
+        take: 30,
+      });
+
       const parentMemos = await prisma.memo.findMany({
         where: {
           studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] },
@@ -169,6 +184,7 @@ export async function GET(request: NextRequest) {
           upcomingTests,
           taskRequests: taskRequestsForUser,
           pendingCounselingRequests,
+          absentWithoutMemo,
           parentMemos,
         },
         { status: 200 }
