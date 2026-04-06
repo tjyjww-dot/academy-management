@@ -233,7 +233,6 @@ export default function CounselingPage() {
   const statusFilterTabs = [
     { value: 'ALL', label: '전체' },
     { value: 'PENDING', label: '대기중' },
-    { value: 'CONFIRMED', label: '확정' },
     { value: 'COMPLETED', label: '완료' },
     { value: 'CANCELLED', label: '취소' },
   ];
@@ -447,7 +446,6 @@ export default function CounselingPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
                     >
                       <option value="PENDING">대기중</option>
-                      <option value="CONFIRMED">확정</option>
                       <option value="COMPLETED">완료</option>
                       <option value="CANCELLED">취소</option>
                     </select>
@@ -479,21 +477,6 @@ export default function CounselingPage() {
                       rows={4}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
                       placeholder="상담 내용을 입력하세요"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      관리자 메모
-                    </label>
-                    <textarea
-                      value={formData.adminNotes}
-                      onChange={(e) =>
-                        setFormData({ ...formData, adminNotes: e.target.value })
-                      }
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500"
-                      placeholder="관리자 메모"
                     />
                   </div>
 
