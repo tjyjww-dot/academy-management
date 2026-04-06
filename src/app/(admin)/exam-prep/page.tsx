@@ -84,28 +84,61 @@ export default function ExamPrepPage() {
 
   const [startDate, setStartDate] = useState<string>(today);
   const [endDate, setEndDate] = useState<string>(() => addDays(today, 20));
+  // 대상 학년 (중1, 중2, 중3, 고1) - 다중 선택
+  const ALL_TARGET_GRADES = ['중1', '중2', '중3', '고1'];
+  const [targetGrades, setTargetGrades] = useState<string[]>([...ALL_TARGET_GRADES]);
 
-  // 저장된 달력 범위 불러오기
+  // 설정 입력용 Draft 상태 (저장 버튼 누를 때 applied로 반영)
+  const [draftYear, setDraftYear] = useState<number>(year);
+  const [draftSemester, setDraftSemester] = useState<number>(semester);
+  const [draftExamType, setDraftExamType] = useState<string>(examType);
+  const [draftStartDate, setDraftStartDate] = useState<string>(startDate);
+  const [draftEndDate, setDraftEndDate] = useState<string>(endDate);
+  const [draftTargetGrades, setDraftTargetGrades] = useState<string[]>([...ALL_TARGET_GRADES]);
+
+  // 저장된 설정 불러오기
   useEffect(() => {
     try {
-      const savedStart = localStorage.getItem('examPrep.startDate');
-      const savedEnd = localStorage.getItem('examPrep.endDate');
-      if (savedStart) setStartDate(savedStart);
-      if (savedEnd) setEndDate(savedEnd);
+      const raw = localStorage.getItem('examPrep.settings');
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (typeof s.year === 'number') { setYear(s.year); setDraftYear(s.year); }
+        if (typeof s.semester === 'number') { setSemester(s.semester); setDraftSemester(s.semester); }
+        if (typeof s.examType === 'string') { setExamType(s.examType); setDraftExamType(s.examType); }
+        if (typeof s.startDate === 'string') { setStartDate(s.startDate); setDraftStartDate(s.startDate); }
+        if (typeof s.endDate === 'string') { setEndDate(s.endDate); setDraftEndDate(s.endDate); }
+        if (Array.isArray(s.targetGrades)) { setTargetGrades(s.targetGrades); setDraftTargetGrades(s.targetGrades); }
+      }
     } catch {}
   }, []);
 
-  // 달력 범위 변경 시 저장
-  useEffect(() => {
+  const saveSettings = () => {
+    setYear(draftYear);
+    setSemester(draftSemester);
+    setExamType(draftExamType);
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+    setTargetGrades(draftTargetGrades);
     try {
-      if (startDate) localStorage.setItem('examPrep.startDate', startDate);
+      localStorage.setItem(
+        'examPrep.settings',
+        JSON.stringify({
+          year: draftYear,
+          semester: draftSemester,
+          examType: draftExamType,
+          startDate: draftStartDate,
+          endDate: draftEndDate,
+          targetGrades: draftTargetGrades,
+        })
+      );
     } catch {}
-  }, [startDate]);
-  useEffect(() => {
-    try {
-      if (endDate) localStorage.setItem('examPrep.endDate', endDate);
-    } catch {}
-  }, [endDate]);
+  };
+
+  const toggleDraftGrade = (g: string) => {
+    setDraftTargetGrades((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+    );
+  };
 
   const [schoolFilter, setSchoolFilter] = useState<string>('ALL');
   const [gradeFilter, setGradeFilter] = useState<string>('ALL');
@@ -171,12 +204,18 @@ export default function ExamPrepPage() {
   const displayStudents = useMemo(() => {
     return students.filter((s) => {
       if (s.school && s.school.includes('초')) return false;
+      // 대상 학년 필터 (다중 선택). 선택된 학년만 표시
+      if (targetGrades.length > 0) {
+        if (!s.grade || !targetGrades.includes(s.grade)) return false;
+      } else {
+        return false;
+      }
       if (schoolFilter !== 'ALL' && s.school !== schoolFilter) return false;
       if (gradeFilter !== 'ALL' && s.grade !== gradeFilter) return false;
       if (nameSearch && !s.name.includes(nameSearch.trim())) return false;
       return true;
     });
-  }, [students, schoolFilter, gradeFilter, nameSearch]);
+  }, [students, schoolFilter, gradeFilter, nameSearch, targetGrades]);
 
   const grades = useMemo(() => {
     const set = new Set<string>();
@@ -334,8 +373,8 @@ export default function ExamPrepPage() {
         <div>
           <label className="block text-xs text-gray-600 mb-1">연도</label>
           <select
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
+            value={draftYear}
+            onChange={(e) => setDraftYear(parseInt(e.target.value, 10))}
             className="border border-gray-300 rounded px-3 py-2 text-gray-900"
           >
             {[2025, 2026, 2027, 2028].map((y) => (
@@ -348,8 +387,8 @@ export default function ExamPrepPage() {
         <div>
           <label className="block text-xs text-gray-600 mb-1">학기</label>
           <select
-            value={semester}
-            onChange={(e) => setSemester(parseInt(e.target.value, 10))}
+            value={draftSemester}
+            onChange={(e) => setDraftSemester(parseInt(e.target.value, 10))}
             className="border border-gray-300 rounded px-3 py-2 text-gray-900"
           >
             <option value={1}>1학기</option>
@@ -357,10 +396,32 @@ export default function ExamPrepPage() {
           </select>
         </div>
         <div>
+          <label className="block text-xs text-gray-600 mb-1">시험 학년 (다중)</label>
+          <div className="flex items-center gap-1">
+            {ALL_TARGET_GRADES.map((g) => {
+              const active = draftTargetGrades.includes(g);
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => toggleDraftGrade(g)}
+                  className={`px-2 py-2 rounded text-sm border ${
+                    active
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {g}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
           <label className="block text-xs text-gray-600 mb-1">시험 종류</label>
           <select
-            value={examType}
-            onChange={(e) => setExamType(e.target.value)}
+            value={draftExamType}
+            onChange={(e) => setDraftExamType(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 text-gray-900"
           >
             <option value="MIDTERM">중간고사</option>
@@ -371,8 +432,8 @@ export default function ExamPrepPage() {
           <label className="block text-xs text-gray-600 mb-1">달력 시작일</label>
           <input
             type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            value={draftStartDate}
+            onChange={(e) => setDraftStartDate(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 text-gray-900"
           />
         </div>
@@ -380,11 +441,17 @@ export default function ExamPrepPage() {
           <label className="block text-xs text-gray-600 mb-1">달력 종료일</label>
           <input
             type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            value={draftEndDate}
+            onChange={(e) => setDraftEndDate(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 text-gray-900"
           />
         </div>
+        <button
+          onClick={saveSettings}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold"
+        >
+          설정 저장
+        </button>
         <div>
           <label className="block text-xs text-gray-600 mb-1">이름 검색</label>
           <input
