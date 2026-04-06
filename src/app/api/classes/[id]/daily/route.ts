@@ -136,7 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id: classroomId } = await params;
   const body = await req.json();
-  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, perStudentProgress, sendPushNotification, testName: bodyTestName, maxScore: bodyMaxScore } = body;
+  const { date, attendanceData, gradesData, assignmentGrades, newAssignment, videoData, progressNote, homework, announcement, perStudentHomework, perStudentProgress, perStudentNote, sendPushNotification, testName: bodyTestName, maxScore: bodyMaxScore } = body;
 
   // If this is only a push notification request (e.g., from copyReport), skip data saving
   if (sendPushNotification && !attendanceData && !gradesData && !assignmentGrades && !videoData && !progressNote && !homework && !announcement && !perStudentHomework && !perStudentProgress) {
@@ -241,6 +241,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
+      const psnMap: Record<string, string> = {};
+      if (perStudentNote && Array.isArray(perStudentNote)) {
+        for (const pn of perStudentNote) {
+          psnMap[pn.studentId] = pn.note;
+        }
+      }
+
       // content 필드에 progressNote와 함께 testName/maxScore 메타데이터를 JSON으로 저장
       for (const enr of enrollments) {
         let studentProgress = pspMap[enr.studentId] || progressNote || '';
@@ -259,6 +266,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               progressNote: studentProgress,
               testName: bodyTestName || '',
               maxScore: bodyMaxScore || '100',
+              personalNote: psnMap[enr.studentId] || '',
             });
 
         await tx.dailyReport.upsert({

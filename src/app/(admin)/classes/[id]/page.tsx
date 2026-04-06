@@ -31,6 +31,7 @@ export default function ClassDetailPage() {
   const [counselingNote, setCounselingNote] = useState('');
   const [perStudentHomeworkMap, setPerStudentHomeworkMap] = useState<Record<string, string>>({});
   const [perStudentProgressMap, setPerStudentProgressMap] = useState<Record<string, string>>({});
+  const [personalNotes, setPersonalNotes] = useState<Record<string, string>>({});
   const [reportCopied, setReportCopied] = useState<string | null>(null);
 
   // 시험 관련 state
@@ -137,12 +138,14 @@ export default function ClassDetailPage() {
         setAnnouncement(data.dailyReports[0].specialNote || '');
         const pshMap: Record<string, string> = {};
         const pspMap: Record<string, string> = {};
+        const pnMap: Record<string, string> = {};
         data.dailyReports.forEach((dr: any) => {
           if (dr.homework) pshMap[dr.studentId] = dr.homework;
-           if (dr.content) { try { const _p = JSON.parse(dr.content); let _n = (_p && typeof _p === 'object') ? (_p.progressNote || '') : dr.content; if (typeof _n === 'string' && _n.startsWith('{')) { try { const _i = JSON.parse(_n); if (_i && _i.progressNote !== undefined) _n = _i.progressNote || ''; } catch {} } pspMap[dr.studentId] = _n; } catch { pspMap[dr.studentId] = dr.content; } }
+           if (dr.content) { try { const _p = JSON.parse(dr.content); let _n = (_p && typeof _p === 'object') ? (_p.progressNote || '') : dr.content; if (typeof _n === 'string' && _n.startsWith('{')) { try { const _i = JSON.parse(_n); if (_i && _i.progressNote !== undefined) _n = _i.progressNote || ''; } catch {} } pspMap[dr.studentId] = _n; if (_p && typeof _p === 'object' && _p.personalNote) pnMap[dr.studentId] = _p.personalNote; } catch { pspMap[dr.studentId] = dr.content; } }
         });
         setPerStudentHomeworkMap(pshMap);
         setPerStudentProgressMap(pspMap);
+        setPersonalNotes(pnMap);
       } else {
         setProgressNote('');
         setHomework('');
@@ -272,6 +275,7 @@ export default function ClassDetailPage() {
           announcement,
           perStudentHomework: Object.entries(perStudentHomeworkMap).map(([studentId, hw]) => ({ studentId, homework: hw })),
           perStudentProgress: Object.entries(perStudentProgressMap).map(([studentId, prog]) => ({ studentId, progress: prog })),
+          perStudentNote: Object.entries(personalNotes).map(([studentId, note]) => ({ studentId, note })),
           testName,
           maxScore,
         }),
@@ -300,7 +304,8 @@ export default function ClassDetailPage() {
     const g = grades[student.id];
     const ag = assignmentGrades[student.id] || '-';
     const am = assignmentMemos[student.id] || '';
-    
+    const pn = personalNotes[student.id] || '';
+
     if (isCustomClass) {
       // 맞춤반 리포트 - 개별 숙제/진도
       const studentHomework = perStudentHomeworkMap[student.id] || '-';
@@ -318,6 +323,7 @@ export default function ClassDetailPage() {
         '- ' + studentProgress + '\n\n' +
         '\uD83D\uDCDD 오늘의 숙제\n' +
         '- ' + studentHomework + '\n\n' +
+        (pn ? '\u2709\uFE0F 전달사항\n- ' + pn + '\n\n' : '') +
         '\uD83D\uDCE2 공지사항\n' +
         '- ' + (announcement || '-');
     }
@@ -340,6 +346,7 @@ export default function ClassDetailPage() {
       '- 링크 : ' + (videoUrl || '-') + '\n\n' +
       '\uD83D\uDCDD 오늘의 숙제\n' +
       '- ' + (homework || prevAssignmentForHomework || '-') + '\n\n' +
+      (pn ? '\u2709\uFE0F 전달사항\n- ' + pn + '\n\n' : '') +
       '\uD83D\uDCE2 공지사항\n' +
       '- ' + (announcement || '-');
   };
@@ -559,13 +566,12 @@ export default function ClassDetailPage() {
           <thead className="bg-blue-50 border-b border-blue-100">
             <tr>
               <th className="p-3 text-left text-gray-700 font-semibold">학생</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '출결/메모' : '출결'}</th>
-              {!isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">메모</th>}
+              <th className="p-3 text-center text-gray-700 font-semibold">출결/메모</th>
               <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '시험범위/점수' : '점수'}</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '과제/메모' : '과제'}</th>
-              {!isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">과제 메모</th>}
+              <th className="p-3 text-center text-gray-700 font-semibold">과제/메모</th>
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">숙제</th>}
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">진도</th>}
+              <th className="p-3 text-center text-gray-700 font-semibold">전달사항</th>
               <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
             </tr>
           </thead>
@@ -599,22 +605,18 @@ export default function ClassDetailPage() {
                       <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
                     </td>
                   ) : (
-                    <>
-                      <td className="p-3 text-center">
-                        <div className="flex gap-1 justify-center">
-                          {[
-                            { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
-                            { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
-                            { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
-                          ].map(opt => (
-                            <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-32 text-gray-800" />
-                      </td>
-                    </>
+                    <td className="p-3">
+                      <div className="flex gap-1 justify-center mb-1">
+                        {[
+                          { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
+                          { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
+                          { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
+                        ].map(opt => (
+                          <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
+                        ))}
+                      </div>
+                      <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
+                    </td>
                   )}
                   {isCustomClass ? (
                     <td className="p-3">
@@ -640,18 +642,14 @@ export default function ClassDetailPage() {
                       <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
                     </td>
                   ) : (
-                    <>
-                      <td className="p-3 text-center">
-                        <div className="flex gap-1 justify-center">
-                          {['A','B','C','D','X'].map(g => (
-                            <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: prev[s.id] === g ? '' : g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-28 text-gray-800" />
-                      </td>
-                    </>
+                    <td className="p-3">
+                      <div className="flex gap-1 justify-center mb-1">
+                        {['A','B','C','D','X'].map(g => (
+                          <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: prev[s.id] === g ? '' : g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
+                        ))}
+                      </div>
+                      <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
+                    </td>
                   )}
                   {isCustomClass && (
                     <td className="p-3">
@@ -663,6 +661,9 @@ export default function ClassDetailPage() {
                       <input type="text" placeholder="진도 입력" value={perStudentProgressMap[s.id] || ''} onChange={(e) => setPerStudentProgressMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
                     </td>
                   )}
+                  <td className="p-3">
+                    <input type="text" placeholder="전달사항" value={personalNotes[s.id] || ''} onChange={(e) => setPersonalNotes(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-40 text-gray-800" />
+                  </td>
                   <td className="p-3 text-center">
                     <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs font-medium ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? '복사됨!' : '복사'}</button>
                   </td>
