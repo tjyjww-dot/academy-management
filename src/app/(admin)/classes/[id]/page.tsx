@@ -634,7 +634,7 @@ export default function ClassDetailPage() {
                     <td className="p-3">
                       <div className="flex gap-1 justify-center mb-1">
                         {['A','B','C','D','X'].map(g => (
-                          <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
+                          <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: prev[s.id] === g ? '' : g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
                         ))}
                       </div>
                       <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
@@ -644,7 +644,7 @@ export default function ClassDetailPage() {
                       <td className="p-3 text-center">
                         <div className="flex gap-1 justify-center">
                           {['A','B','C','D','X'].map(g => (
-                            <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
+                            <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: prev[s.id] === g ? '' : g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
                           ))}
                         </div>
                       </td>

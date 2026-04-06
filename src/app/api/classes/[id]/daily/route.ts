@@ -173,11 +173,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // 1. Attendance
       if (attendanceData && Array.isArray(attendanceData)) {
         for (const att of attendanceData) {
-          if (!att.status) continue;
+          // 상태가 없어도 메모가 있으면 저장
+          if (!att.status && !att.remarks) continue;
+          const existing = await tx.attendanceRecord.findUnique({
+            where: { studentId_classroomId_date: { studentId: att.studentId, classroomId, date } },
+          });
           await tx.attendanceRecord.upsert({
             where: { studentId_classroomId_date: { studentId: att.studentId, classroomId, date } },
-            update: { status: att.status, remarks: att.remarks || '' },
-            create: { studentId: att.studentId, classroomId, date, status: att.status, remarks: att.remarks || '' },
+            update: {
+              ...(att.status ? { status: att.status } : {}),
+              remarks: att.remarks || '',
+            },
+            create: {
+              studentId: att.studentId,
+              classroomId,
+              date,
+              status: att.status || existing?.status || 'PRESENT',
+              remarks: att.remarks || '',
+            },
           });
         }
       }
