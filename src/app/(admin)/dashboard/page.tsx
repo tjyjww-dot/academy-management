@@ -70,6 +70,7 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [upcomingTests, setUpcomingTests] = useState<EntranceTest[]>([]);
   const [taskRequests, setTaskRequests] = useState<TaskRequest[]>([]);
+  const [pendingCounselingRequests, setPendingCounselingRequests] = useState<any[]>([]);
   const [recentCounseling, setRecentCounseling] = useState<CounselingItem[]>([]);
   const [userRole, setUserRole] = useState<string>('');
   const [parentMemos, setParentMemos] = useState<ParentMemo[]>([]);
@@ -157,6 +158,7 @@ export default function DashboardPage() {
           setUserRole(data.userRole || '');
           setUpcomingTests(data.upcomingTests || []);
           setTaskRequests(data.taskRequests || []);
+          setPendingCounselingRequests(data.pendingCounselingRequests || []);
           setParentMemos(data.parentMemos || []);
         }
       } catch (err) {
@@ -497,7 +499,32 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {taskRequests.length === 0 && parentMemos.length === 0 ? (
+            {pendingCounselingRequests.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-purple-700 mb-2">💬 상담 요청 ({pendingCounselingRequests.length})</h3>
+                <div className="space-y-2">
+                  {pendingCounselingRequests.map((cr) => (
+                    <Link key={cr.id} href="/counseling" className="block border border-purple-200 bg-purple-50 rounded-lg p-3 hover:bg-purple-100 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">대기중</span>
+                            <span className="text-xs font-medium text-purple-700 bg-purple-200 px-2 py-0.5 rounded-full">{cr.student?.name}</span>
+                            <span className="text-xs text-gray-500">{cr.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
+                          </div>
+                          <p className="font-medium text-gray-900 truncate">{cr.title}</p>
+                          {cr.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">{cr.description}</p>}
+                          {cr.parent?.name && <p className="text-xs text-gray-500 mt-1">학부모: {cr.parent.name}</p>}
+                        </div>
+                        <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">{new Date(cr.createdAt).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {taskRequests.length === 0 && parentMemos.length === 0 && pendingCounselingRequests.length === 0 ? (
               <p className="text-gray-500 text-center py-4">요청사항이 없습니다.</p>
             ) : taskRequests.length > 0 && (
               <div>

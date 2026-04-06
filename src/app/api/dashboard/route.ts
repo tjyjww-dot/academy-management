@@ -121,6 +121,21 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      // 대기중인 상담 요청 (학부모가 보낸 요청) - 강사는 담당 학생만, 관리자/데스크는 전체
+      const pendingCounselingRequests = await prisma.counselingRequest.findMany({
+        where: {
+          status: 'PENDING',
+          parentId: { not: null }, // 학부모가 직접 요청한 것만
+          ...(isAdminOrDesk ? {} : { studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] } }),
+        },
+        include: {
+          student: { select: { id: true, name: true } },
+          parent: { select: { name: true, phone: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      });
+
       const parentMemos = await prisma.memo.findMany({
         where: {
           studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] },
@@ -153,6 +168,7 @@ export async function GET(request: NextRequest) {
           recentCounseling,
           upcomingTests,
           taskRequests: taskRequestsForUser,
+          pendingCounselingRequests,
           parentMemos,
         },
         { status: 200 }

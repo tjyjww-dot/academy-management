@@ -345,27 +345,15 @@ export default function CounselingPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">학생 전화</p>
+                      <p className="text-xs text-gray-600 mb-1">학부모 연락처</p>
                       <p className="font-semibold text-gray-900">
-                        {formatPhoneNumber(selectedRequest.student.phone)}
+                        {formatPhoneNumber(
+                          selectedRequest.parent?.phone ||
+                          studentData?.parentPhone ||
+                          studentData?.parent?.phone
+                        )}
                       </p>
                     </div>
-                    {selectedRequest.parent && (
-                      <div>
-                        <p className="text-xs text-gray-600 mb-1">학부모 전화</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatPhoneNumber(selectedRequest.parent?.phone)}
-                        </p>
-                      </div>
-                    )}
-                    {studentData?.parent?.phone && (
-                      <div>
-                        <p className="text-xs text-gray-600 mb-1">학부모 전화</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatPhoneNumber(studentData.parent?.phone)}
-                        </p>
-                      </div>
-                    )}
                     {!isNewRecord && (
                       <div>
                         <p className="text-xs text-gray-600 mb-1">요청일</p>
