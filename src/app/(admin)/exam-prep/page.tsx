@@ -46,6 +46,12 @@ function formatMD(iso: string): string {
   return `${parseInt(m, 10)}/${parseInt(d, 10)}`;
 }
 
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+function getWeekday(iso: string): number {
+  if (!iso) return -1;
+  return new Date(iso + 'T00:00:00').getDay();
+}
+
 function isBetween(target: string, start: string, end: string): boolean {
   if (!target || !start) return false;
   if (!end) return target === start;
@@ -80,6 +86,7 @@ export default function ExamPrepPage() {
   const [endDate, setEndDate] = useState<string>(() => addDays(today, 20));
 
   const [schoolFilter, setSchoolFilter] = useState<string>('ALL');
+  const [nameSearch, setNameSearch] = useState<string>('');
   const [mode, setMode] = useState<PaintMode>('exam');
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -142,9 +149,10 @@ export default function ExamPrepPage() {
     return students.filter((s) => {
       if (s.school && s.school.includes('초')) return false;
       if (schoolFilter !== 'ALL' && s.school !== schoolFilter) return false;
+      if (nameSearch && !s.name.includes(nameSearch.trim())) return false;
       return true;
     });
-  }, [students, schoolFilter]);
+  }, [students, schoolFilter, nameSearch]);
 
   const getEntry = (studentId: string): ExamPrepEntry => {
     return (
@@ -235,8 +243,9 @@ export default function ExamPrepPage() {
         persist(studentId, patch);
         return;
       }
-      setTempTime(e.mathExamTime || '17:00');
-      setTimeModal({ studentId, date, kind: 'math' });
+      const patch = { mathExamDate: date, mathExamTime: '' };
+      updateEntry(studentId, patch);
+      persist(studentId, patch);
     } else if (mode === 'prep') {
       if (e.prepDate === date) {
         const patch = { prepDate: '', prepTime: '' };
@@ -345,21 +354,14 @@ export default function ExamPrepPage() {
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-600 mb-1">학교</label>
-          <select
-            value={schoolFilter}
-            onChange={(e) => setSchoolFilter(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-          >
-            <option value="ALL">전체</option>
-            {schools
-              .filter((sc) => !sc.includes('초'))
-              .map((sc) => (
-                <option key={sc} value={sc}>
-                  {sc}
-                </option>
-              ))}
-          </select>
+          <label className="block text-xs text-gray-600 mb-1">이름 검색</label>
+          <input
+            type="text"
+            value={nameSearch}
+            onChange={(e) => setNameSearch(e.target.value)}
+            placeholder="학생 이름"
+            className="border border-gray-300 rounded px-3 py-2 text-gray-900 w-32"
+          />
         </div>
         <button
           onClick={saveAll}
@@ -394,7 +396,7 @@ export default function ExamPrepPage() {
         <span className="ml-3 text-xs text-gray-500">
           {mode === 'exam' &&
             '※ 시험 첫날과 마지막날을 두 번 클릭하면 기간이 주황색으로 표시됩니다. (같은 칸 다시 클릭 시 삭제)'}
-          {mode === 'math' && '※ 칸을 클릭하면 시간을 선택할 수 있고 수학시험일로 표시됩니다.'}
+          {mode === 'math' && '※ 칸을 클릭하면 수학시험일로 표시됩니다. (같은 칸 다시 클릭 시 삭제)'}
           {mode === 'prep' &&
             '※ 칸을 클릭하면 시간을 선택할 수 있고 노란색 "직보"로 표시됩니다.'}
         </span>
@@ -411,23 +413,43 @@ export default function ExamPrepPage() {
                 <th className="sticky left-0 bg-gray-100 px-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
                   이름
                 </th>
-                <th className="px-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
-                  학교
+                <th className="pl-2 pr-0 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
+                  <select
+                    value={schoolFilter}
+                    onChange={(e) => setSchoolFilter(e.target.value)}
+                    className="border border-gray-300 rounded px-1 py-1 text-xs text-gray-900 font-semibold"
+                  >
+                    <option value="ALL">학교 (전체)</option>
+                    {schools
+                      .filter((sc) => !sc.includes('초'))
+                      .map((sc) => (
+                        <option key={sc} value={sc}>
+                          {sc}
+                        </option>
+                      ))}
+                  </select>
                 </th>
-                <th className="px-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
+                <th className="pl-0 pr-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
                   학년
                 </th>
                 <th className="px-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
                   시험범위
                 </th>
-                {dateColumns.map((d) => (
-                  <th
-                    key={d}
-                    className="px-1 py-2 text-center text-gray-700 font-semibold whitespace-nowrap border-l min-w-[48px]"
-                  >
-                    {formatMD(d)}
-                  </th>
-                ))}
+                {dateColumns.map((d) => {
+                  const wd = getWeekday(d);
+                  const isWeekend = wd === 0 || wd === 6;
+                  return (
+                    <th
+                      key={d}
+                      className={`px-1 py-2 text-center text-gray-700 font-semibold whitespace-nowrap border-l min-w-[48px] ${
+                        isWeekend ? 'bg-sky-100' : ''
+                      }`}
+                    >
+                      <div>{formatMD(d)}</div>
+                      <div className="text-[10px] text-gray-500">({WEEKDAYS[wd]})</div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -438,10 +460,10 @@ export default function ExamPrepPage() {
                     <td className="sticky left-0 bg-white px-2 py-1 font-medium text-gray-900 whitespace-nowrap">
                       {s.name}
                     </td>
-                    <td className="px-2 py-1 text-gray-700 whitespace-nowrap">
+                    <td className="pl-2 pr-0 py-1 text-gray-700 whitespace-nowrap">
                       {s.school || '-'}
                     </td>
-                    <td className="px-2 py-1 text-gray-700 whitespace-nowrap">
+                    <td className="pl-1 pr-2 py-1 text-gray-700 whitespace-nowrap">
                       {s.grade || '-'}
                     </td>
                     <td className="px-1 py-1">
@@ -451,7 +473,7 @@ export default function ExamPrepPage() {
                         onChange={(ev) => updateEntry(s.id, { testRange: ev.target.value })}
                         onBlur={() => persist(s.id)}
                         placeholder="삼,사,피"
-                        className="w-24 border border-gray-200 rounded px-1 py-1 text-xs text-gray-900"
+                        className="w-48 border border-gray-200 rounded px-1 py-1 text-xs text-gray-900"
                       />
                     </td>
                     {dateColumns.map((d) => {
@@ -462,7 +484,9 @@ export default function ExamPrepPage() {
                       );
                       const isMath = !!(d && e.mathExamDate === d);
                       const isPrep = !!(d && e.prepDate === d);
-                      let bg = '';
+                      const wd = getWeekday(d);
+                      const isWeekend = wd === 0 || wd === 6;
+                      let bg = isWeekend ? 'bg-sky-100' : '';
                       let label: React.ReactNode = '';
                       if (isPrep) {
                         bg = 'bg-yellow-300 text-gray-900';
@@ -474,14 +498,7 @@ export default function ExamPrepPage() {
                         );
                       } else if (isMath) {
                         bg = 'bg-teal-400 text-white';
-                        label = (
-                          <div className="leading-tight">
-                            <div className="font-bold">수학</div>
-                            {e.mathExamTime && (
-                              <div className="text-[10px]">{e.mathExamTime}</div>
-                            )}
-                          </div>
-                        );
+                        label = <div className="font-bold">수학</div>;
                       } else if (inExam) {
                         bg = 'bg-orange-400';
                       }
