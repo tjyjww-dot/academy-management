@@ -173,22 +173,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // 1. Attendance
       if (attendanceData && Array.isArray(attendanceData)) {
         for (const att of attendanceData) {
-          // 상태가 없어도 메모가 있으면 저장
-          if (!att.status && !att.remarks) continue;
-          const existing = await tx.attendanceRecord.findUnique({
-            where: { studentId_classroomId_date: { studentId: att.studentId, classroomId, date } },
-          });
+          // 상태와 메모가 모두 비었으면 기존 기록 삭제
+          if (!att.status && !att.remarks) {
+            await tx.attendanceRecord.deleteMany({
+              where: { studentId: att.studentId, classroomId, date },
+            });
+            continue;
+          }
           await tx.attendanceRecord.upsert({
             where: { studentId_classroomId_date: { studentId: att.studentId, classroomId, date } },
             update: {
-              ...(att.status ? { status: att.status } : {}),
+              status: att.status || 'PRESENT',
               remarks: att.remarks || '',
             },
             create: {
               studentId: att.studentId,
               classroomId,
               date,
-              status: att.status || existing?.status || 'PRESENT',
+              status: att.status || 'PRESENT',
               remarks: att.remarks || '',
             },
           });
@@ -212,6 +214,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 data: { studentId: g.studentId, classroomId, testDate: date, score: parseFloat(g.score), maxScore: parseFloat(g.maxScore) || 100, testName: g.testName || 'daily test' },
               });
             }
+          } else {
+            // 점수가 비었으면 해당 날짜의 기존 점수 삭제
+            await tx.grade.deleteMany({
+              where: { studentId: g.studentId, classroomId, testDate: date },
+            });
           }
         }
       }
