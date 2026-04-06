@@ -151,6 +151,24 @@ export async function GET(request: NextRequest) {
         take: 30,
       });
 
+      // 최근 7일간 결석 메모가 작성된 기록 (최근 상담 내용 섹션에 표시)
+      const sevenDaysAgoStr = (() => { const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; })();
+      const recentAbsentWithMemo = await prisma.attendanceRecord.findMany({
+        where: {
+          status: 'ABSENT',
+          date: { gte: sevenDaysAgoStr },
+          remarks: { not: null },
+          AND: [{ remarks: { not: '' } }],
+          ...(isAdminOrDesk ? {} : { studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] } }),
+        },
+        include: {
+          student: { select: { id: true, name: true } },
+          classroom: { select: { id: true, name: true } },
+        },
+        orderBy: { date: 'desc' },
+        take: 30,
+      });
+
       const parentMemos = await prisma.memo.findMany({
         where: {
           studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] },
@@ -185,6 +203,7 @@ export async function GET(request: NextRequest) {
           taskRequests: taskRequestsForUser,
           pendingCounselingRequests,
           absentWithoutMemo,
+          recentAbsentWithMemo,
           parentMemos,
         },
         { status: 200 }
