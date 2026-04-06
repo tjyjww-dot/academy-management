@@ -293,27 +293,55 @@ export default function ParentPage() {
           )}
         </div>)}
 
-        {tab==='notice'&&(<div className="space-y-3">
-          <h2 className="text-base font-bold text-slate-800 px-1">공지</h2>
-          {data.dailyReports.filter((r:any) => r.specialNote).length===0?(
-            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">공지가 없습니다.</p></div>
-          ):(
-            data.dailyReports.filter((r:any) => r.specialNote).map((r:any)=>(
-              <div key={r.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-rose-500"/>
-                    <span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span>
+        {tab==='notice'&&(()=>{
+          const isParent = data.user.role === 'PARENT';
+          const extractPersonalNote = (content: string | null | undefined): string => {
+            if (!content) return '';
+            try {
+              const p = JSON.parse(content);
+              if (p && typeof p === 'object' && p.personalNote) return String(p.personalNote);
+            } catch {}
+            return '';
+          };
+          const items = data.dailyReports.filter((r:any) => {
+            const hasNotice = !!r.specialNote;
+            const hasPersonal = isParent && !!extractPersonalNote(r.content);
+            return hasNotice || hasPersonal;
+          });
+          return (<div className="space-y-3">
+            <h2 className="text-base font-bold text-slate-800 px-1">공지</h2>
+            {items.length===0?(
+              <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">공지가 없습니다.</p></div>
+            ):(
+              items.map((r:any)=>{
+                const personalNote = isParent ? extractPersonalNote(r.content) : '';
+                return (
+                  <div key={r.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"/>
+                        <span className="text-sm font-semibold text-slate-700">{r.classroom?.subject?.name}</span>
+                      </div>
+                      <span className="text-xs text-slate-400">{r.date}</span>
+                    </div>
+                    {r.specialNote && (
+                      <div className="rounded-xl p-3" style={{background:'#fff1f2'}}>
+                        <p className="text-xs font-semibold text-rose-600 mb-1">📢 공지사항</p>
+                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{r.specialNote}</p>
+                      </div>
+                    )}
+                    {personalNote && (
+                      <div className="rounded-xl p-3 mt-2" style={{background:'#fef9c3'}}>
+                        <p className="text-xs font-semibold text-amber-700 mb-1">✉️ 전달사항</p>
+                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{personalNote}</p>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs text-slate-400">{r.date}</span>
-                </div>
-                <div className="rounded-xl p-3" style={{background:'#fff1f2'}}>
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{r.specialNote}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>)}
+                );
+              })
+            )}
+          </div>);
+        })()}
 
         {tab==='grades'&&(<div className="space-y-4">
           <h2 className="text-base font-bold text-slate-800 px-1">성적</h2>
