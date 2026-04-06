@@ -221,6 +221,12 @@ model ExamPrep {
   @@unique([year, semester, examType, studentId])
 }
 
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Announcement {
   id          String   @id @default(cuid())
   title       String

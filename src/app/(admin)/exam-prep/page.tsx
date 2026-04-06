@@ -96,41 +96,54 @@ export default function ExamPrepPage() {
   const [draftEndDate, setDraftEndDate] = useState<string>(endDate);
   const [draftTargetGrades, setDraftTargetGrades] = useState<string[]>([...ALL_TARGET_GRADES]);
 
-  // 저장된 설정 불러오기
+  // 저장된 설정 불러오기 (서버 우선, localStorage 폴백)
+  const applySettings = (s: any) => {
+    if (!s || typeof s !== 'object') return;
+    if (typeof s.year === 'number') { setYear(s.year); setDraftYear(s.year); }
+    if (typeof s.semester === 'number') { setSemester(s.semester); setDraftSemester(s.semester); }
+    if (typeof s.examType === 'string') { setExamType(s.examType); setDraftExamType(s.examType); }
+    if (typeof s.startDate === 'string') { setStartDate(s.startDate); setDraftStartDate(s.startDate); }
+    if (typeof s.endDate === 'string') { setEndDate(s.endDate); setDraftEndDate(s.endDate); }
+    if (Array.isArray(s.targetGrades)) { setTargetGrades(s.targetGrades); setDraftTargetGrades(s.targetGrades); }
+  };
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('examPrep.settings');
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (typeof s.year === 'number') { setYear(s.year); setDraftYear(s.year); }
-        if (typeof s.semester === 'number') { setSemester(s.semester); setDraftSemester(s.semester); }
-        if (typeof s.examType === 'string') { setExamType(s.examType); setDraftExamType(s.examType); }
-        if (typeof s.startDate === 'string') { setStartDate(s.startDate); setDraftStartDate(s.startDate); }
-        if (typeof s.endDate === 'string') { setEndDate(s.endDate); setDraftEndDate(s.endDate); }
-        if (Array.isArray(s.targetGrades)) { setTargetGrades(s.targetGrades); setDraftTargetGrades(s.targetGrades); }
-      }
-    } catch {}
+    (async () => {
+      try {
+        const res = await fetch('/api/exam-prep/settings', { cache: 'no-store' });
+        if (res.ok) {
+          const s = await res.json();
+          if (s) { applySettings(s); return; }
+        }
+      } catch {}
+      try {
+        const raw = localStorage.getItem('examPrep.settings');
+        if (raw) applySettings(JSON.parse(raw));
+      } catch {}
+    })();
   }, []);
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     setYear(draftYear);
     setSemester(draftSemester);
     setExamType(draftExamType);
     setStartDate(draftStartDate);
     setEndDate(draftEndDate);
     setTargetGrades(draftTargetGrades);
+    const payload = {
+      year: draftYear,
+      semester: draftSemester,
+      examType: draftExamType,
+      startDate: draftStartDate,
+      endDate: draftEndDate,
+      targetGrades: draftTargetGrades,
+    };
+    try { localStorage.setItem('examPrep.settings', JSON.stringify(payload)); } catch {}
     try {
-      localStorage.setItem(
-        'examPrep.settings',
-        JSON.stringify({
-          year: draftYear,
-          semester: draftSemester,
-          examType: draftExamType,
-          startDate: draftStartDate,
-          endDate: draftEndDate,
-          targetGrades: draftTargetGrades,
-        })
-      );
+      await fetch('/api/exam-prep/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
     } catch {}
   };
 
