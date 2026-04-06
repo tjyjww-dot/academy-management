@@ -93,11 +93,43 @@ export async function GET(req: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
-    const announcements = await prisma.announcement.findMany({
+    const baseAnnouncements = await prisma.announcement.findMany({
       where: { isActive: true },
       orderBy: { publishDate: 'desc' },
-      take: 5
+      take: 20
     });
+
+    // 학부모인 경우: 자녀의 dailyReport에 저장된 personalNote(전달사항)도
+    // 공지 탭에 함께 표시. 학생 응답에는 포함하지 않음.
+    let announcements: any[] = baseAnnouncements;
+    if (user.role === 'PARENT') {
+      const personalItems: any[] = [];
+      for (const r of dailyReports) {
+        if (!r.content) continue;
+        let note = '';
+        try {
+          const parsed = JSON.parse(r.content);
+          if (parsed && typeof parsed === 'object' && parsed.personalNote) {
+            note = String(parsed.personalNote).trim();
+          }
+        } catch {}
+        if (!note) continue;
+        const stu = students.find((s: any) => s.id === r.studentId);
+        personalItems.push({
+          id: 'pn-' + r.id,
+          title: '✉️ ' + (stu?.name || '') + ' 학생 전달사항',
+          content: note,
+          targetRole: 'PARENT',
+          publishDate: new Date(r.date + 'T00:00:00'),
+          expiryDate: null,
+          isActive: true,
+          createdAt: new Date(r.date + 'T00:00:00'),
+        });
+      }
+      announcements = [...personalItems, ...baseAnnouncements].sort(
+        (a: any, b: any) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()
+      );
+    }
 
     const classroomIds = students.flatMap(s =>
       s.enrollments.map((e: any) => e.classroom.id)
