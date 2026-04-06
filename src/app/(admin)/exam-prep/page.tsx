@@ -86,6 +86,7 @@ export default function ExamPrepPage() {
   const [endDate, setEndDate] = useState<string>(() => addDays(today, 20));
 
   const [schoolFilter, setSchoolFilter] = useState<string>('ALL');
+  const [gradeFilter, setGradeFilter] = useState<string>('ALL');
   const [nameSearch, setNameSearch] = useState<string>('');
   const [mode, setMode] = useState<PaintMode>('exam');
 
@@ -149,10 +150,19 @@ export default function ExamPrepPage() {
     return students.filter((s) => {
       if (s.school && s.school.includes('초')) return false;
       if (schoolFilter !== 'ALL' && s.school !== schoolFilter) return false;
+      if (gradeFilter !== 'ALL' && s.grade !== gradeFilter) return false;
       if (nameSearch && !s.name.includes(nameSearch.trim())) return false;
       return true;
     });
-  }, [students, schoolFilter, nameSearch]);
+  }, [students, schoolFilter, gradeFilter, nameSearch]);
+
+  const grades = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((s) => {
+      if (s.grade && !(s.school && s.school.includes('초'))) set.add(s.grade);
+    });
+    return Array.from(set).sort();
+  }, [students]);
 
   const getEntry = (studentId: string): ExamPrepEntry => {
     return (
@@ -430,7 +440,18 @@ export default function ExamPrepPage() {
                   </select>
                 </th>
                 <th className="pl-0 pr-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
-                  학년
+                  <select
+                    value={gradeFilter}
+                    onChange={(e) => setGradeFilter(e.target.value)}
+                    className="border border-gray-300 rounded px-1 py-1 text-xs text-gray-900 font-semibold"
+                  >
+                    <option value="ALL">학년 (전체)</option>
+                    {grades.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
                 </th>
                 <th className="px-2 py-2 text-left text-gray-700 font-semibold whitespace-nowrap">
                   시험범위
