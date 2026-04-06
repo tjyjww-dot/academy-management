@@ -85,6 +85,28 @@ export default function ExamPrepPage() {
   const [startDate, setStartDate] = useState<string>(today);
   const [endDate, setEndDate] = useState<string>(() => addDays(today, 20));
 
+  // 저장된 달력 범위 불러오기
+  useEffect(() => {
+    try {
+      const savedStart = localStorage.getItem('examPrep.startDate');
+      const savedEnd = localStorage.getItem('examPrep.endDate');
+      if (savedStart) setStartDate(savedStart);
+      if (savedEnd) setEndDate(savedEnd);
+    } catch {}
+  }, []);
+
+  // 달력 범위 변경 시 저장
+  useEffect(() => {
+    try {
+      if (startDate) localStorage.setItem('examPrep.startDate', startDate);
+    } catch {}
+  }, [startDate]);
+  useEffect(() => {
+    try {
+      if (endDate) localStorage.setItem('examPrep.endDate', endDate);
+    } catch {}
+  }, [endDate]);
+
   const [schoolFilter, setSchoolFilter] = useState<string>('ALL');
   const [gradeFilter, setGradeFilter] = useState<string>('ALL');
   const [nameSearch, setNameSearch] = useState<string>('');
