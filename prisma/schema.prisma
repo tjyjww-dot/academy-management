@@ -60,6 +60,7 @@ model Student {
   dailyReports             DailyReport[]
   wrongAnswers             WrongAnswer[]
   wrongAnswerTests         WrongAnswerTest[]
+  examPreps                ExamPrep[]
 }
 
 model ParentStudent {
@@ -198,6 +199,25 @@ model CounselingRequest {
   createdByName   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model ExamPrep {
+  id             String   @id @default(cuid())
+  year           Int
+  semester       Int
+  examType       String   // MIDTERM / FINAL
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId      String
+  testRange      String?
+  examStartDate  String?  // YYYY-MM-DD
+  examEndDate    String?  // YYYY-MM-DD
+  mathExamDate   String?  // YYYY-MM-DD
+  mathExamTime   String?  // e.g., "5시"
+  prepDate       String?  // YYYY-MM-DD
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([year, semester, examType, studentId])
 }
 
 model Announcement {
