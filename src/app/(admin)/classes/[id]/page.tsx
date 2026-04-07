@@ -424,7 +424,7 @@ export default function ClassDetailPage() {
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
   if (!classroom) return <div className="p-8 text-center text-gray-700">데이터가 없습니다</div>;
 
-  const students = classroom.enrollments.map((e: any) => e.student);
+  const students = classroom.enrollments.map((e: any) => e.student).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ko'));
   const isCustomClass = classroom.name?.includes('맞춤') || classroom.subject?.name?.includes('맞춤');
 
   // 검색 필터링 (이미 등록된 학생 제외)
