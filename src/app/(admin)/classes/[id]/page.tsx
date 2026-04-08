@@ -376,9 +376,9 @@ export default function ClassDetailPage() {
     setReportCopied(student.id);
     setTimeout(() => setReportCopied(null), 2000);
 
-    // Send push notification to parents
+    // Send push notification to parents & student
     try {
-      await fetch('/api/classes/' + classId + '/daily', {
+      const res = await fetch('/api/classes/' + classId + '/daily', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -386,6 +386,9 @@ export default function ClassDetailPage() {
           sendPushNotification: { studentId: student.id, studentName: student.name },
         }),
       });
+      if (!res.ok) {
+        console.error('Push API returned non-OK', res.status);
+      }
     } catch (e) { console.error('Push notification send error:', e); }
   };
 
@@ -665,7 +668,7 @@ export default function ClassDetailPage() {
                     <input type="text" placeholder="전달사항" value={personalNotes[s.id] || ''} onChange={(e) => setPersonalNotes(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-40 text-gray-800" />
                   </td>
                   <td className="p-3 text-center">
-                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs font-medium ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? '복사됨!' : '복사'}</button>
+                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs font-medium ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? '전송됨!' : '🔔 알림'}</button>
                   </td>
                 </tr>
               );
