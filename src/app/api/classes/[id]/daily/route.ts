@@ -162,6 +162,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           to: t,
           sound: 'default',
           badge: 1,
+          priority: 'high',
+          channelId: 'default',
           title: '📋 수업 리포트',
           body: sendPushNotification.studentName + ' 학생의 오늘 수업 리포트가 도착했습니다.',
           data: { type: 'DAILY_REPORT', studentId: pushStudentId, date },
@@ -327,7 +329,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const tokens = parentLinks.flatMap(pl => pl.parent.pushTokens.map(pt => pt.token));
         if (tokens.length > 0) {
           const messages = tokens.map(t => ({
-            to: t, sound: 'default', badge: 1, title: '📋 수업 리포트',
+            to: t, sound: 'default', badge: 1, priority: 'high', channelId: 'default',
+            title: '📋 수업 리포트',
             body: sendPushNotification.studentName + ' 학생의 오늘 수업 리포트가 도착했습니다.',
             data: { type: 'DAILY_REPORT', studentId: pushStudentId, date },
           }));
