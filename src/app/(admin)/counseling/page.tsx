@@ -126,6 +126,10 @@ export default function CounselingPage() {
 
   const handleSelectRequest = (request: CounselingRequest) => {
     setSelectedRequest(request);
+    setStudentData(null);
+    if (request.studentId) {
+      fetchStudentData(request.studentId);
+    }
     setFormData({
       status: request.status,
       adminNotes: request.adminNotes || '',

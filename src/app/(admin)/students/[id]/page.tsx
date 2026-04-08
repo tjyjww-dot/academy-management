@@ -591,6 +591,15 @@ export default function StudentDetailPage() {
                           </div>
                           <p className="text-sm text-gray-700 font-medium mb-1">{record.title}</p>
                           {record.description && (<p className="text-sm text-gray-600 whitespace-pre-wrap">{record.description}</p>)}
+                          {record.sessionNotes && (
+                            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                              <p className="text-xs font-semibold text-green-700 mb-1">📝 상담 기록</p>
+                              <p className="text-sm text-gray-800 whitespace-pre-wrap">{record.sessionNotes}</p>
+                              {record.sessionDate && (
+                                <p className="text-xs text-gray-500 mt-1">상담일시: {new Date(record.sessionDate).toLocaleString('ko-KR')}</p>
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
