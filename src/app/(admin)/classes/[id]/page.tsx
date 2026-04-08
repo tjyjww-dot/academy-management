@@ -562,7 +562,7 @@ export default function ClassDetailPage() {
 
       {/* 학생 테이블 */}
       <div className="mb-6 bg-white border border-gray-200 rounded-lg overflow-x-auto shadow-sm -mx-4 sm:mx-0">
-        <table className="w-full text-sm min-w-[700px]">
+        <table className={`w-full text-sm ${isCustomClass ? 'min-w-[1100px]' : 'min-w-[900px]'}`}>
           <thead className="bg-blue-50 border-b border-blue-100">
             <tr>
               <th className="p-3 text-left text-gray-700 font-semibold">학생</th>
