@@ -400,8 +400,9 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+        <div className="flex flex-col">
         {/* 최근 1주일 상담 내용 (관리자/데스크만) */}
-        {(userRole === 'ADMIN' || userRole === 'DESK') && <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+        {(userRole === 'ADMIN' || userRole === 'DESK') && <div data-recent-counseling-block className="order-2 bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">💬 최근 상담 내용 <span className="text-sm font-normal text-gray-500">(최근 7일)</span></h2>
             <Link href="/counseling" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
@@ -465,7 +466,7 @@ export default function DashboardPage() {
           )}
         </div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="order-1 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">📋 임박한 입학테스트</h2>
@@ -617,6 +618,7 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+        </div>
         <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
           <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Google Calendar</h2>
           {/* 모바일: iframe을 800px 고정 폭으로 렌더링 후 화면에 맞게 축소 / 데스크톱: 100% */}
@@ -654,7 +656,7 @@ export default function DashboardPage() {
                   {replying ? '전송 중...' : '답장 보내기'}
                 </button>
                 <button onClick={() => handleMarkAsRead(selectedMemo.id).then(() => { setSelectedMemo(null); setReplyContent(''); })} className="px-4 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-                  읽샜 처리
+                  읽음 처리
                 </button>
               </div>
             </div>
