@@ -41,6 +41,7 @@ export default function ClassDetailPage() {
   // 원생 검색 관련 state
   const [studentSearch, setStudentSearch] = useState('');
   const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [allClassrooms, setAllClassrooms] = useState<any[]>([]);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -207,6 +208,15 @@ export default function ClassDetailPage() {
       } catch {}
     };
     fetchAllStudents();
+    (async () => {
+      try {
+        const r = await fetch('/api/classes');
+        if (r.ok) {
+          const d = await r.json();
+          setAllClassrooms(d.classrooms || d || []);
+        }
+      } catch {}
+    })();
   }, []);
 
   // 검색 드롭다운 외부 클릭 닫기
@@ -452,33 +462,23 @@ export default function ClassDetailPage() {
           <button onClick={() => router.push('/classes')} className="text-gray-500 hover:text-gray-900 font-medium">{'\u2190'} 목록</button>
           <h1 className="text-xl sm:text-3xl font-black text-gray-900">{classroom.name}</h1>
           <span className="text-gray-600 font-semibold text-lg">{classroom.subject?.name}</span>
-          <div className="relative" ref={searchRef}>
-            <input
-              type="text"
-              placeholder="원생 검색/추가..."
-              value={studentSearch}
-              onChange={(e) => {
-                setStudentSearch(e.target.value);
-                setShowSearchDropdown(e.target.value.length > 0);
-              }}
-              onFocus={() => { if (studentSearch.length > 0) setShowSearchDropdown(true); }}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-900"
-            />
-            {showSearchDropdown && filteredSearchStudents.length > 0 && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-56 max-h-48 overflow-y-auto">
-                {filteredSearchStudents.slice(0, 8).map((s: any) => (
-                  <button
-                    key={s.id}
-                    onClick={() => addStudentToClass(s.id)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 text-gray-800 flex justify-between items-center"
-                  >
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-xs text-gray-400">{s.phone || ''}</span>
-                  </button>
-                ))}
-              </div>
+          <select
+            value={classroom.id}
+            onChange={(e) => {
+              const newId = e.target.value;
+              if (newId && newId !== classroom.id) router.push(`/classes/${newId}`);
+            }}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            {allClassrooms.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}{c.subject?.name ? ` (${c.subject.name})` : ''}
+              </option>
+            ))}
+            {!allClassrooms.find((c: any) => c.id === classroom.id) && (
+              <option value={classroom.id}>{classroom.name}</option>
             )}
-          </div>
+          </select>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => {
