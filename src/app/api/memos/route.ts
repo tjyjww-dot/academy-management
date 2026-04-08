@@ -81,11 +81,35 @@ export async function POST(request: NextRequest) {
                 });
 
                 // If this is a reply to a parent memo, mark the original as read
+                // and also record the reply on the matching CounselingRequest (memo entry)
                 if (parentMemoId) {
+                        const original = await prisma.memo.findUnique({
+                                where: { id: parentMemoId },
+                                select: { content: true, studentId: true },
+                        });
                         await prisma.memo.update({
                                 where: { id: parentMemoId },
                                 data: { isRead: true, readAt: new Date() },
                         });
+                        if (original) {
+                                const match = await prisma.counselingRequest.findFirst({
+                                        where: {
+                                                studentId: original.studentId,
+                                                title: `[memo] ${original.content}`,
+                                        },
+                                        orderBy: { createdAt: 'desc' },
+                                });
+                                if (match) {
+                                        await prisma.counselingRequest.update({
+                                                where: { id: match.id },
+                                                data: {
+                                                        sessionNotes: content,
+                                                        sessionDate: new Date().toISOString(),
+                                                        status: 'COMPLETED',
+                                                },
+                                        });
+                                }
+                        }
                 }
 
                 return NextResponse.json(memo, { status: 201 });
