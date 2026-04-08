@@ -163,6 +163,50 @@ export default function ExamPrepPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // 강사 목록 & 날짜별 담당 강사
+  const [instructors, setInstructors] = useState<{ id: string; name: string }[]>([]);
+  const [dateInstructors, setDateInstructors] = useState<Record<string, string>>({});
+
+  // 강사 목록 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          const list = (data.users || data || []).map((u: any) => ({ id: u.id, name: u.name || u.email }));
+          setInstructors(list);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // 날짜별 담당 강사 매핑 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/exam-prep/instructors?year=${year}&semester=${semester}&examType=${examType}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setDateInstructors(data && typeof data === 'object' ? data : {});
+        }
+      } catch {}
+    })();
+  }, [year, semester, examType]);
+
+  const updateDateInstructor = async (date: string, userId: string) => {
+    const next = { ...dateInstructors, [date]: userId };
+    if (!userId) delete next[date];
+    setDateInstructors(next);
+    try {
+      await fetch('/api/exam-prep/instructors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, semester, examType, map: next }),
+      });
+    } catch {}
+  };
+
   // 시험일정 모드 두번클릭용 임시 상태
   const [examPending, setExamPending] = useState<Record<string, string>>({});
 
@@ -570,6 +614,37 @@ export default function ExamPrepPage() {
                     >
                       <div>{formatMD(d)}</div>
                       <div className="text-[10px] text-gray-500">({WEEKDAYS[wd]})</div>
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr className="bg-gray-50 border-b">
+                <th
+                  colSpan={4}
+                  className="sticky left-0 bg-gray-50 px-2 py-1 text-right text-[11px] text-gray-600 font-medium whitespace-nowrap"
+                >
+                  담당 강사
+                </th>
+                {dateColumns.map((d) => {
+                  const wd = getWeekday(d);
+                  const isWeekend = wd === 0 || wd === 6;
+                  return (
+                    <th
+                      key={`inst-${d}`}
+                      className={`px-0.5 py-1 text-center border-l ${isWeekend ? 'bg-sky-100' : ''}`}
+                    >
+                      <select
+                        value={dateInstructors[d] || ''}
+                        onChange={(e) => updateDateInstructor(d, e.target.value)}
+                        className="w-full border border-gray-200 rounded px-0.5 py-0.5 text-[10px] text-gray-900 bg-white"
+                      >
+                        <option value="">-</option>
+                        {instructors.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
                     </th>
                   );
                 })}
