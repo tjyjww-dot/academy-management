@@ -739,22 +739,25 @@ export async function detectAnswersOnPage(
 }
 
 /* ================================================================
-   VISUAL answer detection via canvas pixel scanning.
+   OPERATOR LIST answer detection.
 
-   When pdfjs-dist cannot extract text (custom font encoding),
-   we render the page to a canvas and scan pixels to find where
-   each "N)" answer number starts.
+   When pdfjs-dist cannot extract text (custom font encoding like
+   g_d0_f2), answer numbers "N)" are rendered as small embedded
+   images (paintImageXObject). We detect these by:
 
-   Strategy:
-   1. Render answer page to high-res canvas
-   2. Split into left/right columns
-   3. For each column, scan pixel rows to find content bands
-   4. Detect answer-start lines by finding content bands that
-      start further LEFT than continuation lines (the "N)" prefix)
-   5. Assign sequential answer numbers based on detected starts
+   1. Getting page.getOperatorList() to find all image positions
+   2. Filtering for small images (width<25, height<15) in content area
+   3. Grouping by Y position (same answer line)
+   4. Identifying "anchor" images at consistent left-margin X positions
+      (x≈58 for left column, x≈303 for right column)
+   5. Combining with readable text items like "9)", "10)", "11)"
+   6. Assigning sequential answer numbers using text anchors
+
+   This approach works without canvas rendering (Node.js compatible)
+   and correctly handles PDFs with embedded glyph images.
    ================================================================ */
 
-async function detectAnswersByPixelScan(
+async function detectAnswersByOperatorList(
   pdf: any,
   pageNum: number,
   viewport: { width: number; height: number },
@@ -762,181 +765,229 @@ async function detectAnswersByPixelScan(
 ): Promise<DetectedAnswer[]> {
   const pw = viewport.width;
   const ph = viewport.height;
-  const scale = 3.0; // high res for accuracy
   const midX = pw / 2;
 
-  // Render page to canvas
   const page = await pdf.getPage(pageNum);
-  const vp = page.getViewport({ scale });
-  const canvas = document.createElement('canvas');
-  canvas.width = vp.width;
-  canvas.height = vp.height;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = 'white';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
 
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const { data, width, height } = imageData;
-  const DARK_THRESHOLD = 180; // pixel is "dark" if any channel < this
+  // --- Get text items ---
+  const textContent = await page.getTextContent();
+  const textItems = textContent.items
+    .filter((item: any) => item.str && item.str.trim())
+    .map((item: any) => ({
+      text: item.str,
+      x: item.transform[4],
+      y: ph - item.transform[5],
+      width: item.width,
+      height: item.height || Math.abs(item.transform[3]),
+    }));
 
-  // For each pixel row, find the leftmost dark pixel X in each column
-  function findLeftmostDarkX(row: number, colStartX: number, colEndX: number): number {
-    const startPx = Math.round(colStartX * scale);
-    const endPx = Math.round(colEndX * scale);
-    for (let x = startPx; x < endPx; x++) {
-      const idx = (row * width + x) * 4;
-      if (data[idx] < DARK_THRESHOLD || data[idx + 1] < DARK_THRESHOLD || data[idx + 2] < DARK_THRESHOLD) {
-        return x;
-      }
-    }
-    return -1; // no dark pixel
+  // --- Get image positions from operator list ---
+  const opList = await page.getOperatorList();
+  const ops = opList.fnArray;
+  const args = opList.argsArray;
+
+  // OPS enum values for save/restore/transform/paintImageXObject
+  const OPS_SAVE = 10;       // OPS.save
+  const OPS_RESTORE = 11;    // OPS.restore
+  const OPS_TRANSFORM = 12;  // OPS.transform
+  const OPS_PAINT_IMG = 85;  // OPS.paintImageXObject
+
+  let ctmStack: number[][] = [];
+  let ctm = [1, 0, 0, 1, 0, 0];
+
+  function multiplyMatrix(a: number[], b: number[]): number[] {
+    return [
+      a[0]*b[0] + a[2]*b[1], a[1]*b[0] + a[3]*b[1],
+      a[0]*b[2] + a[2]*b[3], a[1]*b[2] + a[3]*b[3],
+      a[0]*b[4] + a[2]*b[5] + a[4], a[1]*b[4] + a[3]*b[5] + a[5],
+    ];
   }
 
-  // Scan a column and find answer start Y positions
-  function scanColumn(colStartX: number, colEndX: number, colIndex: number): number[] {
-    // Skip header area (top 10%) and footer (bottom 5%)
-    const startRow = Math.round(height * 0.10);
-    const endRow = Math.round(height * 0.95);
-
-    // Step 1: Find all content bands (consecutive rows with dark pixels)
-    interface ContentBand {
-      startRow: number;
-      endRow: number;
-      minLeftX: number; // leftmost dark pixel across all rows
+  const allImages: { x: number; y: number; width: number; height: number }[] = [];
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    if (op === OPS_SAVE) { ctmStack.push([...ctm]); }
+    else if (op === OPS_RESTORE) { ctm = ctmStack.pop() || [1, 0, 0, 1, 0, 0]; }
+    else if (op === OPS_TRANSFORM) { ctm = multiplyMatrix(ctm, args[i]); }
+    else if (op === OPS_PAINT_IMG) {
+      allImages.push({
+        x: ctm[4],
+        y: ph - ctm[5],
+        width: Math.abs(ctm[0]),
+        height: Math.abs(ctm[3]),
+      });
     }
-    const bands: ContentBand[] = [];
-    let bandStart = -1;
-    let bandMinX = width;
+  }
 
-    for (let row = startRow; row < endRow; row++) {
-      const leftX = findLeftmostDarkX(row, colStartX, colEndX);
-      if (leftX >= 0) {
-        if (bandStart < 0) bandStart = row;
-        bandMinX = Math.min(bandMinX, leftX);
+  // --- Filter: small images in content area (not header/footer) ---
+  const contentImages = allImages.filter(img =>
+    img.width < 25 && img.height < 15 && img.y > 80 && img.y < ph * 0.93
+  );
+
+  console.log(`[opList] Page ${pageNum}: ${allImages.length} images, ${contentImages.length} small content images`);
+
+  if (contentImages.length === 0 && textItems.length === 0) {
+    return [];
+  }
+
+  // --- Group images by Y position (within 8pt = same answer line) ---
+  const Y_GROUP_THRESHOLD = 8;
+  const sorted = [...contentImages].sort((a, b) => a.y - b.y);
+  const yGroups: typeof contentImages[] = [];
+
+  if (sorted.length > 0) {
+    let group = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].y - group[0].y <= Y_GROUP_THRESHOLD) {
+        group.push(sorted[i]);
       } else {
-        if (bandStart >= 0) {
-          bands.push({ startRow: bandStart, endRow: row - 1, minLeftX: bandMinX });
-          bandStart = -1;
-          bandMinX = width;
+        yGroups.push(group);
+        group = [sorted[i]];
+      }
+    }
+    yGroups.push(group);
+  }
+
+  // --- Identify anchor X positions ---
+  // Find the most common leftmost X positions for answer numbers
+  // Left column anchors cluster around x≈55-62, right column around x≈300-310
+  // We detect these dynamically rather than hardcoding
+
+  // Collect the minimum X of each Y-group
+  const groupMinXs = yGroups.map(g => ({
+    minX: Math.min(...g.map(img => img.x)),
+    y: g.reduce((s, img) => s + img.y, 0) / g.length,
+    count: g.length,
+  }));
+
+  // Separate into left and right column groups
+  const leftGroups = groupMinXs.filter(g => g.minX < midX);
+  const rightGroups = groupMinXs.filter(g => g.minX >= midX);
+
+  // Find the anchor X for each column (most common minX within tolerance)
+  function findAnchorX(groups: typeof groupMinXs): number {
+    if (groups.length === 0) return 0;
+    const xs = groups.map(g => g.minX).sort((a, b) => a - b);
+    // Use the most frequent X value (with 5pt tolerance)
+    const buckets: { x: number; count: number }[] = [];
+    for (const x of xs) {
+      const bucket = buckets.find(b => Math.abs(b.x - x) <= 5);
+      if (bucket) { bucket.count++; bucket.x = (bucket.x * (bucket.count - 1) + x) / bucket.count; }
+      else { buckets.push({ x, count: 1 }); }
+    }
+    buckets.sort((a, b) => b.count - a.count);
+    return buckets[0]?.x || 0;
+  }
+
+  const leftAnchorX = findAnchorX(leftGroups);
+  const rightAnchorX = findAnchorX(rightGroups);
+  const ANCHOR_TOLERANCE = 8;
+
+  console.log(`[opList] Anchors: left=${leftAnchorX.toFixed(1)}, right=${rightAnchorX.toFixed(1)}`);
+
+  // --- Build answer starts from image groups ---
+  interface AnswerStart {
+    y: number;
+    x: number;
+    column: number;
+    source: string;
+    number?: number;
+  }
+
+  const answerStarts: AnswerStart[] = [];
+  for (const group of yGroups) {
+    const minX = Math.min(...group.map(g => g.x));
+    const avgY = group.reduce((s, g) => s + g.y, 0) / group.length;
+
+    const isLeftAnchor = leftAnchorX > 0 && Math.abs(minX - leftAnchorX) <= ANCHOR_TOLERANCE && minX < midX;
+    const isRightAnchor = rightAnchorX > 0 && Math.abs(minX - rightAnchorX) <= ANCHOR_TOLERANCE && minX >= midX;
+
+    if (isLeftAnchor) {
+      answerStarts.push({ y: avgY, x: leftAnchorX, column: 0, source: 'image' });
+    }
+    if (isRightAnchor) {
+      answerStarts.push({ y: avgY, x: rightAnchorX, column: 1, source: 'image' });
+    }
+  }
+
+  // --- Add text-based "N)" items ---
+  for (const t of textItems) {
+    const m = (t.text as string).trim().match(/^(\d{1,2})\)$/);
+    if (m) {
+      const num = parseInt(m[1]);
+      const col = t.x < midX ? 0 : 1;
+      // Check for duplicate (image at same Y)
+      const dup = answerStarts.find(a => a.column === col && Math.abs(a.y - t.y) < 15);
+      if (dup) {
+        dup.number = num;
+        dup.source = 'merged';
+      } else {
+        answerStarts.push({ y: t.y, x: t.x, column: col, source: 'text', number: num });
+      }
+    }
+  }
+
+  // --- Split by column and sort ---
+  const leftCol = answerStarts.filter(a => a.column === 0).sort((a, b) => a.y - b.y);
+  const rightCol = answerStarts.filter(a => a.column === 1).sort((a, b) => a.y - b.y);
+
+  console.log(`[opList] Answer starts: left=${leftCol.length}, right=${rightCol.length}`);
+
+  // --- Assign numbers using text anchors ---
+  function assignNumbers(positions: AnswerStart[]): (AnswerStart & { assignedNumber: number })[] {
+    const result: (AnswerStart & { assignedNumber: number })[] = [];
+
+    for (let i = 0; i < positions.length; i++) {
+      if (positions[i].number !== undefined) {
+        result.push({ ...positions[i], assignedNumber: positions[i].number! });
+      } else {
+        // Extrapolate from nearest known number
+        let prevKnown: { idx: number; num: number } | null = null;
+        let nextKnown: { idx: number; num: number } | null = null;
+        for (let j = i - 1; j >= 0; j--) {
+          if (positions[j].number !== undefined) { prevKnown = { idx: j, num: positions[j].number! }; break; }
         }
+        for (let j = i + 1; j < positions.length; j++) {
+          if (positions[j].number !== undefined) { nextKnown = { idx: j, num: positions[j].number! }; break; }
+        }
+
+        let num: number;
+        if (prevKnown) num = prevKnown.num + (i - prevKnown.idx);
+        else if (nextKnown) num = nextKnown.num - (nextKnown.idx - i);
+        else num = i + 1; // fallback: sequential from 1
+        result.push({ ...positions[i], assignedNumber: num });
       }
     }
-    if (bandStart >= 0) {
-      bands.push({ startRow: bandStart, endRow: endRow - 1, minLeftX: bandMinX });
-    }
-
-    if (bands.length < 2) return [];
-
-    // Step 2: Merge bands that are very close (< 3px gap = same text line)
-    const merged: ContentBand[] = [bands[0]];
-    for (let i = 1; i < bands.length; i++) {
-      const prev = merged[merged.length - 1];
-      if (bands[i].startRow - prev.endRow <= 3) {
-        prev.endRow = bands[i].endRow;
-        prev.minLeftX = Math.min(prev.minLeftX, bands[i].minLeftX);
-      } else {
-        merged.push({ ...bands[i] });
-      }
-    }
-
-    // Step 3: Find the typical "content indent" (most common leftmost X)
-    // Answer numbers "N)" go further left than this indent
-    const leftXValues = merged.map(b => b.minLeftX).sort((a, b) => a - b);
-
-    // The "content indent" is the most common left X position
-    // Answer-start lines will have a distinctly smaller left X
-    // Use median as the reference content indent
-    const medianLeftX = leftXValues[Math.floor(leftXValues.length / 2)];
-
-    // Lines that start at least 8 pixels (in scaled coords) further left
-    // than the median are "answer starts" (they have the "N)" prefix)
-    const leftShiftThreshold = 8 * scale / 2; // ~12 pixels at 3x scale
-
-    console.log(`[pixelScan] col${colIndex}: ${merged.length} bands, medianLeftX=${medianLeftX}, threshold=${Math.round(medianLeftX - leftShiftThreshold)}`);
-
-    // Step 4: Identify answer-start bands
-    const answerStartRows: number[] = [];
-    for (const band of merged) {
-      // Check: is this band's left margin significantly further left?
-      if (band.minLeftX < medianLeftX - leftShiftThreshold) {
-        answerStartRows.push(band.startRow);
-        console.log(`[pixelScan] col${colIndex}: answer-start at row ${band.startRow} (y=${Math.round(band.startRow / scale)}), leftX=${band.minLeftX} vs median=${medianLeftX}`);
-      }
-    }
-
-    // If pixel-based detection found too few, fall back to gap-based detection
-    if (answerStartRows.length < 3) {
-      console.log(`[pixelScan] col${colIndex}: Only ${answerStartRows.length} pixel-starts, trying gap-based...`);
-
-      // Find significant gaps between bands (answer separators)
-      const gaps: { afterBandIdx: number; gapSize: number }[] = [];
-      for (let i = 0; i < merged.length - 1; i++) {
-        const gap = merged[i + 1].startRow - merged[i].endRow;
-        gaps.push({ afterBandIdx: i, gapSize: gap });
-      }
-      gaps.sort((a, b) => b.gapSize - a.gapSize);
-
-      // The typical line spacing within an answer is small
-      // Gaps between answers are larger
-      // Find the threshold that separates "within answer" from "between answers"
-      const gapSizes = gaps.map(g => g.gapSize).sort((a, b) => a - b);
-      const medianGap = gapSizes[Math.floor(gapSizes.length / 2)];
-      const gapThreshold = medianGap * 1.5;
-
-      const significantGaps = gaps.filter(g => g.gapSize > gapThreshold);
-
-      // Answer starts: first band + bands after significant gaps
-      const gapStartRows = [merged[0].startRow];
-      for (const g of significantGaps.sort((a, b) => a.afterBandIdx - b.afterBandIdx)) {
-        gapStartRows.push(merged[g.afterBandIdx + 1].startRow);
-      }
-
-      console.log(`[pixelScan] col${colIndex}: gap-based found ${gapStartRows.length} starts (threshold=${Math.round(gapThreshold)})`);
-      return gapStartRows;
-    }
-
-    return answerStartRows;
+    return result;
   }
 
-  // Scan left and right columns
-  const leftStarts = scanColumn(0, midX - 5, 0);
-  const rightStarts = scanColumn(midX + 5, pw, 1);
+  const leftAssigned = assignNumbers(leftCol);
+  const rightAssigned = assignNumbers(rightCol);
 
-  console.log(`[pixelScan] Left starts: ${leftStarts.length}, Right starts: ${rightStarts.length}`);
+  // If no text anchors at all, use expectedCount to infer numbering
+  // Left column = 1..N, Right column = (N+1)..expectedCount
+  const hasAnyNumber = [...leftAssigned, ...rightAssigned].some(a => a.source === 'text' || a.source === 'merged');
+  if (!hasAnyNumber && expectedCount > 0) {
+    const leftCount = leftAssigned.length;
+    for (let i = 0; i < leftAssigned.length; i++) leftAssigned[i].assignedNumber = i + 1;
+    for (let i = 0; i < rightAssigned.length; i++) rightAssigned[i].assignedNumber = leftCount + i + 1;
+  }
 
-  // Build DetectedAnswer array
+  // --- Build final result ---
   const results: DetectedAnswer[] = [];
-  const answersPerCol = Math.ceil(expectedCount / 2);
-
-  // Left column = answers 1..answersPerCol
-  for (let i = 0; i < leftStarts.length && i < answersPerCol; i++) {
+  for (const a of [...leftAssigned, ...rightAssigned]) {
     results.push({
-      problemNumber: i + 1,
-      answerText: `(답 #${i + 1})`,
-      y: leftStarts[i] / scale, // convert back to PDF coordinates
-      x: 0,
+      problemNumber: a.assignedNumber,
+      answerText: a.number !== undefined ? `${a.number})` : `(답 #${a.assignedNumber})`,
+      y: a.y,
+      x: a.x,
       pageNumber: pageNum,
-      confidence: 0.90,
-      column: 0,
+      confidence: a.source === 'text' || a.source === 'merged' ? 0.95 : 0.90,
+      column: a.column,
     });
   }
 
-  // Right column = answers (answersPerCol+1)..expectedCount
-  for (let i = 0; i < rightStarts.length && (answersPerCol + i + 1) <= expectedCount; i++) {
-    const ansNum = answersPerCol + i + 1;
-    results.push({
-      problemNumber: ansNum,
-      answerText: `(답 #${ansNum})`,
-      y: rightStarts[i] / scale,
-      x: midX,
-      pageNumber: pageNum,
-      confidence: 0.90,
-      column: 1,
-    });
-  }
-
-  console.log(`[pixelScan] Total: ${results.length} answers detected`);
+  console.log(`[opList] Total: ${results.length} answers detected: ${results.map(r => r.problemNumber).join(',')}`);
   return results;
 }
 
@@ -977,34 +1028,41 @@ export async function detectAnswersOnPages(
     return textFinal;
   }
 
-  console.log(`[detectAnswersOnPages] Text-based: only ${textFinal.length} answers, trying position-based...`);
+  console.log(`[detectAnswersOnPages] Text-based: only ${textFinal.length} answers, trying operator-list detection...`);
 
-  // Pass 2: visual pixel-scan detection (for unreadable fonts)
-  // Renders the answer page to a canvas and scans for answer-start lines
-  console.log(`[detectAnswersOnPages] Trying pixel-scan detection...`);
-  const pixelResults: DetectedAnswer[] = [];
+  // Pass 2: operator list detection (for PDFs with embedded glyph images)
+  // Analyzes paintImageXObject positions to find answer number anchors
+  const opListResults: DetectedAnswer[] = [];
   for (let p = startPage; p <= last; p++) {
-    const { items, viewport } = await getPageTextItems(pdf, p);
-    const pixelDetected = await detectAnswersByPixelScan(pdf, p, viewport, expectedCount || 20);
-    pixelResults.push(...pixelDetected);
+    const { viewport } = await getPageTextItems(pdf, p);
+    const opDetected = await detectAnswersByOperatorList(pdf, p, viewport, expectedCount || 20);
+    opListResults.push(...opDetected);
   }
 
-  // Use pixel-scan if it found more answers
-  if (pixelResults.length > textFinal.length) {
-    console.log(`[detectAnswersOnPages] Pixel-scan: ${pixelResults.length} answers (using this)`);
+  // Deduplicate operator list results
+  const opUnique = new Map<number, DetectedAnswer>();
+  for (const a of opListResults) {
+    const existing = opUnique.get(a.problemNumber);
+    if (!existing || a.confidence > existing.confidence) opUnique.set(a.problemNumber, a);
+  }
+  const opFinal = [...opUnique.values()].sort((a, b) => a.problemNumber - b.problemNumber);
+
+  // Use operator-list if it found more answers
+  if (opFinal.length > textFinal.length) {
+    console.log(`[detectAnswersOnPages] Operator-list: ${opFinal.length} answers (using this)`);
 
     if (debug) {
       for (const dp of debug.pages) {
         if (dp.pageNum >= startPage && dp.pageNum <= last) {
-          dp.detectedAnswers = pixelResults
-            .filter(r => r.pageNumber === dp.pageNum)
-            .map(r => ({ number: r.problemNumber, y: Math.round(r.y), column: r.column, text: r.answerText }));
-          dp.pixelScanBased = true;
+          dp.detectedAnswers = opFinal
+            .filter((r: DetectedAnswer) => r.pageNumber === dp.pageNum)
+            .map((r: DetectedAnswer) => ({ number: r.problemNumber, y: Math.round(r.y), column: r.column, text: r.answerText }));
+          (dp as any).operatorListBased = true;
         }
       }
     }
 
-    return pixelResults;
+    return opFinal;
   }
 
   return textFinal;
