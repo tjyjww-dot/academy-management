@@ -739,122 +739,143 @@ export async function detectAnswersOnPage(
 }
 
 /* ================================================================
-   POSITION-BASED answer detection for PDFs with unreadable fonts.
+   GRID-BASED answer detection for PDFs with unreadable fonts.
 
-   Many Korean math PDFs use custom fonts where pdfjs-dist extracts
-   empty strings for the answer content. However, the TEXT ITEMS
-   still have valid position (x, y) and size (width, height) data.
+   Many Korean math PDFs use custom fonts where pdfjs-dist cannot
+   decode text. Some answers have ZERO text items at all.
 
-   Strategy:
-   1. Find Y-coordinate clusters of items (each cluster = one answer line)
-   2. Sort clusters by Y position
-   3. Determine two-column layout from X positions
-   4. Assign sequential answer numbers: left column top-to-bottom,
-      then right column top-to-bottom
-   5. Return DetectedAnswer[] with positions for image cropping
+   Strategy: divide the answer page into a uniform grid.
+   - Answer pages are 2-column, N/2 rows each
+   - Find content area boundaries (below header, above footer)
+   - Create equal-sized cells for each answer
+   - Return DetectedAnswer[] with grid positions for image cropping
    ================================================================ */
 
-function detectAnswersByPosition(
+function detectAnswersByGrid(
   items: TextItem[],
   pageNum: number,
   viewport: { width: number; height: number },
   expectedCount: number,
 ): DetectedAnswer[] {
-  if (items.length < 3) return [];
-
   const pw = viewport.width;
   const ph = viewport.height;
 
-  // Filter out header/footer items (top 8% and bottom 5%)
-  const bodyItems = items.filter(i =>
-    i.y > ph * 0.08 && i.y < ph * 0.95
-  );
-  if (bodyItems.length < 3) return [];
+  // Find content boundaries from actual items
+  const bodyItems = items.filter(i => i.y > ph * 0.05 && i.y < ph * 0.97);
 
-  // Group items into Y-clusters (answer lines)
-  const yThreshold = 8;
-  const sortedByY = [...bodyItems].sort((a, b) => a.y - b.y);
+  // Find the first and last content Y by looking at items with substance
+  // (width > 2, not just whitespace markers)
+  const contentItems = bodyItems.filter(i => i.width > 1 || (i.text && i.text.trim()));
 
-  interface YCluster {
-    y: number;
-    minX: number;
-    maxX: number;
-    items: TextItem[];
-  }
+  let contentTopY = ph * 0.12;  // default: below header
+  let contentBottomY = ph * 0.90; // default: above footer
 
-  const clusters: YCluster[] = [];
-  let currentCluster: TextItem[] = [sortedByY[0]];
-  let currentY = sortedByY[0].y;
-
-  for (let i = 1; i < sortedByY.length; i++) {
-    if (Math.abs(sortedByY[i].y - currentY) <= yThreshold) {
-      currentCluster.push(sortedByY[i]);
-    } else {
-      if (currentCluster.length >= 1) {
-        const xs = currentCluster.map(it => it.x);
-        clusters.push({
-          y: currentCluster.reduce((s, it) => s + it.y, 0) / currentCluster.length,
-          minX: Math.min(...xs),
-          maxX: Math.max(...xs.map((x, idx) => x + currentCluster[idx].width)),
-          items: currentCluster,
-        });
-      }
-      currentCluster = [sortedByY[i]];
-      currentY = sortedByY[i].y;
+  if (contentItems.length > 5) {
+    const ys = contentItems.map(i => i.y).sort((a, b) => a - b);
+    // Skip the very top items (likely header text)
+    const headerCutoff = ph * 0.10;
+    const bodyYs = ys.filter(y => y > headerCutoff);
+    if (bodyYs.length > 2) {
+      contentTopY = bodyYs[0] - 15; // a bit above first content
+      contentBottomY = bodyYs[bodyYs.length - 1] + 15; // a bit below last
     }
   }
-  if (currentCluster.length >= 1) {
-    const xs = currentCluster.map(it => it.x);
-    clusters.push({
-      y: currentCluster.reduce((s, it) => s + it.y, 0) / currentCluster.length,
-      minX: Math.min(...xs),
-      maxX: Math.max(...xs.map((x, idx) => x + currentCluster[idx].width)),
-      items: currentCluster,
-    });
+
+  // Use readable anchor points if available (e.g., "9)", "10)", "11)")
+  // to refine the grid
+  const anchors: { num: number; y: number; col: number }[] = [];
+  const lines = groupIntoLines(bodyItems);
+  for (const line of lines) {
+    const text = line.items.map(i => i.text).join('').trim();
+    const m = text.match(/^(\d{1,3})\)/);
+    if (m) {
+      const num = parseInt(m[1]);
+      const col = line.minX < pw / 2 ? 0 : 1;
+      anchors.push({ num, y: line.y, col });
+    }
   }
 
-  if (clusters.length < 2) return [];
+  console.log(`[gridDetect] p${pageNum}: contentY=${Math.round(contentTopY)}-${Math.round(contentBottomY)}, anchors=${anchors.map(a => `${a.num}(y=${Math.round(a.y)},c${a.col})`).join(',')}`);
 
-  // Determine column layout: split at page midpoint
-  const midX = pw / 2;
-  const leftClusters = clusters.filter(c => c.minX < midX - 20).sort((a, b) => a.y - b.y);
-  const rightClusters = clusters.filter(c => c.minX >= midX - 20).sort((a, b) => a.y - b.y);
+  // Determine grid dimensions
+  const answersPerCol = Math.ceil(expectedCount / 2);
+  const contentHeight = contentBottomY - contentTopY;
+  const rowHeight = contentHeight / answersPerCol;
 
-  console.log(`[posDetect] p${pageNum}: ${clusters.length} clusters, L=${leftClusters.length}, R=${rightClusters.length}`);
+  console.log(`[gridDetect] ${expectedCount} answers, ${answersPerCol}/col, rowH=${rowHeight.toFixed(1)}`);
 
-  // Assign answer numbers sequentially
+  // If we have anchors, use them to calculate actual row height
+  let adjustedTopY = contentTopY;
+  let adjustedRowH = rowHeight;
+
+  if (anchors.length >= 2) {
+    // Find two anchors in the same column to calculate spacing
+    const leftAnchors = anchors.filter(a => a.col === 0).sort((a, b) => a.num - b.num);
+    const rightAnchors = anchors.filter(a => a.col === 1).sort((a, b) => a.num - b.num);
+
+    let refAnchors = leftAnchors.length >= 2 ? leftAnchors : rightAnchors;
+    let colOffset = refAnchors === leftAnchors ? 0 : answersPerCol;
+
+    if (refAnchors.length >= 2) {
+      const a1 = refAnchors[0];
+      const a2 = refAnchors[refAnchors.length - 1];
+      const numDiff = a2.num - a1.num;
+      if (numDiff > 0) {
+        adjustedRowH = (a2.y - a1.y) / numDiff;
+        // Calculate where answer 1 (or 11) would be
+        const firstNumInCol = a1.num;
+        const indexInCol = firstNumInCol - 1 - colOffset;
+        adjustedTopY = a1.y - indexInCol * adjustedRowH;
+      }
+    } else if (refAnchors.length === 1) {
+      // Single anchor: use it to position
+      const a = refAnchors[0];
+      const indexInCol = a.num - 1 - colOffset;
+      adjustedTopY = a.y - indexInCol * adjustedRowH;
+    }
+  }
+
+  console.log(`[gridDetect] adjustedTopY=${adjustedTopY.toFixed(1)}, adjustedRowH=${adjustedRowH.toFixed(1)}`);
+
+  // Generate grid-based answers
   const results: DetectedAnswer[] = [];
-  let ansNum = 1;
+  const midX = pw / 2;
 
-  // Left column first
-  for (const cluster of leftClusters) {
+  // Left column: answers 1..answersPerCol
+  for (let i = 0; i < answersPerCol; i++) {
+    const ansNum = i + 1;
+    if (ansNum > expectedCount) break;
+    const y = adjustedTopY + i * adjustedRowH;
+
     results.push({
       problemNumber: ansNum,
-      answerText: `(이미지 답 #${ansNum})`,
-      y: cluster.y,
-      x: cluster.minX,
+      answerText: `(답 #${ansNum})`,
+      y: y,
+      x: 0,
       pageNumber: pageNum,
-      confidence: 0.80,
+      confidence: 0.85,
       column: 0,
     });
-    ansNum++;
   }
 
-  // Then right column
-  for (const cluster of rightClusters) {
+  // Right column: answers (answersPerCol+1)..expectedCount
+  for (let i = 0; i < answersPerCol; i++) {
+    const ansNum = answersPerCol + i + 1;
+    if (ansNum > expectedCount) break;
+    const y = adjustedTopY + i * adjustedRowH;
+
     results.push({
       problemNumber: ansNum,
-      answerText: `(이미지 답 #${ansNum})`,
-      y: cluster.y,
-      x: cluster.minX,
+      answerText: `(답 #${ansNum})`,
+      y: y,
+      x: midX,
       pageNumber: pageNum,
-      confidence: 0.80,
+      confidence: 0.85,
       column: 1,
     });
-    ansNum++;
   }
 
-  console.log(`[posDetect] Assigned ${results.length} answers: ${results.map(r => `${r.problemNumber}(y=${Math.round(r.y)})`).join(', ')}`);
+  console.log(`[gridDetect] Generated ${results.length} grid answers`);
   return results;
 }
 
@@ -897,30 +918,30 @@ export async function detectAnswersOnPages(
 
   console.log(`[detectAnswersOnPages] Text-based: only ${textFinal.length} answers, trying position-based...`);
 
-  // Pass 2: position-based detection (for unreadable fonts)
-  const posResults: DetectedAnswer[] = [];
+  // Pass 2: grid-based detection (for unreadable fonts)
+  const gridResults: DetectedAnswer[] = [];
   for (let p = startPage; p <= last; p++) {
     const { items, viewport } = await getPageTextItems(pdf, p);
-    const posDetected = detectAnswersByPosition(items, p, viewport, expectedCount || 20);
-    posResults.push(...posDetected);
+    const gridDetected = detectAnswersByGrid(items, p, viewport, expectedCount || 20);
+    gridResults.push(...gridDetected);
   }
 
-  // Use position-based if it found more answers
-  if (posResults.length > textFinal.length) {
-    console.log(`[detectAnswersOnPages] Position-based: ${posResults.length} answers (using this)`);
+  // Use grid-based if it found more answers
+  if (gridResults.length > textFinal.length) {
+    console.log(`[detectAnswersOnPages] Grid-based: ${gridResults.length} answers (using this)`);
 
     if (debug) {
       for (const dp of debug.pages) {
         if (dp.pageNum >= startPage && dp.pageNum <= last) {
-          dp.detectedAnswers = posResults
+          dp.detectedAnswers = gridResults
             .filter(r => r.pageNumber === dp.pageNum)
             .map(r => ({ number: r.problemNumber, y: Math.round(r.y), column: r.column, text: r.answerText }));
-          dp.positionBased = true;
+          dp.gridBased = true;
         }
       }
     }
 
-    return posResults;
+    return gridResults;
   }
 
   return textFinal;
@@ -1092,17 +1113,18 @@ export async function extractAnswerImages(
         }
       }
 
-      const ansH = nextY ? (nextY - ans.y) : Math.min(60, vp.height * 0.92 - ans.y);
+      const ansH = nextY ? (nextY - ans.y) : Math.min(80, vp.height * 0.92 - ans.y);
       const colW = vp.width / 2;
 
-      // Start from column beginning (not answer x) to capture answer numbers
+      // Start from column beginning to capture full answer including "N)" prefix
       const colStartX = ans.column === 0 ? 0 : vp.width / 2;
-      const leftPad = 5; // small padding
+      const leftPad = 8;
+      const topPad = 5; // small top padding for descenders
 
       const sx = Math.max(0, (colStartX - leftPad) * scale);
-      const sy = Math.max(0, (ans.y - 12) * scale);
+      const sy = Math.max(0, (ans.y - topPad) * scale);
       const sw = Math.min((colW + leftPad) * scale, fullCanvas.width - sx);
-      const sh = Math.max(25, (ansH + 15) * scale);
+      const sh = Math.max(25, (ansH + topPad) * scale);
 
       const crop = document.createElement('canvas');
       crop.width = Math.max(1, Math.round(sw));
