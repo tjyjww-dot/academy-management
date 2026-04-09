@@ -704,7 +704,12 @@ export default function WrongAnswersPage() {
                             <div className="bg-green-50 rounded overflow-hidden border border-green-200">
                               <img src={p.answerImageDataUrl} alt={`답 ${p.number}`} className="w-full object-contain max-h-24" />
                               <div className="text-xs text-green-600 text-center py-1">
-                                {(p as any).answerText && <span className="font-semibold mr-1">답: {(p as any).answerText}</span>}
+                                {(() => {
+                                  const txt = (p as any).answerText || '';
+                                  // Hide garbled text (contains □, tofu, or only non-readable chars)
+                                  const isReadable = txt && !/^[\s\d)\(\-]*$/.test(txt) && !/[\u25A1\uFFFD]/.test(txt) && /[a-zA-Z0-9가-힣①②③④⑤+\-=<>]/.test(txt);
+                                  return isReadable ? <span className="font-semibold mr-1">답: {txt}</span> : null;
+                                })()}
                                 <span>p.{p.answerPageNumber}</span>
                               </div>
                             </div>
