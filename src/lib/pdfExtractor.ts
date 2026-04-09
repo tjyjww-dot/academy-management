@@ -739,143 +739,204 @@ export async function detectAnswersOnPage(
 }
 
 /* ================================================================
-   GRID-BASED answer detection for PDFs with unreadable fonts.
+   VISUAL answer detection via canvas pixel scanning.
 
-   Many Korean math PDFs use custom fonts where pdfjs-dist cannot
-   decode text. Some answers have ZERO text items at all.
+   When pdfjs-dist cannot extract text (custom font encoding),
+   we render the page to a canvas and scan pixels to find where
+   each "N)" answer number starts.
 
-   Strategy: divide the answer page into a uniform grid.
-   - Answer pages are 2-column, N/2 rows each
-   - Find content area boundaries (below header, above footer)
-   - Create equal-sized cells for each answer
-   - Return DetectedAnswer[] with grid positions for image cropping
+   Strategy:
+   1. Render answer page to high-res canvas
+   2. Split into left/right columns
+   3. For each column, scan pixel rows to find content bands
+   4. Detect answer-start lines by finding content bands that
+      start further LEFT than continuation lines (the "N)" prefix)
+   5. Assign sequential answer numbers based on detected starts
    ================================================================ */
 
-function detectAnswersByGrid(
-  items: TextItem[],
+async function detectAnswersByPixelScan(
+  pdf: any,
   pageNum: number,
   viewport: { width: number; height: number },
   expectedCount: number,
-): DetectedAnswer[] {
+): Promise<DetectedAnswer[]> {
   const pw = viewport.width;
   const ph = viewport.height;
-
-  // Find content boundaries from actual items
-  const bodyItems = items.filter(i => i.y > ph * 0.05 && i.y < ph * 0.97);
-
-  // Find the first and last content Y by looking at items with substance
-  // (width > 2, not just whitespace markers)
-  const contentItems = bodyItems.filter(i => i.width > 1 || (i.text && i.text.trim()));
-
-  let contentTopY = ph * 0.12;  // default: below header
-  let contentBottomY = ph * 0.90; // default: above footer
-
-  if (contentItems.length > 5) {
-    const ys = contentItems.map(i => i.y).sort((a, b) => a - b);
-    // Skip the very top items (likely header text)
-    const headerCutoff = ph * 0.10;
-    const bodyYs = ys.filter(y => y > headerCutoff);
-    if (bodyYs.length > 2) {
-      contentTopY = bodyYs[0] - 15; // a bit above first content
-      contentBottomY = bodyYs[bodyYs.length - 1] + 15; // a bit below last
-    }
-  }
-
-  // Use readable anchor points if available (e.g., "9)", "10)", "11)")
-  // to refine the grid
-  const anchors: { num: number; y: number; col: number }[] = [];
-  const lines = groupIntoLines(bodyItems);
-  for (const line of lines) {
-    const text = line.items.map(i => i.text).join('').trim();
-    const m = text.match(/^(\d{1,3})\)/);
-    if (m) {
-      const num = parseInt(m[1]);
-      const col = line.minX < pw / 2 ? 0 : 1;
-      anchors.push({ num, y: line.y, col });
-    }
-  }
-
-  console.log(`[gridDetect] p${pageNum}: contentY=${Math.round(contentTopY)}-${Math.round(contentBottomY)}, anchors=${anchors.map(a => `${a.num}(y=${Math.round(a.y)},c${a.col})`).join(',')}`);
-
-  // Determine grid dimensions
-  const answersPerCol = Math.ceil(expectedCount / 2);
-  const contentHeight = contentBottomY - contentTopY;
-  const rowHeight = contentHeight / answersPerCol;
-
-  console.log(`[gridDetect] ${expectedCount} answers, ${answersPerCol}/col, rowH=${rowHeight.toFixed(1)}`);
-
-  // If we have anchors, use them to calculate actual row height
-  let adjustedTopY = contentTopY;
-  let adjustedRowH = rowHeight;
-
-  if (anchors.length >= 2) {
-    // Find two anchors in the same column to calculate spacing
-    const leftAnchors = anchors.filter(a => a.col === 0).sort((a, b) => a.num - b.num);
-    const rightAnchors = anchors.filter(a => a.col === 1).sort((a, b) => a.num - b.num);
-
-    let refAnchors = leftAnchors.length >= 2 ? leftAnchors : rightAnchors;
-    let colOffset = refAnchors === leftAnchors ? 0 : answersPerCol;
-
-    if (refAnchors.length >= 2) {
-      const a1 = refAnchors[0];
-      const a2 = refAnchors[refAnchors.length - 1];
-      const numDiff = a2.num - a1.num;
-      if (numDiff > 0) {
-        adjustedRowH = (a2.y - a1.y) / numDiff;
-        // Calculate where answer 1 (or 11) would be
-        const firstNumInCol = a1.num;
-        const indexInCol = firstNumInCol - 1 - colOffset;
-        adjustedTopY = a1.y - indexInCol * adjustedRowH;
-      }
-    } else if (refAnchors.length === 1) {
-      // Single anchor: use it to position
-      const a = refAnchors[0];
-      const indexInCol = a.num - 1 - colOffset;
-      adjustedTopY = a.y - indexInCol * adjustedRowH;
-    }
-  }
-
-  console.log(`[gridDetect] adjustedTopY=${adjustedTopY.toFixed(1)}, adjustedRowH=${adjustedRowH.toFixed(1)}`);
-
-  // Generate grid-based answers
-  const results: DetectedAnswer[] = [];
+  const scale = 3.0; // high res for accuracy
   const midX = pw / 2;
 
-  // Left column: answers 1..answersPerCol
-  for (let i = 0; i < answersPerCol; i++) {
-    const ansNum = i + 1;
-    if (ansNum > expectedCount) break;
-    const y = adjustedTopY + i * adjustedRowH;
+  // Render page to canvas
+  const page = await pdf.getPage(pageNum);
+  const vp = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  canvas.width = vp.width;
+  canvas.height = vp.height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
 
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = imageData;
+  const DARK_THRESHOLD = 180; // pixel is "dark" if any channel < this
+
+  // For each pixel row, find the leftmost dark pixel X in each column
+  function findLeftmostDarkX(row: number, colStartX: number, colEndX: number): number {
+    const startPx = Math.round(colStartX * scale);
+    const endPx = Math.round(colEndX * scale);
+    for (let x = startPx; x < endPx; x++) {
+      const idx = (row * width + x) * 4;
+      if (data[idx] < DARK_THRESHOLD || data[idx + 1] < DARK_THRESHOLD || data[idx + 2] < DARK_THRESHOLD) {
+        return x;
+      }
+    }
+    return -1; // no dark pixel
+  }
+
+  // Scan a column and find answer start Y positions
+  function scanColumn(colStartX: number, colEndX: number, colIndex: number): number[] {
+    // Skip header area (top 10%) and footer (bottom 5%)
+    const startRow = Math.round(height * 0.10);
+    const endRow = Math.round(height * 0.95);
+
+    // Step 1: Find all content bands (consecutive rows with dark pixels)
+    interface ContentBand {
+      startRow: number;
+      endRow: number;
+      minLeftX: number; // leftmost dark pixel across all rows
+    }
+    const bands: ContentBand[] = [];
+    let bandStart = -1;
+    let bandMinX = width;
+
+    for (let row = startRow; row < endRow; row++) {
+      const leftX = findLeftmostDarkX(row, colStartX, colEndX);
+      if (leftX >= 0) {
+        if (bandStart < 0) bandStart = row;
+        bandMinX = Math.min(bandMinX, leftX);
+      } else {
+        if (bandStart >= 0) {
+          bands.push({ startRow: bandStart, endRow: row - 1, minLeftX: bandMinX });
+          bandStart = -1;
+          bandMinX = width;
+        }
+      }
+    }
+    if (bandStart >= 0) {
+      bands.push({ startRow: bandStart, endRow: endRow - 1, minLeftX: bandMinX });
+    }
+
+    if (bands.length < 2) return [];
+
+    // Step 2: Merge bands that are very close (< 3px gap = same text line)
+    const merged: ContentBand[] = [bands[0]];
+    for (let i = 1; i < bands.length; i++) {
+      const prev = merged[merged.length - 1];
+      if (bands[i].startRow - prev.endRow <= 3) {
+        prev.endRow = bands[i].endRow;
+        prev.minLeftX = Math.min(prev.minLeftX, bands[i].minLeftX);
+      } else {
+        merged.push({ ...bands[i] });
+      }
+    }
+
+    // Step 3: Find the typical "content indent" (most common leftmost X)
+    // Answer numbers "N)" go further left than this indent
+    const leftXValues = merged.map(b => b.minLeftX).sort((a, b) => a - b);
+
+    // The "content indent" is the most common left X position
+    // Answer-start lines will have a distinctly smaller left X
+    // Use median as the reference content indent
+    const medianLeftX = leftXValues[Math.floor(leftXValues.length / 2)];
+
+    // Lines that start at least 8 pixels (in scaled coords) further left
+    // than the median are "answer starts" (they have the "N)" prefix)
+    const leftShiftThreshold = 8 * scale / 2; // ~12 pixels at 3x scale
+
+    console.log(`[pixelScan] col${colIndex}: ${merged.length} bands, medianLeftX=${medianLeftX}, threshold=${Math.round(medianLeftX - leftShiftThreshold)}`);
+
+    // Step 4: Identify answer-start bands
+    const answerStartRows: number[] = [];
+    for (const band of merged) {
+      // Check: is this band's left margin significantly further left?
+      if (band.minLeftX < medianLeftX - leftShiftThreshold) {
+        answerStartRows.push(band.startRow);
+        console.log(`[pixelScan] col${colIndex}: answer-start at row ${band.startRow} (y=${Math.round(band.startRow / scale)}), leftX=${band.minLeftX} vs median=${medianLeftX}`);
+      }
+    }
+
+    // If pixel-based detection found too few, fall back to gap-based detection
+    if (answerStartRows.length < 3) {
+      console.log(`[pixelScan] col${colIndex}: Only ${answerStartRows.length} pixel-starts, trying gap-based...`);
+
+      // Find significant gaps between bands (answer separators)
+      const gaps: { afterBandIdx: number; gapSize: number }[] = [];
+      for (let i = 0; i < merged.length - 1; i++) {
+        const gap = merged[i + 1].startRow - merged[i].endRow;
+        gaps.push({ afterBandIdx: i, gapSize: gap });
+      }
+      gaps.sort((a, b) => b.gapSize - a.gapSize);
+
+      // The typical line spacing within an answer is small
+      // Gaps between answers are larger
+      // Find the threshold that separates "within answer" from "between answers"
+      const gapSizes = gaps.map(g => g.gapSize).sort((a, b) => a - b);
+      const medianGap = gapSizes[Math.floor(gapSizes.length / 2)];
+      const gapThreshold = medianGap * 1.5;
+
+      const significantGaps = gaps.filter(g => g.gapSize > gapThreshold);
+
+      // Answer starts: first band + bands after significant gaps
+      const gapStartRows = [merged[0].startRow];
+      for (const g of significantGaps.sort((a, b) => a.afterBandIdx - b.afterBandIdx)) {
+        gapStartRows.push(merged[g.afterBandIdx + 1].startRow);
+      }
+
+      console.log(`[pixelScan] col${colIndex}: gap-based found ${gapStartRows.length} starts (threshold=${Math.round(gapThreshold)})`);
+      return gapStartRows;
+    }
+
+    return answerStartRows;
+  }
+
+  // Scan left and right columns
+  const leftStarts = scanColumn(0, midX - 5, 0);
+  const rightStarts = scanColumn(midX + 5, pw, 1);
+
+  console.log(`[pixelScan] Left starts: ${leftStarts.length}, Right starts: ${rightStarts.length}`);
+
+  // Build DetectedAnswer array
+  const results: DetectedAnswer[] = [];
+  const answersPerCol = Math.ceil(expectedCount / 2);
+
+  // Left column = answers 1..answersPerCol
+  for (let i = 0; i < leftStarts.length && i < answersPerCol; i++) {
     results.push({
-      problemNumber: ansNum,
-      answerText: `(답 #${ansNum})`,
-      y: y,
+      problemNumber: i + 1,
+      answerText: `(답 #${i + 1})`,
+      y: leftStarts[i] / scale, // convert back to PDF coordinates
       x: 0,
       pageNumber: pageNum,
-      confidence: 0.85,
+      confidence: 0.90,
       column: 0,
     });
   }
 
-  // Right column: answers (answersPerCol+1)..expectedCount
-  for (let i = 0; i < answersPerCol; i++) {
+  // Right column = answers (answersPerCol+1)..expectedCount
+  for (let i = 0; i < rightStarts.length && (answersPerCol + i + 1) <= expectedCount; i++) {
     const ansNum = answersPerCol + i + 1;
-    if (ansNum > expectedCount) break;
-    const y = adjustedTopY + i * adjustedRowH;
-
     results.push({
       problemNumber: ansNum,
       answerText: `(답 #${ansNum})`,
-      y: y,
+      y: rightStarts[i] / scale,
       x: midX,
       pageNumber: pageNum,
-      confidence: 0.85,
+      confidence: 0.90,
       column: 1,
     });
   }
 
-  console.log(`[gridDetect] Generated ${results.length} grid answers`);
+  console.log(`[pixelScan] Total: ${results.length} answers detected`);
   return results;
 }
 
@@ -918,30 +979,32 @@ export async function detectAnswersOnPages(
 
   console.log(`[detectAnswersOnPages] Text-based: only ${textFinal.length} answers, trying position-based...`);
 
-  // Pass 2: grid-based detection (for unreadable fonts)
-  const gridResults: DetectedAnswer[] = [];
+  // Pass 2: visual pixel-scan detection (for unreadable fonts)
+  // Renders the answer page to a canvas and scans for answer-start lines
+  console.log(`[detectAnswersOnPages] Trying pixel-scan detection...`);
+  const pixelResults: DetectedAnswer[] = [];
   for (let p = startPage; p <= last; p++) {
     const { items, viewport } = await getPageTextItems(pdf, p);
-    const gridDetected = detectAnswersByGrid(items, p, viewport, expectedCount || 20);
-    gridResults.push(...gridDetected);
+    const pixelDetected = await detectAnswersByPixelScan(pdf, p, viewport, expectedCount || 20);
+    pixelResults.push(...pixelDetected);
   }
 
-  // Use grid-based if it found more answers
-  if (gridResults.length > textFinal.length) {
-    console.log(`[detectAnswersOnPages] Grid-based: ${gridResults.length} answers (using this)`);
+  // Use pixel-scan if it found more answers
+  if (pixelResults.length > textFinal.length) {
+    console.log(`[detectAnswersOnPages] Pixel-scan: ${pixelResults.length} answers (using this)`);
 
     if (debug) {
       for (const dp of debug.pages) {
         if (dp.pageNum >= startPage && dp.pageNum <= last) {
-          dp.detectedAnswers = gridResults
+          dp.detectedAnswers = pixelResults
             .filter(r => r.pageNumber === dp.pageNum)
             .map(r => ({ number: r.problemNumber, y: Math.round(r.y), column: r.column, text: r.answerText }));
-          dp.gridBased = true;
+          dp.pixelScanBased = true;
         }
       }
     }
 
-    return gridResults;
+    return pixelResults;
   }
 
   return textFinal;
