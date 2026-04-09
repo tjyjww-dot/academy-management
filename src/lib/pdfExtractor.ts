@@ -810,11 +810,17 @@ async function detectAnswersByOperatorList(
     else if (op === OPS_RESTORE) { ctm = ctmStack.pop() || [1, 0, 0, 1, 0, 0]; }
     else if (op === OPS_TRANSFORM) { ctm = multiplyMatrix(ctm, args[i]); }
     else if (op === OPS_PAINT_IMG) {
+      const imgWidth = Math.abs(ctm[0]);
+      const imgHeight = Math.abs(ctm[3]);
+      // CTM d value (ctm[3]) determines image Y orientation:
+      // d > 0: ctm[5] = PDF bottom of image → visual top = ctm[5] + d
+      // d < 0: ctm[5] = PDF top of image → visual top = ctm[5]
+      const pdfVisualTop = ctm[3] >= 0 ? ctm[5] + ctm[3] : ctm[5];
       allImages.push({
         x: ctm[4],
-        y: ph - ctm[5],
-        width: Math.abs(ctm[0]),
-        height: Math.abs(ctm[3]),
+        y: ph - pdfVisualTop,  // convert to top-down coordinates
+        width: imgWidth,
+        height: imgHeight,
       });
     }
   }
