@@ -1184,7 +1184,7 @@ function trimWhitespace(canvas: HTMLCanvasElement): string {
   if (top >= bottom || left >= right) return canvas.toDataURL('image/png');
 
   // Small padding around content
-  const padTop = 8;
+  const padTop = 12;
   const padBottom = 10;
   const padLR = 8;
   top = Math.max(0, top - padTop);
@@ -1276,7 +1276,7 @@ export async function extractAnswerImages(
       // Start from column beginning to capture full answer including "N)" prefix
       const colStartX = ans.column === 0 ? 0 : vp.width / 2;
       const leftPad = 8;
-      const topPad = 5; // small top padding for descenders
+      const topPad = 15; // generous top padding for superscripts, ascenders (trimWhitespace removes excess)
 
       const sx = Math.max(0, (colStartX - leftPad) * scale);
       const sy = Math.max(0, (ans.y - topPad) * scale);
