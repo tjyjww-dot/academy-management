@@ -237,7 +237,7 @@ export default function WrongAnswersPage() {
 
       // Step 2: Detect answers (client-side pdfjs-dist)
       setExtractProgress({ current: 0, total: 0, message: '답지 페이지에서 답을 감지 중...' });
-      let answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end, debug);
+      let answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end, debug, detected.length);
 
       // Save debug info
       setDebugInfo({ ...debug, problemCount: detected.length, answerCount: answersDetected.length });

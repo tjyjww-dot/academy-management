@@ -679,7 +679,7 @@ export async function detectProblemsOnPage(
 }
 
 /**
- * Detect answers on a single page.
+ * Detect answers on a single page using TEXT-BASED approach.
  */
 export async function detectAnswersOnPage(
   pdf: any, pageNum: number, debugPage?: any
@@ -738,30 +738,192 @@ export async function detectAnswersOnPage(
   return result;
 }
 
+/* ================================================================
+   POSITION-BASED answer detection for PDFs with unreadable fonts.
+
+   Many Korean math PDFs use custom fonts where pdfjs-dist extracts
+   empty strings for the answer content. However, the TEXT ITEMS
+   still have valid position (x, y) and size (width, height) data.
+
+   Strategy:
+   1. Find Y-coordinate clusters of items (each cluster = one answer line)
+   2. Sort clusters by Y position
+   3. Determine two-column layout from X positions
+   4. Assign sequential answer numbers: left column top-to-bottom,
+      then right column top-to-bottom
+   5. Return DetectedAnswer[] with positions for image cropping
+   ================================================================ */
+
+function detectAnswersByPosition(
+  items: TextItem[],
+  pageNum: number,
+  viewport: { width: number; height: number },
+  expectedCount: number,
+): DetectedAnswer[] {
+  if (items.length < 3) return [];
+
+  const pw = viewport.width;
+  const ph = viewport.height;
+
+  // Filter out header/footer items (top 8% and bottom 5%)
+  const bodyItems = items.filter(i =>
+    i.y > ph * 0.08 && i.y < ph * 0.95
+  );
+  if (bodyItems.length < 3) return [];
+
+  // Group items into Y-clusters (answer lines)
+  const yThreshold = 8;
+  const sortedByY = [...bodyItems].sort((a, b) => a.y - b.y);
+
+  interface YCluster {
+    y: number;
+    minX: number;
+    maxX: number;
+    items: TextItem[];
+  }
+
+  const clusters: YCluster[] = [];
+  let currentCluster: TextItem[] = [sortedByY[0]];
+  let currentY = sortedByY[0].y;
+
+  for (let i = 1; i < sortedByY.length; i++) {
+    if (Math.abs(sortedByY[i].y - currentY) <= yThreshold) {
+      currentCluster.push(sortedByY[i]);
+    } else {
+      if (currentCluster.length >= 1) {
+        const xs = currentCluster.map(it => it.x);
+        clusters.push({
+          y: currentCluster.reduce((s, it) => s + it.y, 0) / currentCluster.length,
+          minX: Math.min(...xs),
+          maxX: Math.max(...xs.map((x, idx) => x + currentCluster[idx].width)),
+          items: currentCluster,
+        });
+      }
+      currentCluster = [sortedByY[i]];
+      currentY = sortedByY[i].y;
+    }
+  }
+  if (currentCluster.length >= 1) {
+    const xs = currentCluster.map(it => it.x);
+    clusters.push({
+      y: currentCluster.reduce((s, it) => s + it.y, 0) / currentCluster.length,
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs.map((x, idx) => x + currentCluster[idx].width)),
+      items: currentCluster,
+    });
+  }
+
+  if (clusters.length < 2) return [];
+
+  // Determine column layout: split at page midpoint
+  const midX = pw / 2;
+  const leftClusters = clusters.filter(c => c.minX < midX - 20).sort((a, b) => a.y - b.y);
+  const rightClusters = clusters.filter(c => c.minX >= midX - 20).sort((a, b) => a.y - b.y);
+
+  console.log(`[posDetect] p${pageNum}: ${clusters.length} clusters, L=${leftClusters.length}, R=${rightClusters.length}`);
+
+  // Assign answer numbers sequentially
+  const results: DetectedAnswer[] = [];
+  let ansNum = 1;
+
+  // Left column first
+  for (const cluster of leftClusters) {
+    results.push({
+      problemNumber: ansNum,
+      answerText: `(이미지 답 #${ansNum})`,
+      y: cluster.y,
+      x: cluster.minX,
+      pageNumber: pageNum,
+      confidence: 0.80,
+      column: 0,
+    });
+    ansNum++;
+  }
+
+  // Then right column
+  for (const cluster of rightClusters) {
+    results.push({
+      problemNumber: ansNum,
+      answerText: `(이미지 답 #${ansNum})`,
+      y: cluster.y,
+      x: cluster.minX,
+      pageNumber: pageNum,
+      confidence: 0.80,
+      column: 1,
+    });
+    ansNum++;
+  }
+
+  console.log(`[posDetect] Assigned ${results.length} answers: ${results.map(r => `${r.problemNumber}(y=${Math.round(r.y)})`).join(', ')}`);
+  return results;
+}
+
 /**
  * Detect all answers across pages.
+ * Uses text-based detection first; if too few found, falls back to
+ * position-based detection for PDFs with unreadable fonts.
  */
 export async function detectAnswersOnPages(
-  pdf: any, startPage: number = 1, endPage?: number, debug?: DebugInfo
+  pdf: any, startPage: number = 1, endPage?: number, debug?: DebugInfo,
+  expectedCount?: number
 ): Promise<DetectedAnswer[]> {
   const last = endPage || pdf.numPages;
-  const all: DetectedAnswer[] = [];
 
+  // Pass 1: text-based detection
+  const textResults: DetectedAnswer[] = [];
   for (let p = startPage; p <= last; p++) {
     let debugPage: any = undefined;
     if (debug) {
       debugPage = debug.pages.find((pg: any) => pg.pageNum === p);
       if (!debugPage) { debugPage = {}; debug.pages.push(debugPage); }
     }
-    all.push(...await detectAnswersOnPage(pdf, p, debugPage));
+    textResults.push(...await detectAnswersOnPage(pdf, p, debugPage));
   }
 
-  const unique = new Map<number, DetectedAnswer>();
-  for (const a of all) {
-    const existing = unique.get(a.problemNumber);
-    if (!existing || a.confidence > existing.confidence) unique.set(a.problemNumber, a);
+  // Deduplicate text results
+  const textUnique = new Map<number, DetectedAnswer>();
+  for (const a of textResults) {
+    const existing = textUnique.get(a.problemNumber);
+    if (!existing || a.confidence > existing.confidence) textUnique.set(a.problemNumber, a);
   }
-  return [...unique.values()].sort((a, b) => a.problemNumber - b.problemNumber);
+  const textFinal = [...textUnique.values()].sort((a, b) => a.problemNumber - b.problemNumber);
+
+  // If text-based found enough answers, use them
+  const minExpected = expectedCount ? Math.floor(expectedCount * 0.6) : 5;
+  if (textFinal.length >= minExpected) {
+    console.log(`[detectAnswersOnPages] Text-based: ${textFinal.length} answers (sufficient)`);
+    return textFinal;
+  }
+
+  console.log(`[detectAnswersOnPages] Text-based: only ${textFinal.length} answers, trying position-based...`);
+
+  // Pass 2: position-based detection (for unreadable fonts)
+  const posResults: DetectedAnswer[] = [];
+  for (let p = startPage; p <= last; p++) {
+    const { items, viewport } = await getPageTextItems(pdf, p);
+    const posDetected = detectAnswersByPosition(items, p, viewport, expectedCount || 20);
+    posResults.push(...posDetected);
+  }
+
+  // Use position-based if it found more answers
+  if (posResults.length > textFinal.length) {
+    console.log(`[detectAnswersOnPages] Position-based: ${posResults.length} answers (using this)`);
+
+    if (debug) {
+      for (const dp of debug.pages) {
+        if (dp.pageNum >= startPage && dp.pageNum <= last) {
+          dp.detectedAnswers = posResults
+            .filter(r => r.pageNumber === dp.pageNum)
+            .map(r => ({ number: r.problemNumber, y: Math.round(r.y), column: r.column, text: r.answerText }));
+          dp.positionBased = true;
+        }
+      }
+    }
+
+    return posResults;
+  }
+
+  return textFinal;
 }
 
 /* ================================================================
@@ -922,6 +1084,7 @@ export async function extractAnswerImages(
       const page = await pdf.getPage(ans.pageNumber);
       const vp = page.getViewport({ scale: 1.0 });
 
+      // Find next answer in same column for height calculation
       let nextY: number | null = null;
       for (let j = i + 1; j < uniq.length; j++) {
         if (uniq[j].pageNumber === ans.pageNumber && uniq[j].column === ans.column) {
@@ -929,13 +1092,17 @@ export async function extractAnswerImages(
         }
       }
 
-      const ansH = nextY ? (nextY - ans.y) : Math.min(60, vp.height - ans.y);
+      const ansH = nextY ? (nextY - ans.y) : Math.min(60, vp.height * 0.92 - ans.y);
       const colW = vp.width / 2;
 
-      const sx = Math.max(0, ans.x * scale);
-      const sy = Math.max(0, (ans.y - 10) * scale);
-      const sw = Math.min(colW * scale, fullCanvas.width - sx);
-      const sh = Math.max(20, (ansH + 15) * scale);
+      // Start from column beginning (not answer x) to capture answer numbers
+      const colStartX = ans.column === 0 ? 0 : vp.width / 2;
+      const leftPad = 5; // small padding
+
+      const sx = Math.max(0, (colStartX - leftPad) * scale);
+      const sy = Math.max(0, (ans.y - 12) * scale);
+      const sw = Math.min((colW + leftPad) * scale, fullCanvas.width - sx);
+      const sh = Math.max(25, (ansH + 15) * scale);
 
       const crop = document.createElement('canvas');
       crop.width = Math.max(1, Math.round(sw));
@@ -949,7 +1116,7 @@ export async function extractAnswerImages(
         id: `ans${ans.pageNumber}-n${ans.problemNumber}`,
         number: ans.problemNumber, pageNumber: ans.pageNumber,
         imageDataUrl: trimWhitespace(crop),
-        bbox: { x: ans.x, y: ans.y, width: sw / scale, height: ansH },
+        bbox: { x: colStartX, y: ans.y, width: colW, height: ansH },
       });
     } catch (err) {
       console.error(`Answer extract failed #${ans.problemNumber}:`, err);
