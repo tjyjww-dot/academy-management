@@ -320,26 +320,52 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Push notification (outside transaction - non-fatal)
     if (sendPushNotification) {
+      let expoSent = 0;
+      let webSent = 0;
       try {
         const { studentId: pushStudentId } = sendPushNotification;
+        // 학부모 + 학생 본인 userId 수집
         const parentLinks = await prisma.parentStudent.findMany({
           where: { studentId: pushStudentId },
           include: { parent: { include: { pushTokens: { where: { isActive: true } } } } },
         });
-        const tokens = parentLinks.flatMap(pl => pl.parent.pushTokens.map(pt => pt.token));
-        if (tokens.length > 0) {
-          const messages = tokens.map(t => ({
-            to: t, sound: 'default', badge: 1, priority: 'high', channelId: 'default',
+        const student = await prisma.student.findUnique({
+          where: { id: pushStudentId },
+          include: { user: { include: { pushTokens: { where: { isActive: true } } } } },
+        });
+        const expoTokens = [
+          ...parentLinks.flatMap(pl => pl.parent.pushTokens.map(pt => pt.token)),
+          ...((student?.user?.pushTokens || []).map(pt => pt.token)),
+        ];
+        if (expoTokens.length > 0) {
+          const messages = expoTokens.map(t => ({
+            to: t,
+            sound: 'default',
+            badge: 1,
+            priority: 'high',
+            channelId: 'default',
             title: '📋 수업 리포트',
             body: sendPushNotification.studentName + ' 학생의 오늘 수업 리포트가 도착했습니다.',
             data: { type: 'DAILY_REPORT', studentId: pushStudentId, date },
           }));
-          await fetch('https://exp.host/--/api/v2/push/send', {
+          const expoRes = await fetch('https://exp.host/--/api/v2/push/send', {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
             body: JSON.stringify(messages),
           });
+          if (expoRes.ok) expoSent = expoTokens.length;
         }
+        // 웹 푸시 (학부모/학생 모두)
+        try {
+          const { sendWebPushToStudent } = await import('@/lib/web-push-notification');
+          const r = await sendWebPushToStudent(
+            pushStudentId,
+            '📋 수업 리포트',
+            sendPushNotification.studentName + ' 학생의 오늘 수업 리포트가 도착했습니다.',
+            '/parent'
+          );
+          webSent = r?.sent || 0;
+        } catch (e) { console.error('web push error', e); }
       } catch (pushErr) {
         console.error('Push notification error (non-fatal):', pushErr);
       }
