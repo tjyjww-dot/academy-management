@@ -794,9 +794,14 @@ export function clearPageCache() { pageCanvasCache.clear(); }
 export async function extractProblemImage(pdf: any, problem: DetectedProblem, scale: number = 2.0): Promise<string> {
   const fullCanvas = await getOrRenderPage(pdf, problem.pageNumber, scale);
 
-  const sx = Math.max(0, problem.bbox.x * scale);
+  // 왼쪽에 여백을 추가하여 문제 번호가 잘리지 않도록 함
+  const leftPadding = 15; // PDF 좌표 기준 15pt 왼쪽 여유
+  const adjustedX = Math.max(0, problem.bbox.x - leftPadding);
+  const extraWidth = problem.bbox.x - adjustedX; // 실제 추가된 너비
+
+  const sx = Math.max(0, adjustedX * scale);
   const sy = Math.max(0, problem.bbox.y * scale);
-  const sw = Math.min(problem.bbox.width * scale, fullCanvas.width - sx);
+  const sw = Math.min((problem.bbox.width + extraWidth) * scale, fullCanvas.width - sx);
   const sh = Math.min(problem.bbox.height * scale, fullCanvas.height - sy);
 
   if (sw <= 0 || sh <= 0) {

@@ -235,12 +235,48 @@ export default function WrongAnswersPage() {
       setExtractProgress({ current: 0, total: 0, message: '문제 페이지에서 문제를 감지 중...' });
       const detected = await detectAllProblems(pdf, problemPageRange.start, problemPageRange.end, debug);
 
-      // Step 2: Detect answers
+      // Step 2: Detect answers (client-side pdfjs-dist)
       setExtractProgress({ current: 0, total: 0, message: '답지 페이지에서 답을 감지 중...' });
-      const answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end, debug);
+      let answersDetected = await detectAnswersOnPages(pdf, answerPageRange.start, answerPageRange.end, debug);
 
-      // Save debug info regardless of result
+      // Save debug info
       setDebugInfo({ ...debug, problemCount: detected.length, answerCount: answersDetected.length });
+
+      // Step 2.5: If client-side detection failed or got few answers, try server-side extraction
+      let serverAnswers: Record<string, string> = {};
+      const detectedAnswerCount = answersDetected.length;
+      const expectedMinAnswers = Math.max(3, detected.length * 0.5);
+
+      if (detectedAnswerCount < expectedMinAnswers && pdfFile) {
+        setExtractProgress({ current: 0, total: 0, message: `클라이언트 감지 ${detectedAnswerCount}개. 서버에서 답 추출 시도 중...` });
+        try {
+          const serverFormData = new FormData();
+          serverFormData.append('file', pdfFile);
+          serverFormData.append('answerStartPage', String(answerPageRange.start));
+          serverFormData.append('answerEndPage', String(answerPageRange.end));
+          serverFormData.append('totalProblems', String(detected.length));
+
+          const serverRes = await fetch('/api/test-papers/extract-answers', {
+            method: 'POST',
+            body: serverFormData,
+          });
+          if (serverRes.ok) {
+            const serverData = await serverRes.json();
+            if (serverData.answers && Object.keys(serverData.answers).length > detectedAnswerCount) {
+              serverAnswers = serverData.answers;
+              console.log('[extract] Server extracted', Object.keys(serverAnswers).length, 'answers vs client', detectedAnswerCount);
+              setDebugInfo((prev: any) => ({
+                ...prev,
+                serverExtraction: true,
+                serverAnswerCount: Object.keys(serverAnswers).length,
+                serverRawText: serverData.rawText,
+              }));
+            }
+          }
+        } catch (e) {
+          console.error('Server answer extraction failed:', e);
+        }
+      }
 
       if (detected.length === 0) {
         setExtractError('문제를 감지하지 못했습니다. 아래 디버그 정보를 확인해주세요.');
@@ -256,7 +292,7 @@ export default function WrongAnswersPage() {
         setExtractProgress({ current: cur, total: tot, message: `문제 이미지 추출 중... (${cur}/${tot})` });
       });
 
-      // Step 4: Extract answer images
+      // Step 4: Extract answer images (if client detected answers)
       let answerImages: any[] = [];
       if (answersDetected.length > 0) {
         setExtractProgress({ current: 0, total: answersDetected.length, message: `${answersDetected.length}개 답 발견. 답 이미지 추출 중...` });
@@ -265,31 +301,38 @@ export default function WrongAnswersPage() {
         });
       }
 
-      // Step 4.5: If no answers detected, render entire answer page(s) as fallback
-      if (answersDetected.length === 0 && answerPageRange.start && answerPageRange.end) {
-        setExtractProgress({ current: 0, total: 0, message: '답 감지 실패. 답지 페이지 전체를 이미지로 추출 중...' });
-        const { renderPageToCanvas } = await import('@/lib/pdfExtractor');
-        const answerPageImages: string[] = [];
-        for (let ap = answerPageRange.start; ap <= answerPageRange.end; ap++) {
-          const canvas = await renderPageToCanvas(pdf, ap, 2.0);
-          answerPageImages.push(canvas.toDataURL('image/png'));
-        }
-        // Store answer page images in debug for manual reference
-        setDebugInfo((prev: any) => ({
-          ...prev,
-          answerPageImages,
-          answerDetectionFailed: true,
-        }));
+      // Step 4.5: Render answer page images for reference
+      setExtractProgress({ current: 0, total: 0, message: '답지 페이지 이미지 추출 중...' });
+      const { renderPageToCanvas } = await import('@/lib/pdfExtractor');
+      const answerPageImages: string[] = [];
+      for (let ap = answerPageRange.start; ap <= answerPageRange.end; ap++) {
+        const canvas = await renderPageToCanvas(pdf, ap, 2.0);
+        answerPageImages.push(canvas.toDataURL('image/png'));
       }
+      setDebugInfo((prev: any) => ({
+        ...prev,
+        answerPageImages,
+        answerDetectionFailed: answersDetected.length < expectedMinAnswers && Object.keys(serverAnswers).length < expectedMinAnswers,
+      }));
 
-      // Step 5: Match
+      // Step 5: Match - combine client + server answers
       setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 매칭 중...' });
       const matched = matchProblemsToAnswers(problemImages, answerImages);
 
-      // Add answer text info from detected answers
+      // Attach answer text from server or client detection
+      const useServer = Object.keys(serverAnswers).length > detectedAnswerCount;
       for (const m of matched) {
-        const detectedAns = answersDetected.find(a => a.problemNumber === m.number);
-        if (detectedAns) (m as any).answerText = detectedAns.answerText;
+        if (useServer && serverAnswers[String(m.number)]) {
+          (m as any).answerText = serverAnswers[String(m.number)];
+          // Mark as "server matched" even without answer image
+          if (!m.answerPageNumber) {
+            (m as any).answerText = serverAnswers[String(m.number)];
+            (m as any).serverMatched = true;
+          }
+        } else {
+          const detectedAns = answersDetected.find(a => a.problemNumber === m.number);
+          if (detectedAns) (m as any).answerText = detectedAns.answerText;
+        }
       }
 
       setExtractedProblems(matched);
@@ -629,9 +672,16 @@ export default function WrongAnswersPage() {
                                 <span>p.{p.answerPageNumber}</span>
                               </div>
                             </div>
+                          ) : (p as any).answerText ? (
+                            <div className="bg-blue-50 rounded border border-blue-200 p-2">
+                              <div className="text-xs text-blue-700 text-center">
+                                <span className="font-semibold">답: {(p as any).answerText}</span>
+                                {(p as any).serverMatched && <span className="ml-1 text-blue-500">(서버 추출)</span>}
+                              </div>
+                            </div>
                           ) : (
                             <div className="bg-yellow-50 rounded border border-yellow-200 p-2 text-center">
-                              <span className="text-xs text-yellow-600">답 미매칭 - 답지 확인 필요</span>
+                              <span className="text-xs text-yellow-600">답 미매칭</span>
                             </div>
                           )}
                         </div>
