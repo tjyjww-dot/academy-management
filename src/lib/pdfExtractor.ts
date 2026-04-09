@@ -27,6 +27,7 @@ export interface DetectedAnswer {
   pageNumber: number;
   confidence: number;
   column: number;
+  answerEndY?: number; // Y position where answer content ends (before 해설)
 }
 
 export interface ExtractedProblem {
@@ -324,7 +325,8 @@ function detectAnswersInColumn(
   // Skip header lines (titles like "중등수학", "복습 테스트", etc.)
   const headerKeywords = ['수학', '테스트', '시험', '답지', '답안', '정답', '해설'];
 
-  for (const line of lines) {
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
     const sx = line.items;
     if (sx.length === 0) continue;
 
@@ -418,15 +420,38 @@ function detectAnswersInColumn(
     if (ansNum && ansNum > 0 && ansNum <= 100) {
       // Clean up answer text
       if (!ansText) ansText = fullText.replace(/^\d{1,3}\)\s*/, '').trim();
+      // Strip "답 " prefix if present (e.g., "답 ①" → "①")
+      ansText = ansText.replace(/^답\s*/, '').trim();
       // Convert circled numbers to digits if answer is just a circled number
       ansText = ansText.replace(/^①$/, '1').replace(/^②$/, '2').replace(/^③$/, '3')
         .replace(/^④$/, '4').replace(/^⑤$/, '5');
+
+      // Detect answerEndY by scanning for "해설" or next answer in subsequent lines
+      let answerEndY: number | undefined;
+      for (let j = lineIdx + 1; j < lines.length; j++) {
+        const nextLine = lines[j];
+        const nextText = nextLine.items.map(i => i.text).join('').trim();
+        if (nextText.includes('해설')) {
+          answerEndY = nextLine.y - 2; // Stop 2pt before explanation
+          break;
+        }
+        // Stop at next answer number pattern too
+        if (nextText.match(/^\d{1,3}\)\s/) && nextLine.y > line.y + 5) {
+          answerEndY = nextLine.y - 2;
+          break;
+        }
+      }
+      // If no boundary found, use answer line + reasonable height for content
+      if (!answerEndY) {
+        answerEndY = line.y + 25; // answer line + 1-2 lines of content
+      }
 
       results.push({
         problemNumber: ansNum,
         answerText: ansText,
         y: line.y, x: line.minX,
         pageNumber: pageNum, confidence: conf, column: columnIndex,
+        answerEndY: answerEndY,
       });
     }
   }
@@ -990,6 +1015,7 @@ async function detectAnswersByOperatorList(
       pageNumber: pageNum,
       confidence: a.source === 'text' || a.source === 'merged' ? 0.95 : 0.90,
       column: a.column,
+      answerEndY: a.y + 25, // For image-based answers, content typically ends ~25pt below start
     });
   }
 
@@ -1240,7 +1266,19 @@ export async function extractAnswerImages(
         }
       }
 
-      const ansH = nextY ? (nextY - ans.y) : Math.min(80, vp.height * 0.92 - ans.y);
+      // Use detected answerEndY for tighter crop, or cap at 50pt to avoid explanations
+      let ansH: number;
+      if (ans.answerEndY) {
+        // Use detected content end
+        ansH = ans.answerEndY - ans.y;
+      } else if (nextY) {
+        // Cap at reasonable max to avoid including explanations
+        ansH = Math.min(nextY - ans.y, 50);
+      } else {
+        ansH = 50; // last answer in column
+      }
+      // Minimum height to show at least one line
+      ansH = Math.max(ansH, 20);
       const colW = vp.width / 2;
 
       // Start from column beginning to capture full answer including "N)" prefix

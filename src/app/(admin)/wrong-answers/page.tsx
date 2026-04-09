@@ -152,6 +152,60 @@ export default function WrongAnswersPage() {
   /* ============================================================
      PDF Upload & Problem Extraction
      ============================================================ */
+  const autoDetectPageRanges = async (f: File) => {
+    try {
+      const { loadPdf, getPageTextItems } = await import('@/lib/pdfExtractor');
+      const pdf = await loadPdf(f);
+      const numPages = pdf.numPages;
+      setTotalPages(numPages);
+
+      // Auto-detect answer pages: scan from last page backward for "N) 답" or "N)" patterns
+      let answerStartPage = numPages; // default: last page is the answer page
+      for (let p = numPages; p >= Math.max(1, numPages - 5); p--) {
+        try {
+          const { items } = await getPageTextItems(pdf, p);
+          // Check for answer patterns: "N) 답" (text-based) or few readable text items with "N)" (image-based)
+          const ansPatterns = items.filter((t: any) =>
+            t.text.match(/^\d{1,2}\)\s*답/) || t.text.match(/^\d{1,2}\)\s*$/)
+          );
+          // Also check: pages with very few readable items but answer-page headers
+          const hasAnswerHeader = items.some((t: any) =>
+            t.text.includes('테스트') || t.text.includes('답지') || t.text.includes('정답')
+          );
+          const hasAnswerContent = ansPatterns.length >= 2 || (hasAnswerHeader && items.length < 100);
+
+          if (hasAnswerContent && p < numPages) {
+            answerStartPage = p; // Extend answer range backward
+          } else if (p === numPages && (ansPatterns.length >= 1 || hasAnswerHeader)) {
+            answerStartPage = p; // Last page has answers
+          } else {
+            break; // No more answer pages
+          }
+        } catch { break; }
+      }
+
+      // For image-based answer PDFs (very few readable text items on last page),
+      // also check if last page has many small images (answer number glyphs)
+      if (answerStartPage === numPages) {
+        try {
+          const lastPage = await pdf.getPage(numPages);
+          const lastVp = lastPage.getViewport({ scale: 1.0 });
+          const opList = await lastPage.getOperatorList();
+          let imgCount = 0;
+          for (let i = 0; i < opList.fnArray.length; i++) {
+            if (opList.fnArray[i] === 85) imgCount++; // paintImageXObject
+          }
+          if (imgCount >= 10) {
+            answerStartPage = numPages; // Confirmed: last page has answer images
+          }
+        } catch { /* ignore */ }
+      }
+
+      setProblemPageRange({ start: 1, end: Math.max(1, answerStartPage - 1) });
+      setAnswerPageRange({ start: answerStartPage, end: numPages });
+    } catch { /* ignore */ }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f && f.type === 'application/pdf') {
@@ -159,16 +213,7 @@ export default function WrongAnswersPage() {
       setExtractedProblems([]);
       setExtractState('idle');
       setWorkbookName(f.name.replace('.pdf', ''));
-      // Load PDF to get page count
-      (async () => {
-        try {
-          const { loadPdf } = await import('@/lib/pdfExtractor');
-          const pdf = await loadPdf(f);
-          setTotalPages(pdf.numPages);
-          setProblemPageRange({ start: 1, end: pdf.numPages });
-          setAnswerPageRange({ start: pdf.numPages + 1, end: pdf.numPages + 1 });
-        } catch { /* ignore */ }
-      })();
+      autoDetectPageRanges(f);
     }
   };
 
@@ -201,16 +246,7 @@ export default function WrongAnswersPage() {
       setExtractedProblems([]);
       setExtractState('idle');
       setWorkbookName(f.name.replace('.pdf', ''));
-      // Load PDF to get page count
-      (async () => {
-        try {
-          const { loadPdf } = await import('@/lib/pdfExtractor');
-          const pdf = await loadPdf(f);
-          setTotalPages(pdf.numPages);
-          setProblemPageRange({ start: 1, end: pdf.numPages });
-          setAnswerPageRange({ start: pdf.numPages + 1, end: pdf.numPages + 1 });
-        } catch { /* ignore */ }
-      })();
+      autoDetectPageRanges(f);
     } else {
       showMsg('PDF 파일을 선택해주세요', 'error');
     }
