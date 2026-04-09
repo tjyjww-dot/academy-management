@@ -426,32 +426,21 @@ function detectAnswersInColumn(
       ansText = ansText.replace(/^①$/, '1').replace(/^②$/, '2').replace(/^③$/, '3')
         .replace(/^④$/, '4').replace(/^⑤$/, '5');
 
-      // Detect answerEndY by scanning for "해설" or next answer in subsequent lines
-      let answerEndY: number | undefined;
-      for (let j = lineIdx + 1; j < lines.length; j++) {
-        const nextLine = lines[j];
-        const nextText = nextLine.items.map(i => i.text).join('').trim();
-        if (nextText.includes('해설')) {
-          answerEndY = nextLine.y - 2; // Stop 2pt before explanation
-          break;
-        }
-        // Stop at next answer number pattern too
-        if (nextText.match(/^\d{1,3}\)\s/) && nextLine.y > line.y + 5) {
-          answerEndY = nextLine.y - 2;
-          break;
-        }
-      }
-      // If no boundary found, use answer line + reasonable height for content
-      if (!answerEndY) {
-        answerEndY = line.y + 25; // answer line + 1-2 lines of content
-      }
+      // Text Y from pdfjs is the BASELINE (bottom of text).
+      // Adjust to visual top by subtracting text height for consistent cropping.
+      const textHeight = line.firstItemHeight || 10;
+      const visualTopY = line.y - textHeight;
 
+      // For text-based answers, don't set answerEndY.
+      // extractAnswerImages will use nextAnswer.y as the boundary,
+      // which includes any explanations (해설) between answers.
       results.push({
         problemNumber: ansNum,
         answerText: ansText,
-        y: line.y, x: line.minX,
+        y: visualTopY, x: line.minX,
         pageNumber: pageNum, confidence: conf, column: columnIndex,
-        answerEndY: answerEndY,
+        // answerEndY intentionally NOT set — let extractAnswerImages
+        // use the full height to the next answer (includes 해설)
       });
     }
   }
@@ -1266,16 +1255,19 @@ export async function extractAnswerImages(
         }
       }
 
-      // Use detected answerEndY for tighter crop, or cap at 50pt to avoid explanations
+      // Calculate crop height:
+      // - If answerEndY is set (operator-list/image-based): tight crop to answer only
+      // - If answerEndY is NOT set (text-based): full height to next answer (includes 해설)
       let ansH: number;
       if (ans.answerEndY) {
-        // Use detected content end
+        // Tight crop: operator-list detected answers (no explanations)
         ansH = ans.answerEndY - ans.y;
       } else if (nextY) {
-        // Cap at reasonable max to avoid including explanations
-        ansH = Math.min(nextY - ans.y, 50);
+        // Full height to next answer: includes explanations (해설) if present
+        ansH = nextY - ans.y;
       } else {
-        ansH = 50; // last answer in column
+        // Last answer in column: extend to near bottom of page
+        ansH = Math.min(200, vp.height * 0.92 - ans.y);
       }
       // Minimum height to show at least one line
       ansH = Math.max(ansH, 20);
