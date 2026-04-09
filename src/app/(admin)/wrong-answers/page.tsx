@@ -265,9 +265,32 @@ export default function WrongAnswersPage() {
         });
       }
 
+      // Step 4.5: If no answers detected, render entire answer page(s) as fallback
+      if (answersDetected.length === 0 && answerPageRange.start && answerPageRange.end) {
+        setExtractProgress({ current: 0, total: 0, message: '답 감지 실패. 답지 페이지 전체를 이미지로 추출 중...' });
+        const { renderPageToCanvas } = await import('@/lib/pdfExtractor');
+        const answerPageImages: string[] = [];
+        for (let ap = answerPageRange.start; ap <= answerPageRange.end; ap++) {
+          const canvas = await renderPageToCanvas(pdf, ap, 2.0);
+          answerPageImages.push(canvas.toDataURL('image/png'));
+        }
+        // Store answer page images in debug for manual reference
+        setDebugInfo((prev: any) => ({
+          ...prev,
+          answerPageImages,
+          answerDetectionFailed: true,
+        }));
+      }
+
       // Step 5: Match
       setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 매칭 중...' });
       const matched = matchProblemsToAnswers(problemImages, answerImages);
+
+      // Add answer text info from detected answers
+      for (const m of matched) {
+        const detectedAns = answersDetected.find(a => a.problemNumber === m.number);
+        if (detectedAns) (m as any).answerText = detectedAns.answerText;
+      }
 
       setExtractedProblems(matched);
       setExtractState('done');
@@ -598,16 +621,39 @@ export default function WrongAnswersPage() {
                             <img src={p.imageDataUrl} alt={`문제 ${p.number}`} className="w-full object-contain max-h-40 cursor-pointer hover:opacity-75" onClick={() => setSelectedProblem(p)} />
                           </div>
 
-                          {p.answerImageDataUrl && (
+                          {p.answerImageDataUrl ? (
                             <div className="bg-green-50 rounded overflow-hidden border border-green-200">
                               <img src={p.answerImageDataUrl} alt={`답 ${p.number}`} className="w-full object-contain max-h-24" />
-                              <p className="text-xs text-green-600 text-center py-1">답지 p.{p.answerPageNumber}</p>
+                              <div className="text-xs text-green-600 text-center py-1">
+                                {(p as any).answerText && <span className="font-semibold mr-1">답: {(p as any).answerText}</span>}
+                                <span>p.{p.answerPageNumber}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-yellow-50 rounded border border-yellow-200 p-2 text-center">
+                              <span className="text-xs text-yellow-600">답 미매칭 - 답지 확인 필요</span>
                             </div>
                           )}
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Answer Page Fallback - shown when answer detection fails */}
+                  {debugInfo?.answerDetectionFailed && debugInfo?.answerPageImages?.length > 0 && (
+                    <div className="bg-white rounded-xl border p-5">
+                      <h3 className="font-semibold text-orange-700 mb-2">⚠️ 답지 자동 감지 실패</h3>
+                      <p className="text-sm text-gray-600 mb-3">답지 페이지에서 답을 자동으로 감지하지 못했습니다. 아래 답지 이미지를 참고하여 확인해주세요.</p>
+                      <div className="space-y-4">
+                        {debugInfo.answerPageImages.map((img: string, idx: number) => (
+                          <div key={idx} className="border rounded-lg overflow-hidden">
+                            <div className="bg-orange-50 px-3 py-1 text-sm font-medium text-orange-700">답지 페이지 {answerPageRange.start + idx}</div>
+                            <img src={img} alt={`답지 페이지 ${idx + 1}`} className="w-full object-contain" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Save Settings */}
                   <div className="bg-white rounded-xl border p-5">

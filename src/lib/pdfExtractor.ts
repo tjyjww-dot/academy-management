@@ -321,9 +321,19 @@ function detectAnswersInColumn(
   const lines = groupIntoLines(columnItems);
   const results: DetectedAnswer[] = [];
 
+  // Skip header lines (titles like "중등수학", "복습 테스트", etc.)
+  const headerKeywords = ['수학', '테스트', '시험', '답지', '답안', '정답', '해설'];
+
   for (const line of lines) {
     const sx = line.items;
     if (sx.length === 0) continue;
+
+    // Build full line text (concatenate ALL items on this line)
+    const fullText = sx.map(i => i.text).join('').trim();
+
+    // Skip very short lines or header/title lines
+    if (fullText.length < 2) continue;
+    if (headerKeywords.some(kw => fullText.includes(kw) && !fullText.match(/^\d{1,3}\)/))) continue;
 
     let ansNum: number | null = null;
     let ansText = '';
@@ -331,32 +341,90 @@ function detectAnswersInColumn(
     const first = sx[0].text.trim();
     let m;
 
-    // "N)" or "N) text"
-    m = first.match(/^(\d{1,3})\)\s*(.*)$/);
+    // Strategy 1: Full line text match — most reliable
+    // "N) answer" pattern on full concatenated text
+    m = fullText.match(/^(\d{1,3})\)\s*(.*)$/);
     if (m) { ansNum = parseInt(m[1], 10); ansText = m[2] || ''; conf = 0.95; }
 
-    // number + ")" split
+    // Strategy 2: Full line with space-joined items
+    if (!ansNum) {
+      const spaceJoined = sx.map(i => i.text.trim()).filter(t => t).join(' ').trim();
+      m = spaceJoined.match(/^(\d{1,3})\s*\)\s*(.*)$/);
+      if (m) { ansNum = parseInt(m[1], 10); ansText = m[2] || ''; conf = 0.93; }
+    }
+
+    // Strategy 3: First item is "N)" or "N) text"
+    if (!ansNum) {
+      m = first.match(/^(\d{1,3})\)\s*(.*)$/);
+      if (m) { ansNum = parseInt(m[1], 10); ansText = m[2] || ''; conf = 0.92; }
+    }
+
+    // Strategy 4: First item is just number, second starts with ")"
     if (!ansNum && sx.length > 1) {
       const numMatch = first.match(/^(\d{1,3})$/);
-      if (numMatch && sx[1].text.trim().startsWith(')')) {
-        ansNum = parseInt(numMatch[1], 10);
-        ansText = sx[1].text.trim().substring(1).trim();
-        conf = 0.93;
+      if (numMatch) {
+        // Check if any of the next few items contain ")"
+        for (let k = 1; k < Math.min(sx.length, 4); k++) {
+          const nextText = sx[k].text.trim();
+          if (nextText.startsWith(')')) {
+            ansNum = parseInt(numMatch[1], 10);
+            ansText = nextText.substring(1).trim();
+            // Collect remaining items as answer text
+            if (!ansText && k + 1 < sx.length) {
+              ansText = sx.slice(k + 1).map(i => i.text).join('').trim();
+            }
+            conf = 0.91;
+            break;
+          }
+          // ")" might be a separate tiny item
+          if (nextText === ')' || nextText === ') ') {
+            ansNum = parseInt(numMatch[1], 10);
+            ansText = sx.slice(k + 1).map(i => i.text).join('').trim();
+            conf = 0.90;
+            break;
+          }
+        }
       }
     }
 
-    // Concat first items
+    // Strategy 5: Concat first N items with no separator
     if (!ansNum) {
-      let concat = sx.slice(0, 5).map(i => i.text).join('');
-      m = concat.trim().match(/^(\d{1,3})\)\s*(.*)$/);
-      if (m) { ansNum = parseInt(m[1], 10); ansText = m[2] || ''; conf = 0.90; }
+      for (let n = 2; n <= Math.min(sx.length, 6); n++) {
+        const concat = sx.slice(0, n).map(i => i.text).join('');
+        m = concat.trim().match(/^(\d{1,3})\)\s*(.*)$/);
+        if (m) {
+          ansNum = parseInt(m[1], 10);
+          ansText = m[2] || sx.slice(n).map(i => i.text).join('').trim();
+          conf = 0.88;
+          break;
+        }
+      }
+    }
+
+    // Strategy 6: Look for "N." pattern (some answer sheets use dots)
+    if (!ansNum) {
+      m = fullText.match(/^(\d{1,3})\.\s+(.+)$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        // Only use this if the "answer" part doesn't look like a problem statement
+        // (short answer, math expression, circled number, etc.)
+        const answerPart = m[2].trim();
+        if (answerPart.length < 40 && !answerPart.includes('다음') && !answerPart.includes('구하')) {
+          ansNum = n; ansText = answerPart; conf = 0.75;
+        }
+      }
     }
 
     if (ansNum && ansNum > 0 && ansNum <= 100) {
-      const fullText = sx.map(i => i.text).join('').trim();
+      // Clean up answer text
+      if (!ansText) ansText = fullText.replace(/^\d{1,3}\)\s*/, '').trim();
+      // Convert circled numbers to digits if answer is just a circled number
+      ansText = ansText.replace(/^①$/, '1').replace(/^②$/, '2').replace(/^③$/, '3')
+        .replace(/^④$/, '4').replace(/^⑤$/, '5');
+
       results.push({
         problemNumber: ansNum,
-        answerText: ansText || fullText.replace(/^\d{1,3}\)\s*/, '').trim(),
+        answerText: ansText,
         y: line.y, x: line.minX,
         pageNumber: pageNum, confidence: conf, column: columnIndex,
       });
