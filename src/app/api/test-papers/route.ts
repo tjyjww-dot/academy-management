@@ -67,11 +67,18 @@ export async function POST(request: NextRequest) {
       if (pnStr) problemNumbers = JSON.parse(pnStr);
     } catch {}
 
+    // Parse base64 data URLs fallback
+    let dataUrls: string[] = [];
+    try {
+      const duStr = formData.get('dataUrls') as string;
+      if (duStr) dataUrls = JSON.parse(duStr);
+    } catch {}
+
     if (!name || !classroomId || !totalProblems) {
       return NextResponse.json({ error: '시험명, 반, 총 문항수를 모두 입력해주세요' }, { status: 400 });
     }
 
-    // Upload files to Google Drive
+    // Upload files to Google Drive (with base64 fallback)
     const pageData: { pageNumber: number; imageUrl: string }[] = [];
     let uploadWarning = '';
 
@@ -94,9 +101,18 @@ export async function POST(request: NextRequest) {
           pageData.push({ pageNumber: pNum, imageUrl: result.url });
         }
       } catch (uploadError: any) {
-        console.error('Google Drive upload failed:', uploadError?.message || uploadError);
-        uploadWarning = '파일 업로드에 실패했지만 시험지는 등록됩니다.';
+        console.error('Google Drive upload failed, using base64 fallback:', uploadError?.message || uploadError);
+        uploadWarning = '클라우드 저장 실패 - 내장 이미지로 저장됩니다.';
       }
+    }
+
+    // Fallback: if Google Drive failed (no pages saved), use base64 data URLs
+    if (pageData.length === 0 && dataUrls.length > 0) {
+      for (let i = 0; i < dataUrls.length; i++) {
+        const pNum = problemNumbers[i] || (i + 1);
+        pageData.push({ pageNumber: pNum, imageUrl: dataUrls[i] });
+      }
+      console.log(`[test-papers] Used base64 fallback for ${pageData.length} problem images`);
     }
 
     // Create test paper (even if file upload failed)

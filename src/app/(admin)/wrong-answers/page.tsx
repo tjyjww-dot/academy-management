@@ -91,7 +91,7 @@ export default function WrongAnswersPage() {
   const [regSuccess, setRegSuccess] = useState(false);
 
   // Test creation modal
-  const [testCreateModal, setTestCreateModal] = useState<{ studentId: string; studentName: string; activeCount: number } | null>(null);
+  const [testCreateModal, setTestCreateModal] = useState<{ studentId: string; studentName: string; activeCount: number; classroomId?: string } | null>(null);
   const [testCreateCount, setTestCreateCount] = useState(0);
 
   // Grading modal
@@ -109,8 +109,13 @@ export default function WrongAnswersPage() {
       fetchTestPapersForClassroom(regClassroom);
       fetchStudentsForClassroom(regClassroom);
       if (activeTab === 'answers' || activeTab === 'tests') {
-        fetchDataForClassroom(regClassroom);
+        // Sync filterClassroom with regClassroom when switching tabs
+        if (!filterClassroom) setFilterClassroom(regClassroom);
+        fetchDataForClassroom(filterClassroom || regClassroom);
       }
+    } else if (activeTab === 'answers' || activeTab === 'tests') {
+      // Load all data even without classroom selection
+      fetchDataForClassroom('');
     }
   }, [activeTab]);
 
@@ -181,15 +186,12 @@ export default function WrongAnswersPage() {
   };
 
   const fetchDataForClassroom = async (id: string) => {
-    if (!id) {
-      setWrongAnswers([]); setTests([]); setStats({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
-      return;
-    }
     try {
+      const classroomParam = id ? `?classroomId=${id}` : '';
       const [waRes, testRes, statsRes] = await Promise.all([
-        fetch(`/api/wrong-answers?classroomId=${id}`),
-        fetch(`/api/wrong-answers/tests?classroomId=${id}`),
-        fetch(`/api/wrong-answers/stats?classroomId=${id}`),
+        fetch(`/api/wrong-answers${classroomParam}`),
+        fetch(`/api/wrong-answers/tests${classroomParam}`),
+        fetch(`/api/wrong-answers/stats${classroomParam}`),
       ]);
       if (waRes.ok) { const d = await waRes.json(); setWrongAnswers(Array.isArray(d) ? d : []); }
       if (testRes.ok) { const d = await testRes.json(); setTests(Array.isArray(d) ? d : []); }
@@ -472,16 +474,20 @@ export default function WrongAnswersPage() {
 
       // Upload problem images with actual problem numbers
       const problemNumbers: number[] = [];
+      const dataUrls: string[] = [];
       for (let i = 0; i < extractedProblems.length; i++) {
         const p = extractedProblems[i];
         const blob = dataURLtoBlob(p.imageDataUrl);
         const file = new File([blob], `problem-${p.number}.png`, { type: 'image/png' });
         formData.append('images', file);
         problemNumbers.push(p.number);
+        dataUrls.push(p.imageDataUrl);
         setExtractProgress({ current: i + 1, total: extractedProblems.length, message: `이미지 업로드 중 (${i + 1}/${extractedProblems.length})` });
       }
       // Send actual problem numbers so pages get correct pageNumber
       formData.append('problemNumbers', JSON.stringify(problemNumbers));
+      // Send base64 data URLs as fallback when Google Drive upload fails
+      formData.append('dataUrls', JSON.stringify(dataUrls));
 
       const res = await fetch('/api/test-papers', { method: 'POST', body: formData });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
@@ -639,19 +645,21 @@ ${problems.map((p, idx) => `
     if (w) { w.document.write(html); w.document.close(); }
   };
 
-  const openTestCreateModal = (studentId: string, studentName: string, activeCount: number) => {
-    setTestCreateModal({ studentId, studentName, activeCount });
+  const openTestCreateModal = (studentId: string, studentName: string, activeCount: number, classroomId?: string) => {
+    setTestCreateModal({ studentId, studentName, activeCount, classroomId: classroomId || filterClassroom || '' });
     setTestCreateCount(activeCount); // default to all
   };
 
   const handleCreateTest = async () => {
     if (!testCreateModal) return;
-    const { studentId } = testCreateModal;
+    const { studentId, classroomId } = testCreateModal;
+    const cId = classroomId || filterClassroom || regClassroom || '';
+    if (!cId) { showMsg('반을 선택해주세요', 'error'); return; }
     try {
       const res = await fetch('/api/wrong-answers/tests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, classroomId: filterClassroom || '', maxCount: testCreateCount }),
+        body: JSON.stringify({ studentId, classroomId: cId, maxCount: testCreateCount }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       const test = await res.json();
@@ -1205,9 +1213,9 @@ ${problems.map((p, idx) => `
                 <label className="block text-sm font-medium text-gray-700 mb-2">반 선택 (선택사항)</label>
                 <select value={filterClassroom} onChange={e => {
                   setFilterClassroom(e.target.value);
-                  if (e.target.value) setLoading(true);
+                  setLoading(true);
                   setTimeout(() => {
-                    if (e.target.value) fetchDataForClassroom(e.target.value);
+                    fetchDataForClassroom(e.target.value);
                     setLoading(false);
                   }, 0);
                 }}
@@ -1231,7 +1239,7 @@ ${problems.map((p, idx) => `
                           <span className="ml-3 text-sm text-gray-500">활성: {active.length} / 마스터: {mastered.length}</span>
                         </div>
                         {active.length > 0 && (
-                          <button onClick={() => openTestCreateModal(studentId, name, active.length)}
+                          <button onClick={() => openTestCreateModal(studentId, name, active.length, active[0]?.classroomId)}
                             className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
                             테스트 생성
                           </button>
@@ -1268,9 +1276,9 @@ ${problems.map((p, idx) => `
                 <label className="block text-sm font-medium text-gray-700 mb-2">반 선택 (선택사항)</label>
                 <select value={filterClassroom} onChange={e => {
                   setFilterClassroom(e.target.value);
-                  if (e.target.value) setLoading(true);
+                  setLoading(true);
                   setTimeout(() => {
-                    if (e.target.value) fetchDataForClassroom(e.target.value);
+                    fetchDataForClassroom(e.target.value);
                     setLoading(false);
                   }, 0);
                 }}
