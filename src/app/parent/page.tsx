@@ -598,23 +598,36 @@ export default function ParentPage() {
                         </span>
                       ))}
                     </div>
-                    {/* 오답 문제 이미지 보기 */}
-                    {items.some((wa: any) => wa.testPaper?.pages?.length > 0) && (
+                    {/* 오답 문제 이미지 + 정답 보기 */}
+                    {items.some((wa: any) => wa.testPaper?.pages?.length > 0 || wa.testPaper?.answers) && (
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-slate-500 mb-1">문제 이미지 확인</p>
+                        <p className="text-xs font-medium text-slate-500 mb-1">문제 이미지 및 정답 확인</p>
                         {items.filter((wa: any) => wa.status === 'ACTIVE').sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => {
                           const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
                           const imgUrl = page?.imageUrl || wa.problemImage;
-                          if (!imgUrl) return null;
+                          let correctAnswer: string | null = null;
+                          try {
+                            if (wa.testPaper?.answers) {
+                              const parsed = typeof wa.testPaper.answers === 'string' ? JSON.parse(wa.testPaper.answers) : wa.testPaper.answers;
+                              correctAnswer = parsed[wa.problemNumber] || parsed[String(wa.problemNumber)] || null;
+                            }
+                          } catch {}
+                          if (!imgUrl && !correctAnswer) return null;
                           return (
                             <div key={wa.id} className="border border-slate-200 rounded-xl overflow-hidden">
                               <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-100">
                                 <span className="text-xs font-bold text-blue-600">{wa.problemNumber}번</span>
-                                <span className="text-[10px] text-slate-400">{wa.testName}</span>
+                                {correctAnswer && (
+                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700" style={{boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'}}>
+                                    정답: {correctAnswer}
+                                  </span>
+                                )}
                               </div>
-                              <div className="p-2">
-                                <img src={imgUrl} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-64 rounded" />
-                              </div>
+                              {imgUrl && (
+                                <div className="p-2">
+                                  <img src={imgUrl} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-64 rounded" />
+                                </div>
+                              )}
                             </div>
                           );
                         })}
