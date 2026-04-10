@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const classroomId = searchParams.get('classroomId');
+    const summary = searchParams.get('summary') === 'true';
 
     const studentId = searchParams.get('studentId');
     const where: Record<string, unknown> = {};
@@ -28,7 +29,9 @@ export async function GET(request: NextRequest) {
       include: {
         classroom: true,
         student: { select: { id: true, name: true, studentNumber: true } },
-        pages: { orderBy: { pageNumber: 'asc' } },
+        pages: summary
+          ? { select: { id: true, pageNumber: true }, orderBy: { pageNumber: 'asc' as const } }
+          : { orderBy: { pageNumber: 'asc' as const } },
         _count: { select: { wrongAnswers: true } }
       },
       orderBy: { createdAt: 'desc' }

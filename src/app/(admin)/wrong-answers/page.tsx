@@ -209,7 +209,7 @@ export default function WrongAnswersPage() {
 
   const fetchAllTestPapers = async () => {
     try {
-      const res = await fetch('/api/test-papers');
+      const res = await fetch('/api/test-papers?summary=true');
       if (res.ok) setAllTestPapers(await res.json());
     } catch (e) { console.error(e); }
   };
@@ -507,12 +507,15 @@ export default function WrongAnswersPage() {
   }, [regClassroom, uploadStudent, extractedProblems, workbookName, pdfFile]);
 
   const handleDeleteTestPaper = async (id: string) => {
-    if (!confirm('이 시험지를 삭제하시겠습니까?')) return;
+    if (!confirm('이 시험지를 삭제하시겠습니까? 연결된 오답이 있으면 이미지가 사라집니다.')) return;
     try {
       const res = await fetch(`/api/test-papers/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       showMsg('시험지가 삭제되었습니다');
-      if (regClassroom) await fetchTestPapersForClassroom(regClassroom);
+      await Promise.all([
+        fetchAllTestPapers(),
+        regClassroom ? fetchTestPapersForClassroom(regClassroom) : Promise.resolve(),
+      ]);
     } catch (err: any) {
       showMsg('삭제 실패: ' + err.message, 'error');
     }
@@ -973,30 +976,6 @@ ${problems.map((p, idx) => `
                         </div>
                       )}
 
-                      {regClassroom && testPapers.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">저장된 시험지 ({testPapers.length})</label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-                            {testPapers.map(tp => (
-                              <div key={tp.id} className="border rounded-lg p-3 hover:shadow-sm relative group">
-                                <div className="font-medium text-gray-800">{tp.name}</div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {tp.totalProblems}문제 | {tp.pages.length}페이지 | {new Date(tp.createdAt).toLocaleDateString('ko-KR')}
-                                </div>
-                                {tp.pages.length > 0 && (
-                                  <img src={tp.pages[0].imageUrl} alt="preview" className="mt-2 w-full h-24 object-cover rounded border" />
-                                )}
-                                <button
-                                  onClick={() => handleDeleteTestPaper(tp.id)}
-                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">
-                                  🗑
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       {extractState === 'saved' ? (
                         <div className="w-full px-5 py-4 bg-green-50 border-2 border-green-500 rounded-lg text-center">
                           <div className="text-green-700 font-bold text-lg mb-1">✅ 시험지 저장 완료!</div>
@@ -1021,6 +1000,76 @@ ${problems.map((p, idx) => `
                   </div>
                 </>
               )}
+
+              {/* ===== Uploaded Test Paper List ===== */}
+              <div className="bg-white rounded-xl border p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-800">📋 업로드된 시험지 목록</h3>
+                  <button onClick={fetchAllTestPapers} className="text-sm text-blue-600 hover:text-blue-700 hover:underline">새로고침</button>
+                </div>
+                {allTestPapers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <div className="text-3xl mb-2">📄</div>
+                    <p className="text-sm">업로드된 시험지가 없습니다.</p>
+                    <p className="text-xs mt-1">위에서 PDF를 업로드하면 여기에 나타납니다.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
+                          <th className="pb-2 pr-3">시험지명</th>
+                          <th className="pb-2 pr-3">반</th>
+                          <th className="pb-2 pr-3 text-center">문제수</th>
+                          <th className="pb-2 pr-3 text-center">이미지</th>
+                          <th className="pb-2 pr-3">학생</th>
+                          <th className="pb-2 pr-3">업로드 날짜</th>
+                          <th className="pb-2 pr-3 text-center">오답</th>
+                          <th className="pb-2 text-center">삭제</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allTestPapers.map(tp => (
+                          <tr key={tp.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td className="py-2.5 pr-3 font-medium text-gray-800">{tp.name}</td>
+                            <td className="py-2.5 pr-3 text-gray-600">{tp.classroom?.name || '-'}</td>
+                            <td className="py-2.5 pr-3 text-center">{tp.totalProblems}</td>
+                            <td className="py-2.5 pr-3 text-center">
+                              {tp.pages.length > 0 ? (
+                                <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+                                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>{tp.pages.length}장
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-red-500 text-xs font-medium">
+                                  <span className="w-2 h-2 bg-red-400 rounded-full"></span>없음
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 pr-3 text-gray-500 text-xs">{(tp as any).student?.name || '-'}</td>
+                            <td className="py-2.5 pr-3 text-gray-400 text-xs">{new Date(tp.createdAt).toLocaleDateString('ko-KR')}</td>
+                            <td className="py-2.5 pr-3 text-center">
+                              {(tp._count?.wrongAnswers || 0) > 0 ? (
+                                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">{tp._count?.wrongAnswers}</span>
+                              ) : (
+                                <span className="text-gray-300 text-xs">0</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-center">
+                              <button
+                                onClick={() => handleDeleteTestPaper(tp.id)}
+                                className="px-2.5 py-1 text-xs text-red-500 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 rounded-lg transition-all"
+                                title="시험지 삭제">
+                                삭제
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="mt-3 text-xs text-gray-400 text-right">총 {allTestPapers.length}개 시험지</div>
+                  </div>
+                )}
+              </div>
 
               {/* Debug Info Panel */}
               {debugInfo && (
