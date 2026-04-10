@@ -32,7 +32,7 @@ export default function ClassDetailPage() {
   const [perStudentHomeworkMap, setPerStudentHomeworkMap] = useState<Record<string, string>>({});
   const [perStudentProgressMap, setPerStudentProgressMap] = useState<Record<string, string>>({});
   const [personalNotes, setPersonalNotes] = useState<Record<string, string>>({});
-  const [reportCopied, setReportCopied] = useState<string | null>(null);
+  const [reportSent, setReportSent] = useState<Set<string>>(new Set());
 
   // 시험 관련 state
   const [testName, setTestName] = useState('');
@@ -62,6 +62,7 @@ export default function ClassDetailPage() {
   const fetchDaily = useCallback(async () => {
     try {
       setLoading(true);
+      setReportSent(new Set());
       const res = await fetch('/api/classes/' + classId + '/daily?date=' + selectedDate);
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -373,8 +374,7 @@ export default function ClassDetailPage() {
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-    setReportCopied(student.id);
-    setTimeout(() => setReportCopied(null), 2000);
+    setReportSent(prev => new Set(prev).add(student.id));
 
     // Send push notification to parents & student
     try {
@@ -575,7 +575,19 @@ export default function ClassDetailPage() {
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">숙제</th>}
               {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">진도</th>}
               <th className="p-3 text-center text-gray-700 font-semibold">전달사항</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">리포트</th>
+              <th className="p-3 text-center text-gray-700 font-semibold">
+                <div className="flex flex-col items-center gap-1">
+                  <span>리포트</span>
+                  <button onClick={async () => {
+                    const unsent = students.filter((s: any) => !reportSent.has(s.id));
+                    if (unsent.length === 0) return;
+                    if (!confirm(unsent.length + '명에게 알림을 전송하시겠습니까?')) return;
+                    for (const s of unsent) { await copyReport(s); }
+                  }} className={'px-2 py-1 rounded text-xs font-medium ' + (students.length > 0 && students.every((s: any) => reportSent.has(s.id)) ? 'bg-green-500 text-white cursor-default' : 'bg-orange-500 hover:bg-orange-600 text-white')}>
+                    {students.length > 0 && students.every((s: any) => reportSent.has(s.id)) ? '✓ 전체전송완료' : '📢 전체전송'}
+                  </button>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -668,7 +680,7 @@ export default function ClassDetailPage() {
                     <input type="text" placeholder="전달사항" value={personalNotes[s.id] || ''} onChange={(e) => setPersonalNotes(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-40 text-gray-800" />
                   </td>
                   <td className="p-3 text-center">
-                    <button onClick={() => copyReport(s)} className={'px-3 py-1 rounded text-xs font-medium ' + (reportCopied === s.id ? 'bg-green-500 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportCopied === s.id ? '전송됨!' : '🔔 알림'}</button>
+                    <button onClick={() => !reportSent.has(s.id) && copyReport(s)} className={'px-3 py-1 rounded text-xs font-medium ' + (reportSent.has(s.id) ? 'bg-green-500 text-white cursor-default' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportSent.has(s.id) ? '✓ 전송됨' : '🔔 알림'}</button>
                   </td>
                 </tr>
               );
