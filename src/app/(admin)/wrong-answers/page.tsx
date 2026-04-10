@@ -54,6 +54,7 @@ export default function WrongAnswersPage() {
 
   // Test Papers
   const [testPapers, setTestPapers] = useState<TestPaperRecord[]>([]);
+  const [allTestPapers, setAllTestPapers] = useState<TestPaperRecord[]>([]);
 
   // Wrong answers
   const [wrongAnswers, setWrongAnswers] = useState<WrongAnswerRecord[]>([]);
@@ -100,7 +101,18 @@ export default function WrongAnswersPage() {
   // Filter classroom for answers/tests tabs
   const [filterClassroom, setFilterClassroom] = useState('');
 
-  useEffect(() => { fetchClassrooms(); }, []);
+  useEffect(() => { fetchClassrooms(); fetchAllTestPapers(); }, []);
+
+  // When tab changes, reload data for the selected classroom
+  useEffect(() => {
+    if (regClassroom) {
+      fetchTestPapersForClassroom(regClassroom);
+      fetchStudentsForClassroom(regClassroom);
+      if (activeTab === 'answers' || activeTab === 'tests') {
+        fetchDataForClassroom(regClassroom);
+      }
+    }
+  }, [activeTab]);
 
   // Helper: check if a classroom is 맞춤반
   const isCustomClass = (classroomId: string) => {
@@ -190,6 +202,13 @@ export default function WrongAnswersPage() {
     try {
       const tpRes = await fetch(`/api/test-papers?classroomId=${classroomId}`);
       if (tpRes.ok) setTestPapers(await tpRes.json());
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchAllTestPapers = async () => {
+    try {
+      const res = await fetch('/api/test-papers');
+      if (res.ok) setAllTestPapers(await res.json());
     } catch (e) { console.error(e); }
   };
 
@@ -1057,7 +1076,7 @@ ${problems.map((p, idx) => `
                           setRegTestPaper(val);
                           setRegSelectedProblems(new Set());
                           if (val) {
-                            const tp = testPapers.find(t => t.id === val);
+                            const tp = testPapers.find(t => t.id === val) || allTestPapers.find(t => t.id === val);
                             if (tp) setRegTestName(tp.name);
                           } else {
                             setRegTestName('');
@@ -1065,8 +1084,24 @@ ${problems.map((p, idx) => `
                         }}
                           className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
                           <option value="">시험지를 선택하세요</option>
-                          {testPapers.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제)</option>)}
+                          {testPapers.length > 0 && (
+                            <optgroup label="📋 이 반 시험지">
+                              {testPapers.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제)</option>)}
+                            </optgroup>
+                          )}
+                          {(() => {
+                            const otherTps = allTestPapers.filter(tp => tp.classroomId !== regClassroom);
+                            if (otherTps.length > 0) return (
+                              <optgroup label="📁 다른 반 시험지">
+                                {otherTps.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제) [{tp.classroom?.name}]</option>)}
+                              </optgroup>
+                            );
+                            return null;
+                          })()}
                         </select>
+                        {testPapers.length === 0 && allTestPapers.length === 0 && (
+                          <p className="text-xs text-orange-500 mt-1">시험지가 없습니다. &apos;시험지 업로드&apos; 탭에서 먼저 시험지를 업로드해주세요.</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
@@ -1083,7 +1118,7 @@ ${problems.map((p, idx) => `
                           )}
                         </label>
                         {regTestPaper ? (() => {
-                          const tp = testPapers.find(t => t.id === regTestPaper);
+                          const tp = testPapers.find(t => t.id === regTestPaper) || allTestPapers.find(t => t.id === regTestPaper);
                           const total = tp?.totalProblems || 0;
                           return (
                             <div>
