@@ -498,6 +498,82 @@ export default function WrongAnswersPage() {
     } catch { showMsg('삭제 실패', 'error'); }
   };
 
+  const generateTestPDF = (test: WrongAnswerTestRecord) => {
+    // Group items by testName
+    const grouped: Record<string, number[]> = {};
+    test.items.forEach(item => {
+      const name = item.wrongAnswer.testName || '기타';
+      if (!grouped[name]) grouped[name] = [];
+      grouped[name].push(item.wrongAnswer.problemNumber);
+    });
+    // Sort numbers within each group
+    Object.values(grouped).forEach(nums => nums.sort((a, b) => a - b));
+
+    const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    const totalItems = test.items.length;
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>오답 테스트 - ${test.student.name}</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 24px; }
+  .header { text-align: center; border-bottom: 3px solid #222; padding-bottom: 16px; margin-bottom: 20px; }
+  .header h1 { font-size: 24px; margin-bottom: 8px; }
+  .info-row { display: flex; justify-content: space-between; font-size: 14px; color: #555; margin-top: 8px; }
+  .info-row span { display: inline-block; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 16px; font-weight: bold; color: #333; background: #f3f4f6; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+  .problems-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .problem-row { display: flex; align-items: stretch; border: 1px solid #ddd; min-height: 60px; }
+  .problem-num { width: 60px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; background: #f9fafb; border-right: 1px solid #ddd; flex-shrink: 0; }
+  .problem-answer { flex: 1; padding: 8px 12px; display: flex; align-items: center; }
+  .footer { margin-top: 32px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #ddd; padding-top: 12px; }
+  .score-box { margin-top: 24px; text-align: right; font-size: 18px; font-weight: bold; }
+  .score-box span { display: inline-block; border: 2px solid #222; padding: 8px 24px; border-radius: 8px; }
+  @media print {
+    body { padding: 0; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head><body>
+<div class="no-print" style="text-align:center;margin-bottom:16px;">
+  <button onclick="window.print()" style="padding:10px 32px;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">인쇄 / PDF 저장</button>
+</div>
+<div class="header">
+  <h1>오답 테스트</h1>
+  <div class="info-row">
+    <span><b>이름:</b> ${test.student.name}</span>
+    <span><b>반:</b> ${test.classroom.name}</span>
+    <span><b>회차:</b> ${test.round}회</span>
+    <span><b>날짜:</b> ${today}</span>
+  </div>
+  <div class="info-row" style="justify-content:center;margin-top:4px;">
+    <span>총 <b>${totalItems}</b>문항</span>
+  </div>
+</div>
+${Object.entries(grouped).map(([testName, nums]) => `
+<div class="section">
+  <div class="section-title">${testName} (${nums.length}문항)</div>
+  <div class="problems-grid">
+    ${nums.map(num => `
+    <div class="problem-row">
+      <div class="problem-num">${num}</div>
+      <div class="problem-answer"></div>
+    </div>`).join('')}
+  </div>
+</div>`).join('')}
+<div class="score-box">
+  점수: <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ ${totalItems}</span>
+</div>
+<div class="footer">수학탐구 오답관리 시스템</div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  };
+
   const handleCreateTest = async (studentId: string) => {
     try {
       const res = await fetch('/api/wrong-answers/tests', {
@@ -506,8 +582,12 @@ export default function WrongAnswersPage() {
         body: JSON.stringify({ studentId, classroomId: filterClassroom || '' }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-      showMsg('테스트가 생성되었습니다');
+      const test = await res.json();
+      showMsg('테스트가 생성되었습니다 — 인쇄 페이지가 열립니다');
       if (filterClassroom) await fetchDataForClassroom(filterClassroom);
+      // Auto-open printable test and switch to tests tab
+      generateTestPDF(test);
+      setActiveTab('tests');
     } catch (err: any) { showMsg(err.message || '테스트 생성 실패', 'error'); }
   };
 
@@ -1085,6 +1165,8 @@ export default function WrongAnswersPage() {
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                             test.status === 'GRADED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                           }`}>{test.status === 'GRADED' ? '채점완료' : '채점대기'}</span>
+                          <button onClick={() => generateTestPDF(test)}
+                            className="px-4 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">테스트지 출력</button>
                           {test.status === 'PENDING' && (
                             <button onClick={() => handleStartGrading(test)}
                               className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">채점하기</button>
