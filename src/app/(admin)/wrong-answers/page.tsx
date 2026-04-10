@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 /* ============================================================
    Types
    ============================================================ */
-interface ClassroomOption { id: string; name: string; }
+interface ClassroomOption { id: string; name: string; subjectName?: string; }
 interface StudentOption { id: string; name: string; studentNumber: string | null; }
 interface TestPaperRecord {
   id: string; name: string; classroomId: string; totalProblems: number;
@@ -60,6 +60,10 @@ export default function WrongAnswersPage() {
   const [tests, setTests] = useState<WrongAnswerTestRecord[]>([]);
   const [stats, setStats] = useState<Stats>({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
 
+  // Upload tab: student for 맞춤반
+  const [uploadStudent, setUploadStudent] = useState('');
+  const [uploadStudents, setUploadStudents] = useState<StudentOption[]>([]);
+
   // PDF Upload / Extract state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [extractState, setExtractState] = useState<'idle' | 'loading' | 'detecting' | 'extracting' | 'done' | 'saving' | 'error'>('idle');
@@ -98,6 +102,26 @@ export default function WrongAnswersPage() {
 
   useEffect(() => { fetchClassrooms(); }, []);
 
+  // Helper: check if a classroom is 맞춤반
+  const isCustomClass = (classroomId: string) => {
+    const c = classrooms.find(cl => cl.id === classroomId);
+    return c?.subjectName === '맞춤반';
+  };
+
+  // Load students for upload tab when 맞춤반 selected
+  const fetchUploadStudents = async (classroomId: string) => {
+    if (!classroomId) { setUploadStudents([]); return; }
+    try {
+      const res = await fetch(`/api/students?classroomId=${classroomId}&status=재원&limit=200`);
+      if (res.ok) {
+        const data = await res.json();
+        setUploadStudents((data.students || []).map((s: any) => ({
+          id: s.id, name: s.name || '', studentNumber: s.studentNumber || null,
+        })));
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const showMsg = (msg: string, type: 'success' | 'error' = 'success') => {
     setMessage(msg); setMessageType(type);
     setTimeout(() => setMessage(''), 4000);
@@ -111,7 +135,7 @@ export default function WrongAnswersPage() {
       const res = await fetch('/api/classes');
       if (res.ok) {
         const data = await res.json();
-        setClassrooms((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, name: c.name })));
+        setClassrooms((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, name: c.name, subjectName: c.subject?.name || '' })));
       }
     } catch (e) { console.error(e); }
   };
@@ -403,6 +427,9 @@ export default function WrongAnswersPage() {
     if (!regClassroom || extractedProblems.length === 0) {
       showMsg('반을 선택하고 문제를 추출해주세요', 'error'); return;
     }
+    if (isCustomClass(regClassroom) && !uploadStudent) {
+      showMsg('맞춤반은 학생을 선택해주세요', 'error'); return;
+    }
 
     setExtractState('saving');
     setExtractProgress({ current: 0, total: extractedProblems.length, message: '시험지 저장 중...' });
@@ -414,6 +441,7 @@ export default function WrongAnswersPage() {
       const formData = new FormData();
       formData.append('name', workbookName || pdfFile?.name || 'Untitled');
       formData.append('classroomId', regClassroom);
+      if (uploadStudent) formData.append('studentId', uploadStudent);
       formData.append('totalProblems', String(extractedProblems.length));
 
       // Build answers JSON from matching
@@ -423,14 +451,18 @@ export default function WrongAnswersPage() {
       });
       formData.append('answers', JSON.stringify(answersObj));
 
-      // Upload problem images
+      // Upload problem images with actual problem numbers
+      const problemNumbers: number[] = [];
       for (let i = 0; i < extractedProblems.length; i++) {
         const p = extractedProblems[i];
         const blob = dataURLtoBlob(p.imageDataUrl);
         const file = new File([blob], `problem-${p.number}.png`, { type: 'image/png' });
         formData.append('images', file);
+        problemNumbers.push(p.number);
         setExtractProgress({ current: i + 1, total: extractedProblems.length, message: `이미지 업로드 중 (${i + 1}/${extractedProblems.length})` });
       }
+      // Send actual problem numbers so pages get correct pageNumber
+      formData.append('problemNumbers', JSON.stringify(problemNumbers));
 
       const res = await fetch('/api/test-papers', { method: 'POST', body: formData });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
@@ -444,7 +476,7 @@ export default function WrongAnswersPage() {
       showMsg('저장 실패: ' + err.message, 'error');
       setExtractState('done');
     }
-  }, [regClassroom, extractedProblems, workbookName, pdfFile]);
+  }, [regClassroom, uploadStudent, extractedProblems, workbookName, pdfFile]);
 
   const handleDeleteTestPaper = async (id: string) => {
     if (!confirm('이 시험지를 삭제하시겠습니까?')) return;
@@ -883,14 +915,30 @@ ${problems.map((p, idx) => `
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">반 선택</label>
                         <select value={regClassroom} onChange={e => {
-                          setRegClassroom(e.target.value);
-                          if (e.target.value) fetchTestPapersForClassroom(e.target.value);
+                          const val = e.target.value;
+                          setRegClassroom(val);
+                          setUploadStudent('');
+                          if (val) {
+                            fetchTestPapersForClassroom(val);
+                            if (isCustomClass(val)) fetchUploadStudents(val);
+                          }
                         }}
                           className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
                           <option value="">반을 선택하세요</option>
-                          {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}{c.subjectName === '맞춤반' ? ' (맞춤)' : ''}</option>)}
                         </select>
                       </div>
+
+                      {regClassroom && isCustomClass(regClassroom) && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">학생 선택 <span className="text-xs text-purple-600">(맞춤반)</span></label>
+                          <select value={uploadStudent} onChange={e => setUploadStudent(e.target.value)}
+                            className="w-full max-w-md px-4 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white">
+                            <option value="">학생을 선택하세요</option>
+                            {uploadStudents.map(s => <option key={s.id} value={s.id}>{s.name}{s.studentNumber ? ` (${s.studentNumber})` : ''}</option>)}
+                          </select>
+                        </div>
+                      )}
 
                       {regClassroom && testPapers.length > 0 && (
                         <div>

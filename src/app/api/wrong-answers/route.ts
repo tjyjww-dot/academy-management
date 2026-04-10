@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     if (classroomId) where.classroomId = classroomId;
     if (status) where.status = status;
 
-    const wrongAnswers = await prisma.wrongAnswer.findMany({
+    let wrongAnswers = await prisma.wrongAnswer.findMany({
       where,
       include: {
         student: { select: { id: true, name: true, studentNumber: true } },
@@ -28,6 +28,47 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Auto-link orphan wrong answers missing testPaperId
+    const orphans = wrongAnswers.filter(wa => !wa.testPaperId);
+    if (orphans.length > 0) {
+      const orphansByKey: Record<string, typeof orphans> = {};
+      for (const wa of orphans) {
+        const key = `${wa.testName}__${wa.classroomId}`;
+        if (!orphansByKey[key]) orphansByKey[key] = [];
+        orphansByKey[key].push(wa);
+      }
+      let updated = false;
+      for (const [key, items] of Object.entries(orphansByKey)) {
+        const [testName, cId] = key.split('__');
+        const tp = await prisma.testPaper.findFirst({
+          where: { name: testName, classroomId: cId },
+          include: { pages: { orderBy: { pageNumber: 'asc' } } },
+        });
+        if (tp) {
+          const pageMap: Record<number, string> = {};
+          tp.pages.forEach(p => { pageMap[p.pageNumber] = p.imageUrl; });
+          for (const wa of items) {
+            await prisma.wrongAnswer.update({
+              where: { id: wa.id },
+              data: { testPaperId: tp.id, problemImage: pageMap[wa.problemNumber] || null },
+            });
+            updated = true;
+          }
+        }
+      }
+      if (updated) {
+        wrongAnswers = await prisma.wrongAnswer.findMany({
+          where,
+          include: {
+            student: { select: { id: true, name: true, studentNumber: true } },
+            classroom: { select: { id: true, name: true } },
+            testPaper: { include: { pages: { orderBy: { pageNumber: 'asc' } } } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
 
     return NextResponse.json(wrongAnswers);
   } catch (error) {

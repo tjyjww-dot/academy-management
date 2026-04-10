@@ -28,6 +28,7 @@ model User {
   studentProfile     Student?
   memos           Memo[]   @relation("memoAuthor")
   testPapers       TestPaper[]
+  studentTestPapers TestPaper[] @relation("StudentTestPapers")
 }
 
 model Student {
@@ -432,6 +433,8 @@ model TestPaper {
   classroomId   String
   uploadedBy    User     @relation(fields: [uploadedById], references: [id])
   uploadedById  String
+  student       User?    @relation("StudentTestPapers", fields: [studentId], references: [id])
+  studentId     String?
   answers       String?
   totalProblems Int
   createdAt     DateTime @default(now())

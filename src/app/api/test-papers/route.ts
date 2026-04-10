@@ -18,13 +18,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const classroomId = searchParams.get('classroomId');
 
+    const studentId = searchParams.get('studentId');
     const where: Record<string, unknown> = {};
     if (classroomId) where.classroomId = classroomId;
+    if (studentId) where.studentId = studentId;
 
     const testPapers = await prisma.testPaper.findMany({
       where,
       include: {
         classroom: true,
+        student: { select: { id: true, name: true, studentNumber: true } },
         pages: { orderBy: { pageNumber: 'asc' } },
         _count: { select: { wrongAnswers: true } }
       },
@@ -53,9 +56,16 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const name = formData.get('name') as string;
     const classroomId = formData.get('classroomId') as string;
+    const studentId = formData.get('studentId') as string | null;
     const totalProblems = parseInt(formData.get('totalProblems') as string);
     const answers = formData.get('answers') as string | null;
     const files = formData.getAll('images') as File[];
+    // Parse actual problem numbers if provided
+    let problemNumbers: number[] = [];
+    try {
+      const pnStr = formData.get('problemNumbers') as string;
+      if (pnStr) problemNumbers = JSON.parse(pnStr);
+    } catch {}
 
     if (!name || !classroomId || !totalProblems) {
       return NextResponse.json({ error: '시험명, 반, 총 문항수를 모두 입력해주세요' }, { status: 400 });
@@ -72,14 +82,16 @@ export async function POST(request: NextRequest) {
           if (!file || file.size === 0) continue;
           const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
           const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
-          const fileName = `${Date.now()}-page${i + 1}.${ext}`;
+          // Use actual problem number as pageNumber for correct image mapping
+          const pNum = problemNumbers[i] || (i + 1);
+          const fileName = `${Date.now()}-problem${pNum}.${ext}`;
           const result = await uploadFileFromBlob(
             fileName,
             file,
             contentType,
             ['수탐학원', '시험지', name]
           );
-          pageData.push({ pageNumber: i + 1, imageUrl: result.url });
+          pageData.push({ pageNumber: pNum, imageUrl: result.url });
         }
       } catch (uploadError: any) {
         console.error('Google Drive upload failed:', uploadError?.message || uploadError);
@@ -93,6 +105,7 @@ export async function POST(request: NextRequest) {
         name,
         classroomId,
         uploadedById: decoded.userId,
+        studentId: studentId || undefined,
         totalProblems,
         answers: answers || undefined,
         ...(pageData.length > 0 ? { pages: { create: pageData } } : {}),
