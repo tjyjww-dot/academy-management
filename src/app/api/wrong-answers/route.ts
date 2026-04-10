@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     const tkn = getTokenFromCookies(request);
     if (!tkn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const decoded = verifyToken(tkn);
-    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+    if (!decoded || ['PARENT', 'STUDENT'].includes(decoded.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

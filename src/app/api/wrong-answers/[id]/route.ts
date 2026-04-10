@@ -12,7 +12,7 @@ export async function DELETE(
     const payload = verifyToken(token);
     if (!payload) return NextResponse.json({ error: '유효하지 않은 토큰입니다' }, { status: 401 });
 
-    if (!['ADMIN', 'TEACHER'].includes(payload.role)) {
+    if (['PARENT', 'STUDENT'].includes(payload.role)) {
       return NextResponse.json({ error: '권한이 없습니다' }, { status: 403 });
     }
 

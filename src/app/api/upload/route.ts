@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+    if (!decoded || ['PARENT', 'STUDENT'].includes(decoded.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

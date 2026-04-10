@@ -53,7 +53,7 @@ export async function PATCH(
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+    if (!decoded || ['PARENT', 'STUDENT'].includes(decoded.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -92,7 +92,7 @@ export async function DELETE(
     }
 
     const decoded = verifyToken(token);
-    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+    if (!decoded || ['PARENT', 'STUDENT'].includes(decoded.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

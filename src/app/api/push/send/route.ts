@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const token = getTokenFromCookies(request);
     if (!token) return NextResponse.json({ error: '인증되지 않음' }, { status: 401 });
     const decoded = verifyToken(token) as any;
-    if (!decoded || !['ADMIN', 'TEACHER'].includes(decoded.role)) {
+    if (!decoded || ['PARENT', 'STUDENT'].includes(decoded.role)) {
       return NextResponse.json({ error: '권한 없음' }, { status: 403 });
     }
     const body = await request.json();
