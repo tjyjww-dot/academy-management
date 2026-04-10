@@ -685,8 +685,11 @@ ${problems.map((p, idx) => `
     try {
       const res = await fetch(`/api/wrong-answers/tests/${testId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('삭제 실패');
+      // 즉시 UI에서 제거
+      setTests(prev => prev.filter(t => t.id !== testId));
       showMsg('테스트가 삭제되었습니다');
-      if (filterClassroom) await fetchDataForClassroom(filterClassroom);
+      // 서버에서 최신 데이터 다시 불러오기 (filterClassroom 유무와 관계없이)
+      await fetchDataForClassroom(filterClassroom);
     } catch { showMsg('테스트 삭제 실패', 'error'); }
   };
 
