@@ -67,7 +67,7 @@ export default function WrongAnswersPage() {
 
   // PDF Upload / Extract state
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [extractState, setExtractState] = useState<'idle' | 'loading' | 'detecting' | 'extracting' | 'done' | 'saving' | 'error'>('idle');
+  const [extractState, setExtractState] = useState<'idle' | 'loading' | 'detecting' | 'extracting' | 'done' | 'saving' | 'saved' | 'error'>('idle');
   const [extractProgress, setExtractProgress] = useState({ current: 0, total: 0, message: '' });
   const [extractedProblems, setExtractedProblems] = useState<ExtractedProblem[]>([]);
   const [totalPages, setTotalPages] = useState(0);
@@ -487,10 +487,13 @@ export default function WrongAnswersPage() {
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
 
       showMsg(`시험지 "${workbookName}"가 저장되었습니다 (${extractedProblems.length}문제)`);
-      setExtractState('done');
+      setExtractState('saved');
 
-      // Refresh test papers
-      await fetchTestPapersForClassroom(regClassroom);
+      // Refresh test papers (both classroom-specific and global)
+      await Promise.all([
+        fetchTestPapersForClassroom(regClassroom),
+        fetchAllTestPapers(),
+      ]);
     } catch (err: any) {
       showMsg('저장 실패: ' + err.message, 'error');
       setExtractState('done');
@@ -928,8 +931,11 @@ ${problems.map((p, idx) => `
                   )}
 
                   {/* Save Settings */}
-                  <div className="bg-white rounded-xl border p-5">
-                    <h3 className="font-semibold text-gray-800 mb-3">시험지 저장</h3>
+                  <div className={`rounded-xl border p-5 ${extractState === 'done' ? 'bg-yellow-50 border-yellow-400 ring-2 ring-yellow-300' : 'bg-white'}`}>
+                    <h3 className="font-semibold text-gray-800 mb-1">시험지 저장</h3>
+                    {extractState === 'done' && (
+                      <p className="text-sm text-yellow-700 mb-3 font-medium">⬇️ 아래에서 반을 선택하고 저장 버튼을 눌러주세요!</p>
+                    )}
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">반 선택</label>
@@ -983,10 +989,26 @@ ${problems.map((p, idx) => `
                         </div>
                       )}
 
-                      <button onClick={handleSaveTestPaper}
-                        className="w-full px-5 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors">
-                        💾 시험지 저장 (DB)
-                      </button>
+                      {extractState === 'saved' ? (
+                        <div className="w-full px-5 py-4 bg-green-50 border-2 border-green-500 rounded-lg text-center">
+                          <div className="text-green-700 font-bold text-lg mb-1">✅ 시험지 저장 완료!</div>
+                          <p className="text-green-600 text-sm">오답 등록 탭에서 이 시험지를 선택할 수 있습니다.</p>
+                          <button onClick={() => { setExtractState('idle'); setPdfFile(null); setExtractedProblems([]); setWorkbookName(''); }}
+                            className="mt-2 px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                            새 시험지 업로드
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={handleSaveTestPaper}
+                          disabled={extractState === 'saving'}
+                          className={`w-full px-5 py-2.5 rounded-lg font-medium transition-colors ${
+                            extractState === 'saving'
+                              ? 'bg-gray-400 text-white cursor-not-allowed'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}>
+                          {extractState === 'saving' ? '⏳ 저장 중...' : '💾 시험지 저장 (DB)'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </>
