@@ -24,7 +24,13 @@ export default function PushNotificationManager() {
     navigator.serviceWorker.register('/sw.js').then(async (reg) => {
       const sub = await reg.pushManager.getSubscription();
       if (sub) setIsSubscribed(true);
-      else if (Notification.permission === 'default') setTimeout(() => setShowBanner(true), 3000);
+      else if (Notification.permission === 'default') {
+        // 이미 "나중에"를 누른 적 있으면 배너를 표시하지 않음
+        const dismissed = localStorage.getItem('push-banner-dismissed');
+        if (!dismissed) {
+          setTimeout(() => setShowBanner(true), 3000);
+        }
+      }
     });
   }, []);
 
@@ -68,7 +74,7 @@ export default function PushNotificationManager() {
         <p style={{ color: 'rgba(191,219,254,1)', fontSize: 12, margin: '4px 0 0' }}>출결, 성적 등 학원 소식을 바로 받아보세요</p>
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button onClick={() => setShowBanner(false)} style={{
+        <button onClick={() => { localStorage.setItem('push-banner-dismissed', 'true'); setShowBanner(false); }} style={{
           background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
           padding: '8px 12px', color: 'white', fontSize: 12, cursor: 'pointer',
         }}>나중에</button>
