@@ -121,9 +121,11 @@ export default function WrongTestPage() {
   .problem-header { font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #333; }
   .problem img { max-width: 100%; height: auto; }
   .problem .source { font-size: 12px; color: #888; }
-  .print-btn { text-align: center; margin-top: 20px; }
-  .print-btn button { padding: 10px 30px; font-size: 16px; cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 8px; }
-  @media print { .print-btn { display: none; } }
+  .btn-bar { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
+  .btn-bar button { padding: 10px 28px; font-size: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+  .btn-pdf { background: #2563eb; color: #fff; }
+  .btn-back { background: #6b7280; color: #fff; }
+  @media print { .btn-bar { display: none; } }
 </style></head><body>
   <div class="header">
     <h1>수탐 오답테스트</h1>
@@ -135,14 +137,15 @@ export default function WrongTestPage() {
   </div>
   ${items.map((item, idx) => {
     const wa = item.wrongAnswer;
-    const imgUrl = wa.problemImage || wa.testPaper?.pages?.[0]?.imageUrl || '';
+    const matchedPage = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
+    const imgUrl = matchedPage?.imageUrl || wa.problemImage || '';
     return `<div class="problem">
       <div class="problem-header">${idx + 1}번 (원본: ${wa.testName} ${wa.problemNumber}번)</div>
       ${imgUrl ? `<img src="${imgUrl}" alt="문제 이미지" />` : '<p style="color:#999">이미지 없음</p>'}
       <div class="source">${wa.testName}</div>
     </div>`;
   }).join('')}
-  <div class="print-btn"><button onclick="window.print()">인쇄하기</button></div>
+  <div class="btn-bar"><button class="btn-back" onclick="window.close()">← 뒤로가기</button><button class="btn-pdf" onclick="window.print()">PDF 저장</button></div>
 </body></html>`;
 
     win.document.write(html);

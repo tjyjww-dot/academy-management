@@ -544,10 +544,10 @@ export default function ParentPage() {
                       });
                       const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
                       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>연습 테스트 - ${s?.name}</title>
-<style>@page{size:A4;margin:10mm 8mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Malgun Gothic',sans-serif;color:#222;background:#fff;padding:8px}.header{text-align:center;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:10px}.header h1{font-size:20px;margin-bottom:4px}.info-row{display:flex;justify-content:center;gap:16px;font-size:12px;color:#555}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.problem{border:1px solid #bbb;border-radius:6px;overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column}.problem-header{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#f3f4f6;border-bottom:1px solid #ddd;font-size:12px}.problem-header .num{font-weight:bold;font-size:15px;color:#2563eb}.problem-header .source{color:#999;font-size:10px}.problem-body{padding:4px;text-align:center;flex:1}.problem-body img{max-width:100%;max-height:200px;object-fit:contain}.problem-body .no-img{color:#ccc;padding:16px;font-size:11px}.answer-area{border-top:1px dashed #ccc;padding:4px 8px;min-height:50px}.answer-area span{font-size:11px;color:#aaa}.page-break{page-break-after:always}.footer{margin-top:12px;text-align:center;font-size:10px;color:#bbb}@media print{.no-print{display:none!important}body{padding:0}}</style></head><body>
-<div class="no-print" style="text-align:center;margin-bottom:10px"><button onclick="window.print()" style="padding:10px 32px;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer">인쇄 / PDF 저장</button></div>
+<style>@page{size:A4;margin:12mm 10mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Malgun Gothic',sans-serif;color:#222;background:#fff;padding:10px}.header{text-align:center;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:12px}.header h1{font-size:20px;margin-bottom:4px}.info-row{display:flex;justify-content:center;gap:16px;font-size:12px;color:#555}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row-gap{margin-top:20px}.problem{border:1px solid #bbb;border-radius:6px;overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column;min-height:280px}.problem-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f3f4f6;border-bottom:1px solid #ddd;font-size:12px}.problem-header .num{font-weight:bold;font-size:16px;color:#2563eb}.problem-header .source{color:#999;font-size:10px}.problem-body{padding:8px;text-align:center;flex:1;display:flex;align-items:center;justify-content:center}.problem-body img{max-width:100%;max-height:220px;object-fit:contain}.problem-body .no-img{color:#ccc;padding:20px;font-size:11px}.answer-area{border-top:1px dashed #ccc;padding:6px 10px;min-height:55px}.answer-area span{font-size:11px;color:#aaa}.page-break{page-break-after:always}.footer{margin-top:16px;text-align:center;font-size:10px;color:#bbb}.btn-bar{display:flex;gap:10px;justify-content:center;margin-bottom:12px}.btn-bar button{padding:10px 28px;font-size:15px;border:none;border-radius:8px;cursor:pointer;font-weight:500}.btn-pdf{background:#2563eb;color:#fff}.btn-back{background:#6b7280;color:#fff}@media print{.no-print{display:none!important}body{padding:0}}</style></head><body>
+<div class="no-print btn-bar"><button class="btn-back" onclick="window.close()">← 뒤로가기</button><button class="btn-pdf" onclick="window.print()">PDF 저장</button></div>
 <div class="header"><h1>연습 테스트</h1><div class="info-row"><span><b>이름:</b> ${s?.name}</span><span><b>날짜:</b> ${today}</span><span><b>총 ${problems.length}문항</b></span></div></div>
-<div class="grid">${problems.map((p: any, idx: number) => `<div class="problem"><div class="problem-header"><span class="num">${p.num}</span><span class="source">${p.testName} #${p.originalNum}</span></div><div class="problem-body">${p.imgUrl ? `<img src="${p.imgUrl}" />` : '<div class="no-img">문제 이미지 없음</div>'}</div><div class="answer-area"><span>답:</span></div></div>${(idx+1)%4===0&&idx<problems.length-1?'</div><div class="page-break"></div><div class="grid">':''}`).join('')}</div>
+<div class="grid">${problems.map((p: any, idx: number) => `<div class="problem"><div class="problem-header"><span class="num">${p.num}</span><span class="source">${p.testName} #${p.originalNum}</span></div><div class="problem-body">${p.imgUrl ? `<img src="${p.imgUrl}" />` : '<div class="no-img">문제 이미지 없음</div>'}</div><div class="answer-area"><span>답:</span></div></div>${(idx+1)%2===0&&idx<problems.length-1?'</div><div class="row-gap"></div><div class="grid">':''}`).join('')}</div>
 <div class="footer">수학탐구 오답관리 시스템 - 연습용</div></body></html>`;
                       const w = window.open('', '_blank');
                       if (w) { w.document.write(html); w.document.close(); }
@@ -593,13 +593,37 @@ export default function ParentPage() {
                   <span className="text-slate-400">{expandedWA.has(testName) ? '▲' : '▼'}</span>
                 </button>
                 {expandedWA.has(testName) && (
-                  <div className="px-4 pb-4 flex flex-wrap gap-1.5">
-                    {items.sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => (
-                      <span key={wa.id}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium ${wa.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                        {wa.problemNumber}번{wa.round > 1 ? ` (${wa.round}회)` : ''}
-                      </span>
-                    ))}
+                  <div className="px-4 pb-4">
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {items.sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => (
+                        <span key={wa.id}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium ${wa.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                          {wa.problemNumber}번{wa.round > 1 ? ` (${wa.round}회)` : ''}
+                        </span>
+                      ))}
+                    </div>
+                    {/* 오답 문제 이미지 보기 */}
+                    {items.some((wa: any) => wa.testPaper?.pages?.length > 0) && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-slate-500 mb-1">문제 이미지 확인</p>
+                        {items.filter((wa: any) => wa.status === 'ACTIVE').sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => {
+                          const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
+                          const imgUrl = page?.imageUrl || wa.problemImage;
+                          if (!imgUrl) return null;
+                          return (
+                            <div key={wa.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-100">
+                                <span className="text-xs font-bold text-blue-600">{wa.problemNumber}번</span>
+                                <span className="text-[10px] text-slate-400">{wa.testName}</span>
+                              </div>
+                              <div className="p-2">
+                                <img src={imgUrl} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-64 rounded" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

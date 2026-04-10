@@ -553,7 +553,7 @@ export default function WrongAnswersPage() {
       setRegProblemNumbers('');
       setRegSelectedProblems(new Set());
       setRegSuccess(true);
-      setTimeout(() => setRegSuccess(false), 4000);
+      // 등록 완료 상태를 유지 (자동으로 사라지지 않음, 새 등록 시작 시 리셋)
       if (regClassroom) await fetchDataForClassroom(regClassroom);
     } catch (err: any) {
       showMsg(err.message || '오답 등록 실패', 'error');
@@ -591,31 +591,37 @@ export default function WrongAnswersPage() {
 <html><head><meta charset="utf-8">
 <title>오답 테스트 - ${test.student.name}</title>
 <style>
-  @page { size: A4; margin: 10mm 8mm; }
+  @page { size: A4; margin: 12mm 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 8px; }
-  .header { text-align: center; border-bottom: 2px solid #222; padding-bottom: 8px; margin-bottom: 10px; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 10px; }
+  .header { text-align: center; border-bottom: 2px solid #222; padding-bottom: 8px; margin-bottom: 12px; }
   .header h1 { font-size: 20px; margin-bottom: 4px; }
   .info-row { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: #555; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .problem { border: 1px solid #bbb; border-radius: 6px; overflow: hidden; page-break-inside: avoid; display: flex; flex-direction: column; }
-  .problem-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #f3f4f6; border-bottom: 1px solid #ddd; font-size: 12px; }
-  .problem-header .num { font-weight: bold; font-size: 15px; color: #2563eb; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row-gap { margin-top: 20px; }
+  .problem { border: 1px solid #bbb; border-radius: 6px; overflow: hidden; page-break-inside: avoid; display: flex; flex-direction: column; min-height: 280px; }
+  .problem-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #f3f4f6; border-bottom: 1px solid #ddd; font-size: 12px; }
+  .problem-header .num { font-weight: bold; font-size: 16px; color: #2563eb; }
   .problem-header .source { color: #999; font-size: 10px; }
-  .problem-body { padding: 4px; text-align: center; flex: 1; }
-  .problem-body img { max-width: 100%; max-height: 200px; object-fit: contain; }
-  .problem-body .no-img { color: #ccc; padding: 16px; font-size: 11px; }
-  .answer-area { border-top: 1px dashed #ccc; padding: 4px 8px; min-height: 50px; }
+  .problem-body { padding: 8px; text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; }
+  .problem-body img { max-width: 100%; max-height: 220px; object-fit: contain; }
+  .problem-body .no-img { color: #ccc; padding: 20px; font-size: 11px; }
+  .answer-area { border-top: 1px dashed #ccc; padding: 6px 10px; min-height: 55px; }
   .answer-area span { font-size: 11px; color: #aaa; }
   .page-break { page-break-after: always; }
-  .score-box { margin-top: 12px; text-align: right; font-size: 15px; font-weight: bold; }
+  .score-box { margin-top: 16px; text-align: right; font-size: 15px; font-weight: bold; }
   .score-box span { border: 2px solid #222; padding: 4px 16px; border-radius: 6px; }
-  .footer { margin-top: 12px; text-align: center; font-size: 10px; color: #bbb; }
+  .footer { margin-top: 16px; text-align: center; font-size: 10px; color: #bbb; }
+  .btn-bar { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
+  .btn-bar button { padding: 10px 28px; font-size: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+  .btn-pdf { background: #2563eb; color: #fff; }
+  .btn-back { background: #6b7280; color: #fff; }
   @media print { .no-print { display: none !important; } body { padding: 0; } }
 </style>
 </head><body>
-<div class="no-print" style="text-align:center;margin-bottom:10px;">
-  <button onclick="window.print()" style="padding:10px 32px;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">인쇄 / PDF 저장</button>
+<div class="no-print btn-bar">
+  <button class="btn-back" onclick="window.close()">← 뒤로가기</button>
+  <button class="btn-pdf" onclick="window.print()">PDF 저장</button>
 </div>
 <div class="header">
   <h1>오답 테스트</h1>
@@ -638,7 +644,7 @@ ${problems.map((p, idx) => `
     ${p.imgUrl ? `<img src="${p.imgUrl}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
   </div>
   <div class="answer-area"><span>답:</span></div>
-</div>${(idx + 1) % 4 === 0 && idx < problems.length - 1 ? '</div><div class="page-break"></div><div class="grid">' : ''}`).join('')}
+</div>${(idx + 1) % 2 === 0 && idx < problems.length - 1 ? '</div><div class="row-gap"></div><div class="grid">' : ''}`).join('')}
 </div>
 <div class="score-box">점수: <span>&nbsp;&nbsp;&nbsp;&nbsp;/ ${problems.length}</span></div>
 <div class="footer">수학탐구 오답관리 시스템</div>
@@ -1240,14 +1246,23 @@ ${problems.map((p, idx) => `
                             className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
                         )}
                       </div>
-                      <button onClick={handleRegisterWrongAnswers} disabled={registering || regSuccess}
-                        className={`w-full py-2.5 text-white rounded-lg font-medium transition-all ${
-                          regSuccess
-                            ? 'bg-green-500 cursor-default'
-                            : 'bg-red-600 hover:bg-red-700 disabled:opacity-50'
-                        }`}>
-                        {registering ? '등록 중...' : regSuccess ? '등록 완료!' : '오답 등록'}
-                      </button>
+                      {regSuccess ? (
+                        <div className="space-y-3">
+                          <div className="w-full py-4 bg-green-50 border-2 border-green-400 rounded-lg text-center">
+                            <div className="text-green-700 font-bold text-lg mb-1">✅ 오답 등록 완료!</div>
+                            <p className="text-green-600 text-sm">오답 목록 탭에서 확인할 수 있습니다.</p>
+                          </div>
+                          <button onClick={() => { setRegSuccess(false); setRegStudent(''); setRegTestPaper(''); setRegTestName(''); setRegSelectedProblems(new Set()); }}
+                            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
+                            새 오답 등록하기
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={handleRegisterWrongAnswers} disabled={registering}
+                          className="w-full py-2.5 text-white rounded-lg font-medium transition-all bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                          {registering ? '등록 중...' : '오답 등록'}
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
