@@ -143,7 +143,7 @@ export default function ParentPage() {
     {id:'assignment',label:'과제완성도',icon:'✅'},
     {id:'wrongAnswers',label:'오답노트',icon:'📋'},
     {id:'homework',label:'숙제',icon:'📝'},
-    {id:'attendance',label:'출결',icon:'📅'},
+    {id:'video',label:'수업영상',icon:'🎥'},
     {id:'counsel',label:'상담요청',icon:'💬'},
     {id:'memo',label:'메모',icon:'💭'}
   ];
@@ -410,20 +410,34 @@ export default function ParentPage() {
           )}
         </div>)}
 
-        {tab==='attendance'&&(<div className="space-y-4">
-          <h2 className="text-base font-bold text-slate-800 px-1">출결</h2>
-          {data.attendance.length===0?(
-            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">출결 기록이 없습니다.</p></div>
+        {tab==='video'&&(<div className="space-y-4">
+          <h2 className="text-base font-bold text-slate-800 px-1">수업영상</h2>
+          {!data.videos||data.videos.length===0?(
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm">등록된 수업영상이 없습니다.</p></div>
           ):(
-            <div className="space-y-2">{data.attendance.map((a:any)=>(
-              <div key={a.id} className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm flex justify-between items-center">
-                <div><p className="text-sm font-medium text-slate-700">{a.date}</p><p className="text-xs text-slate-400">{a.classroom?.subject?.name}</p></div>
-                <span className={"px-3 py-1 rounded-full text-xs font-semibold "+(a.status==='PRESENT'?'bg-emerald-50 text-emerald-600':'bg-red-50 text-red-600')}
-                  style={a.status==='PRESENT'?{boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'}:a.status==='ABSENT'?{boxShadow:'inset 0 0 0 1px rgba(239,68,68,0.2)'}:{background:'#fffbeb',color:'#d97706',boxShadow:'inset 0 0 0 1px rgba(217,119,6,0.2)'}}>
-                  {a.status==='PRESENT'?'출석':a.status==='ABSENT'?'결석':'지각'}
-                </span>
-              </div>
-            ))}</div>
+            <div className="space-y-3">{data.videos.map((v:any)=>{
+              const getYtId=(url:string)=>{try{const u=new URL(url);if(u.hostname==='youtu.be')return u.pathname.slice(1);return u.searchParams.get('v')||'';}catch{return '';}};
+              const ytId=getYtId(v.videoUrl||'');
+              return(
+              <a key={v.id} href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all" style={{textDecoration:'none',WebkitTapHighlightColor:'transparent'}}>
+                {ytId&&(<div style={{position:'relative',width:'100%',paddingTop:'56.25%',background:'#000'}}>
+                  <img src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`} alt="" style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',objectFit:'cover'}}/>
+                  <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:48,height:48,background:'rgba(0,0,0,0.7)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <div style={{width:0,height:0,borderTop:'10px solid transparent',borderBottom:'10px solid transparent',borderLeft:'18px solid white',marginLeft:4}}/>
+                  </div>
+                </div>)}
+                <div className="px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-800">{v.title}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-slate-400">{v.date}</span>
+                    <span className="text-xs text-slate-300">·</span>
+                    <span className="text-xs text-slate-400">{v.classroom?.subject?.name||v.classroom?.name||''}</span>
+                    {v.duration&&(<><span className="text-xs text-slate-300">·</span><span className="text-xs text-slate-400">{v.duration}</span></>)}
+                  </div>
+                  {v.description&&(<p className="text-xs text-slate-500 mt-1.5 line-clamp-2">{v.description}</p>)}
+                </div>
+              </a>);
+            })}</div>
           )}
         </div>)}
 
