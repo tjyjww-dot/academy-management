@@ -20,17 +20,31 @@ export default function PushNotificationManager() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidKey) return;
-    setPermission(Notification.permission);
+
+    // 이미 처리된 적 있으면 배너를 아예 표시하지 않음
+    const dismissed = localStorage.getItem('push-banner-dismissed');
+    if (dismissed) return;
+
+    const perm = Notification.permission;
+    setPermission(perm);
+
+    // 이미 허용 또는 거부한 경우 배너 표시 안 함
+    if (perm === 'granted' || perm === 'denied') {
+      localStorage.setItem('push-banner-dismissed', 'true');
+      return;
+    }
+
     navigator.serviceWorker.register('/sw.js').then(async (reg) => {
       const sub = await reg.pushManager.getSubscription();
-      if (sub) setIsSubscribed(true);
-      else if (Notification.permission === 'default') {
-        // 이미 "나중에"를 누른 적 있으면 배너를 표시하지 않음
-        const dismissed = localStorage.getItem('push-banner-dismissed');
-        if (!dismissed) {
-          setTimeout(() => setShowBanner(true), 3000);
-        }
+      if (sub) {
+        setIsSubscribed(true);
+        localStorage.setItem('push-banner-dismissed', 'true');
+      } else {
+        setTimeout(() => setShowBanner(true), 3000);
       }
+    }).catch(() => {
+      // 서비스워커 등록 실패 시에도 배너 표시하지 않음
+      localStorage.setItem('push-banner-dismissed', 'true');
     });
   }, []);
 
@@ -38,6 +52,8 @@ export default function PushNotificationManager() {
     try {
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidKey) return;
+      // 허용/거부 어떤 선택이든 다시 묻지 않도록 저장
+      localStorage.setItem('push-banner-dismissed', 'true');
       const perm = await Notification.requestPermission();
       setPermission(perm);
       setShowBanner(false);
@@ -54,7 +70,10 @@ export default function PushNotificationManager() {
         body: JSON.stringify({ endpoint: subJson.endpoint, keys: { p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth } }),
       });
       if (res.ok) setIsSubscribed(true);
-    } catch (err) { console.error('Push subscription error:', err); }
+    } catch (err) {
+      console.error('Push subscription error:', err);
+      setShowBanner(false);
+    }
   };
 
   if (isSubscribed || permission === 'denied' || !showBanner) return null;
