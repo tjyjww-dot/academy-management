@@ -141,7 +141,7 @@ export default function ParentPage() {
     {id:'notice',label:'공지',icon:'📢'},
     {id:'grades',label:'성적',icon:'📊'},
     {id:'assignment',label:'과제완성도',icon:'✅'},
-    {id:'wrongAnswers',label:'오답노트',icon:'📋'},
+    {id:'wrongAnswers',label:'오답목록',icon:'📋'},
     {id:'homework',label:'숙제',icon:'📝'},
     {id:'video',label:'수업영상',icon:'🎥'},
     {id:'counsel',label:'상담요청',icon:'💬'},
@@ -490,7 +490,7 @@ export default function ParentPage() {
         </div>)}
 
         {tab==='wrongAnswers'&&(<div className="space-y-3">
-          <h2 className="text-base font-bold text-slate-800 px-1">오답노트</h2>
+          <h2 className="text-base font-bold text-slate-800 px-1">오답목록</h2>
           {waStats && (
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
