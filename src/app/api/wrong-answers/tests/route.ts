@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       include: {
         student: { select: { id: true, name: true, studentNumber: true } },
         classroom: { select: { id: true, name: true } },
-        items: { include: { wrongAnswer: true } },
+        items: { include: { wrongAnswer: { include: { testPaper: { include: { pages: { orderBy: { pageNumber: 'asc' } } } } } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -42,19 +42,25 @@ export async function POST(request: NextRequest) {
     if (!payload) return NextResponse.json({ error: '유효하지 않은 토큰입니다' }, { status: 401 });
 
     const body = await request.json();
-    const { studentId, classroomId } = body;
+    const { studentId, classroomId, maxCount } = body;
 
     if (!studentId || !classroomId) {
       return NextResponse.json({ error: '학생과 수업을 선택해주세요' }, { status: 400 });
     }
 
-    const activeWrongAnswers = await prisma.wrongAnswer.findMany({
+    let activeWrongAnswers = await prisma.wrongAnswer.findMany({
       where: { studentId, classroomId, status: 'ACTIVE' },
       orderBy: [{ testName: 'asc' }, { problemNumber: 'asc' }],
     });
 
     if (activeWrongAnswers.length === 0) {
       return NextResponse.json({ error: '활성 오답이 없습니다' }, { status: 400 });
+    }
+
+    // If maxCount specified, randomly select that many problems
+    if (maxCount && maxCount > 0 && maxCount < activeWrongAnswers.length) {
+      const shuffled = [...activeWrongAnswers].sort(() => Math.random() - 0.5);
+      activeWrongAnswers = shuffled.slice(0, maxCount);
     }
 
     const maxRound = Math.max(...activeWrongAnswers.map(wa => wa.round));
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest) {
       include: {
         student: { select: { id: true, name: true, studentNumber: true } },
         classroom: { select: { id: true, name: true } },
-        items: { include: { wrongAnswer: true } },
+        items: { include: { wrongAnswer: { include: { testPaper: { include: { pages: { orderBy: { pageNumber: 'asc' } } } } } } } },
       },
     });
 

@@ -84,6 +84,10 @@ export default function WrongAnswersPage() {
   const [regSelectedProblems, setRegSelectedProblems] = useState<Set<number>>(new Set());
   const [registering, setRegistering] = useState(false);
 
+  // Test creation modal
+  const [testCreateModal, setTestCreateModal] = useState<{ studentId: string; studentName: string; activeCount: number } | null>(null);
+  const [testCreateCount, setTestCreateCount] = useState(0);
+
   // Grading modal
   const [gradingTest, setGradingTest] = useState<WrongAnswerTestRecord | null>(null);
   const [gradeResults, setGradeResults] = useState<Record<string, boolean>>({});
@@ -499,46 +503,50 @@ export default function WrongAnswersPage() {
   };
 
   const generateTestPDF = (test: WrongAnswerTestRecord) => {
-    // Group items by testName
-    const grouped: Record<string, number[]> = {};
-    test.items.forEach(item => {
-      const name = item.wrongAnswer.testName || '기타';
-      if (!grouped[name]) grouped[name] = [];
-      grouped[name].push(item.wrongAnswer.problemNumber);
+    // Shuffle items randomly
+    const shuffled = [...test.items].sort(() => Math.random() - 0.5);
+
+    // Build problem entries with image URLs
+    const problems = shuffled.map((item, idx) => {
+      const wa = item.wrongAnswer as any;
+      // Find problem image from testPaper pages (pageNumber = problemNumber)
+      let imgUrl = '';
+      if (wa.testPaper?.pages) {
+        const page = wa.testPaper.pages.find((p: any) => p.pageNumber === wa.problemNumber);
+        if (page) imgUrl = page.imageUrl;
+      }
+      if (!imgUrl && wa.problemImage) imgUrl = wa.problemImage;
+      return { num: idx + 1, originalNum: wa.problemNumber, testName: wa.testName, imgUrl };
     });
-    // Sort numbers within each group
-    Object.values(grouped).forEach(nums => nums.sort((a, b) => a - b));
 
     const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-    const totalItems = test.items.length;
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <title>오답 테스트 - ${test.student.name}</title>
 <style>
-  @page { size: A4; margin: 20mm; }
+  @page { size: A4; margin: 15mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 24px; }
-  .header { text-align: center; border-bottom: 3px solid #222; padding-bottom: 16px; margin-bottom: 20px; }
-  .header h1 { font-size: 24px; margin-bottom: 8px; }
-  .info-row { display: flex; justify-content: space-between; font-size: 14px; color: #555; margin-top: 8px; }
-  .info-row span { display: inline-block; }
-  .section { margin-bottom: 24px; }
-  .section-title { font-size: 16px; font-weight: bold; color: #333; background: #f3f4f6; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
-  .problems-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-  .problem-row { display: flex; align-items: stretch; border: 1px solid #ddd; min-height: 60px; }
-  .problem-num { width: 60px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; background: #f9fafb; border-right: 1px solid #ddd; flex-shrink: 0; }
-  .problem-answer { flex: 1; padding: 8px 12px; display: flex; align-items: center; }
-  .footer { margin-top: 32px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #ddd; padding-top: 12px; }
-  .score-box { margin-top: 24px; text-align: right; font-size: 18px; font-weight: bold; }
-  .score-box span { display: inline-block; border: 2px solid #222; padding: 8px 24px; border-radius: 8px; }
-  @media print {
-    body { padding: 0; }
-    .no-print { display: none !important; }
-  }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 16px; }
+  .header { text-align: center; border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 16px; }
+  .header h1 { font-size: 22px; margin-bottom: 6px; }
+  .info-row { display: flex; justify-content: center; gap: 24px; font-size: 13px; color: #555; }
+  .problem { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; overflow: hidden; page-break-inside: avoid; }
+  .problem-header { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+  .problem-header .num { font-weight: bold; font-size: 16px; color: #2563eb; }
+  .problem-header .source { color: #888; font-size: 11px; }
+  .problem-body { padding: 8px; text-align: center; min-height: 80px; }
+  .problem-body img { max-width: 100%; max-height: 300px; object-fit: contain; }
+  .problem-body .no-img { color: #aaa; padding: 24px; font-size: 13px; }
+  .answer-line { border-top: 1px dashed #ddd; padding: 8px 12px; font-size: 13px; color: #888; min-height: 40px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .score-box { margin-top: 20px; text-align: right; font-size: 16px; font-weight: bold; }
+  .score-box span { border: 2px solid #222; padding: 6px 20px; border-radius: 6px; }
+  .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #bbb; }
+  @media print { .no-print { display: none !important; } body { padding: 0; } }
 </style>
 </head><body>
-<div class="no-print" style="text-align:center;margin-bottom:16px;">
+<div class="no-print" style="text-align:center;margin-bottom:12px;">
   <button onclick="window.print()" style="padding:10px 32px;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">인쇄 / PDF 저장</button>
 </div>
 <div class="header">
@@ -548,25 +556,21 @@ export default function WrongAnswersPage() {
     <span><b>반:</b> ${test.classroom.name}</span>
     <span><b>회차:</b> ${test.round}회</span>
     <span><b>날짜:</b> ${today}</span>
-  </div>
-  <div class="info-row" style="justify-content:center;margin-top:4px;">
-    <span>총 <b>${totalItems}</b>문항</span>
+    <span><b>총 ${problems.length}문항</b></span>
   </div>
 </div>
-${Object.entries(grouped).map(([testName, nums]) => `
-<div class="section">
-  <div class="section-title">${testName} (${nums.length}문항)</div>
-  <div class="problems-grid">
-    ${nums.map(num => `
-    <div class="problem-row">
-      <div class="problem-num">${num}</div>
-      <div class="problem-answer"></div>
-    </div>`).join('')}
+${problems.map(p => `
+<div class="problem">
+  <div class="problem-header">
+    <span class="num">${p.num}번</span>
+    <span class="source">${p.testName} #${p.originalNum}</span>
   </div>
+  <div class="problem-body">
+    ${p.imgUrl ? `<img src="${p.imgUrl}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
+  </div>
+  <div class="answer-line">답:</div>
 </div>`).join('')}
-<div class="score-box">
-  점수: <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ ${totalItems}</span>
-</div>
+<div class="score-box">점수: <span>&nbsp;&nbsp;&nbsp;&nbsp;/ ${problems.length}</span></div>
 <div class="footer">수학탐구 오답관리 시스템</div>
 </body></html>`;
 
@@ -574,21 +578,38 @@ ${Object.entries(grouped).map(([testName, nums]) => `
     if (w) { w.document.write(html); w.document.close(); }
   };
 
-  const handleCreateTest = async (studentId: string) => {
+  const openTestCreateModal = (studentId: string, studentName: string, activeCount: number) => {
+    setTestCreateModal({ studentId, studentName, activeCount });
+    setTestCreateCount(activeCount); // default to all
+  };
+
+  const handleCreateTest = async () => {
+    if (!testCreateModal) return;
+    const { studentId } = testCreateModal;
     try {
       const res = await fetch('/api/wrong-answers/tests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, classroomId: filterClassroom || '' }),
+        body: JSON.stringify({ studentId, classroomId: filterClassroom || '', maxCount: testCreateCount }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       const test = await res.json();
-      showMsg('테스트가 생성되었습니다 — 인쇄 페이지가 열립니다');
+      showMsg('테스트가 생성되었습니다');
+      setTestCreateModal(null);
       if (filterClassroom) await fetchDataForClassroom(filterClassroom);
-      // Auto-open printable test and switch to tests tab
       generateTestPDF(test);
       setActiveTab('tests');
     } catch (err: any) { showMsg(err.message || '테스트 생성 실패', 'error'); }
+  };
+
+  const handleDeleteTest = async (testId: string) => {
+    if (!confirm('이 테스트를 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/wrong-answers/tests/${testId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('삭제 실패');
+      showMsg('테스트가 삭제되었습니다');
+      if (filterClassroom) await fetchDataForClassroom(filterClassroom);
+    } catch { showMsg('테스트 삭제 실패', 'error'); }
   };
 
   const handleStartGrading = (test: WrongAnswerTestRecord) => {
@@ -1094,33 +1115,26 @@ ${Object.entries(grouped).map(([testName, nums]) => `
                           <span className="ml-3 text-sm text-gray-500">활성: {active.length} / 마스터: {mastered.length}</span>
                         </div>
                         {active.length > 0 && (
-                          <button onClick={() => handleCreateTest(studentId)}
+                          <button onClick={() => openTestCreateModal(studentId, name, active.length)}
                             className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
                             테스트 생성
                           </button>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+                      <div className="flex flex-wrap gap-1.5 px-4 py-3">
                         {items.map(wa => (
-                          <div key={wa.id} className={`border rounded-lg p-3 ${wa.status === 'MASTERED' ? 'bg-green-50 border-green-200' : ''}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <span className="font-bold text-blue-600">{wa.problemNumber}번</span>
-                                <span className="text-xs text-gray-400 ml-2">{wa.testName}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  wa.status === 'ACTIVE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
-                                }`}>{wa.status === 'ACTIVE' ? '미해결' : '마스터'}</span>
-                                <span className="text-xs text-gray-500">{wa.round}회차</span>
-                                <button onClick={() => handleDeleteWrongAnswer(wa.id)} className="text-red-400 hover:text-red-600 text-xs">삭제</button>
-                              </div>
-                            </div>
-                            {wa.problemImage && (
-                              <div className="bg-gray-50 rounded overflow-hidden">
-                                <img src={wa.problemImage} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-40" />
-                              </div>
-                            )}
+                          <div key={wa.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ${
+                            wa.status === 'MASTERED'
+                              ? 'bg-green-50 border-green-200 text-green-700'
+                              : 'bg-white border-gray-200 text-gray-700'
+                          }`}>
+                            <span className="font-bold text-blue-600">{wa.problemNumber}번</span>
+                            <span className="text-gray-400">{wa.testName}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              wa.status === 'ACTIVE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+                            }`}>{wa.status === 'ACTIVE' ? '미해결' : '마스터'}</span>
+                            <span className="text-gray-400">{wa.round}회</span>
+                            <button onClick={() => handleDeleteWrongAnswer(wa.id)} className="text-red-300 hover:text-red-500 ml-0.5">✕</button>
                           </div>
                         ))}
                       </div>
@@ -1171,6 +1185,8 @@ ${Object.entries(grouped).map(([testName, nums]) => `
                             <button onClick={() => handleStartGrading(test)}
                               className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">채점하기</button>
                           )}
+                          <button onClick={() => handleDeleteTest(test.id)}
+                            className="px-3 py-1.5 text-red-400 hover:text-red-600 text-sm">삭제</button>
                         </div>
                       </div>
                       <div className="text-xs text-gray-500">
@@ -1204,6 +1220,40 @@ ${Object.entries(grouped).map(([testName, nums]) => `
               <button onClick={() => setSelectedProblem(null)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
             </div>
             <img src={selectedProblem.imageDataUrl} alt={`문제 ${selectedProblem.number}`} className="w-full" />
+          </div>
+        </div>
+      )}
+
+      {/* Test Create Modal */}
+      {testCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">테스트 생성</h3>
+            <p className="text-sm text-gray-500 mb-4">{testCreateModal.studentName} - 활성 오답 {testCreateModal.activeCount}개</p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">출제 문항수</label>
+              <div className="flex flex-wrap gap-2">
+                {[5, 10, 15, 20].filter(n => n <= testCreateModal.activeCount).map(n => (
+                  <button key={n} onClick={() => setTestCreateCount(n)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      testCreateCount === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}>{n}문항</button>
+                ))}
+                <button onClick={() => setTestCreateCount(testCreateModal.activeCount)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    testCreateCount === testCreateModal.activeCount ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>전체 ({testCreateModal.activeCount})</button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">문제 순서는 랜덤으로 섞입니다</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setTestCreateModal(null)}
+                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">취소</button>
+              <button onClick={handleCreateTest} disabled={testCreateCount === 0}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                생성 및 출력
+              </button>
+            </div>
           </div>
         </div>
       )}
