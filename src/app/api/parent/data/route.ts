@@ -147,6 +147,17 @@ export async function GET(req: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
+    // 오답 데이터 직접 조회 (별도 API 호출 없이 확실하게 전달)
+    const wrongAnswers = await prisma.wrongAnswer.findMany({
+      where: { studentId: { in: studentIds } },
+      include: {
+        student: { select: { id: true, name: true, studentNumber: true } },
+        classroom: { select: { id: true, name: true } },
+        testPaper: { select: { id: true, name: true, answers: true, pages: { orderBy: { pageNumber: 'asc' } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return NextResponse.json({
       user: { id: user.id, name: user.name, role: user.role },
       students,
@@ -154,7 +165,8 @@ export async function GET(req: NextRequest) {
       grades: gradesWithAvg,
       attendance,
       announcements,
-      videos
+      videos,
+      wrongAnswers
     });
 
   } catch (error) {

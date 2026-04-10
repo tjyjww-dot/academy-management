@@ -1275,13 +1275,12 @@ ${problems.map((p, idx) => `
             <div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">반 선택 (선택사항)</label>
-                <select value={filterClassroom} onChange={e => {
-                  setFilterClassroom(e.target.value);
+                <select value={filterClassroom} onChange={async e => {
+                  const val = e.target.value;
+                  setFilterClassroom(val);
                   setLoading(true);
-                  setTimeout(() => {
-                    fetchDataForClassroom(e.target.value);
-                    setLoading(false);
-                  }, 0);
+                  await fetchDataForClassroom(val);
+                  setLoading(false);
                 }}
                   className="w-full max-w-md px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
                   <option value="">전체 반</option>
@@ -1290,7 +1289,7 @@ ${problems.map((p, idx) => `
               </div>
 
               {Object.keys(groupedByStudent).length === 0 ? (
-                <div className="text-center py-12 text-gray-500">등록된 오답이 없습니다.</div>
+                <div className="text-center py-12 text-gray-500">{filterClassroom ? '선택한 반에 등록된 오답이 없습니다.' : '등록된 오답이 없습니다.'}</div>
               ) : (
                 Object.entries(groupedByStudent).map(([studentId, { name, items }]) => {
                   const active = items.filter(i => i.status === 'ACTIVE');
@@ -1338,13 +1337,12 @@ ${problems.map((p, idx) => `
             <div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">반 선택 (선택사항)</label>
-                <select value={filterClassroom} onChange={e => {
-                  setFilterClassroom(e.target.value);
+                <select value={filterClassroom} onChange={async e => {
+                  const val = e.target.value;
+                  setFilterClassroom(val);
                   setLoading(true);
-                  setTimeout(() => {
-                    fetchDataForClassroom(e.target.value);
-                    setLoading(false);
-                  }, 0);
+                  await fetchDataForClassroom(val);
+                  setLoading(false);
                 }}
                   className="w-full max-w-md px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
                   <option value="">전체 반</option>

@@ -32,7 +32,18 @@ export default function ParentPage() {
       .then(d => {
         if (d) {
           setData(d);
-          if (d.students?.[0]) { fetchMemos(d.students[0].id); fetchWrongAnswers(d.students[0].id); }
+          if (d.students?.[0]) { fetchMemos(d.students[0].id); }
+          // 오답 데이터를 API 응답에서 직접 사용 (별도 호출보다 안정적)
+          if (d.wrongAnswers) {
+            const list = Array.isArray(d.wrongAnswers) ? d.wrongAnswers : [];
+            setWrongAnswers(list);
+            const active = list.filter((wa: any) => wa.status === 'ACTIVE').length;
+            const mastered = list.filter((wa: any) => wa.status === 'MASTERED').length;
+            setWaStats({ active, mastered, total: list.length, rate: list.length > 0 ? Math.round(mastered / list.length * 100) : 0 });
+          } else if (d.students?.[0]) {
+            // 폴백: 별도 API 호출
+            fetchWrongAnswers(d.students[0].id);
+          }
           // 로그인 성공 시 토큰 저장
           const tokenMatch = document.cookie.match(/auth-token-js=([^;]+)/);
           if (tokenMatch && typeof window !== 'undefined') {
