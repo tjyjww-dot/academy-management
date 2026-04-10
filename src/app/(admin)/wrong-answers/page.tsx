@@ -81,6 +81,7 @@ export default function WrongAnswersPage() {
   const [regTestPaper, setRegTestPaper] = useState('');
   const [regTestName, setRegTestName] = useState('');
   const [regProblemNumbers, setRegProblemNumbers] = useState('');
+  const [regSelectedProblems, setRegSelectedProblems] = useState<Set<number>>(new Set());
   const [registering, setRegistering] = useState(false);
 
   // Grading modal
@@ -113,15 +114,29 @@ export default function WrongAnswersPage() {
   const fetchStudentsForClassroom = async (classroomId: string) => {
     if (!classroomId) { setStudents([]); return; }
     try {
-      const res = await fetch(`/api/classes/${classroomId}`);
+      // Use /api/students with classroomId filter for reliable student loading
+      const res = await fetch(`/api/students?classroomId=${classroomId}&status=재원&limit=200`);
       if (res.ok) {
-        const cd = await res.json();
-        setStudents((cd.enrollments || []).map((e: any) => ({
-          id: e.student?.id || e.studentId, name: e.student?.name || '',
-          studentNumber: e.student?.studentNumber || null,
-        })));
+        const data = await res.json();
+        const list = (data.students || []).map((s: any) => ({
+          id: s.id, name: s.name || '',
+          studentNumber: s.studentNumber || null,
+        }));
+        setStudents(list);
+        console.log(`[students] Loaded ${list.length} students for classroom ${classroomId}`);
+      } else {
+        console.error('[students] API error:', res.status);
+        // Fallback: try enrollment-based approach
+        const res2 = await fetch(`/api/classes/${classroomId}`);
+        if (res2.ok) {
+          const cd = await res2.json();
+          setStudents((cd.enrollments || []).map((e: any) => ({
+            id: e.student?.id || e.studentId, name: e.student?.name || '',
+            studentNumber: e.student?.studentNumber || null,
+          })));
+        }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('[students] Fetch error:', e); }
   };
 
   const fetchDataForClassroom = async (id: string) => {
@@ -442,11 +457,17 @@ export default function WrongAnswersPage() {
      Wrong Answer Registration
      ============================================================ */
   const handleRegisterWrongAnswers = async () => {
-    if (!regStudent || !regTestName || !regProblemNumbers) {
-      showMsg('모든 필드를 입력해주세요', 'error'); return;
+    if (!regStudent || !regTestName) {
+      showMsg('학생과 시험명을 입력해주세요', 'error'); return;
     }
-    const nums = regProblemNumbers.split(/[,\s]+/).map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
-    if (nums.length === 0) { showMsg('유효한 문제 번호를 입력해주세요', 'error'); return; }
+    // Use toggle-selected problems if test paper is selected, otherwise parse text input
+    let nums: number[];
+    if (regTestPaper && regSelectedProblems.size > 0) {
+      nums = Array.from(regSelectedProblems).sort((a, b) => a - b);
+    } else {
+      nums = regProblemNumbers.split(/[,\s]+/).map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+    }
+    if (nums.length === 0) { showMsg('틀린 문제를 선택해주세요', 'error'); return; }
 
     setRegistering(true);
     try {
@@ -462,6 +483,7 @@ export default function WrongAnswersPage() {
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       showMsg(`${nums.length}개 오답이 등록되었습니다`);
       setRegProblemNumbers('');
+      setRegSelectedProblems(new Set());
       if (regClassroom) await fetchDataForClassroom(regClassroom);
     } catch (err: any) {
       showMsg(err.message || '오답 등록 실패', 'error');
@@ -873,27 +895,80 @@ export default function WrongAnswersPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">시험지 (선택)</label>
-                        <select value={regTestPaper} onChange={e => { setRegTestPaper(e.target.value); if (e.target.value) {
-                          const tp = testPapers.find(t => t.id === e.target.value);
-                          if (tp) setRegTestName(tp.name);
-                        }}}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">시험지 선택</label>
+                        <select value={regTestPaper} onChange={e => {
+                          const val = e.target.value;
+                          setRegTestPaper(val);
+                          setRegSelectedProblems(new Set());
+                          if (val) {
+                            const tp = testPapers.find(t => t.id === val);
+                            if (tp) setRegTestName(tp.name);
+                          } else {
+                            setRegTestName('');
+                          }
+                        }}
                           className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
-                          <option value="">시험지를 선택하세요 (선택사항)</option>
+                          <option value="">시험지를 선택하세요</option>
                           {testPapers.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제)</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
                         <input type="text" value={regTestName} onChange={e => setRegTestName(e.target.value)}
-                          placeholder="예: 3월 모의고사"
-                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                          placeholder={regTestPaper ? '시험지 이름이 자동 입력됩니다' : '예: 3월 모의고사'}
+                          readOnly={!!regTestPaper}
+                          className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 ${regTestPaper ? 'bg-gray-50 text-gray-600' : ''}`} />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">틀린 문제 번호</label>
-                        <input type="text" value={regProblemNumbers} onChange={e => setRegProblemNumbers(e.target.value)}
-                          placeholder="예: 3, 7, 12, 15 (쉼표 또는 공백으로 구분)"
-                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          틀린 문제 번호
+                          {regTestPaper && regSelectedProblems.size > 0 && (
+                            <span className="ml-2 text-red-500 font-normal">({regSelectedProblems.size}개 선택)</span>
+                          )}
+                        </label>
+                        {regTestPaper ? (() => {
+                          const tp = testPapers.find(t => t.id === regTestPaper);
+                          const total = tp?.totalProblems || 0;
+                          return (
+                            <div>
+                              <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border">
+                                {Array.from({ length: total }, (_, i) => i + 1).map(num => {
+                                  const isSelected = regSelectedProblems.has(num);
+                                  return (
+                                    <button key={num} type="button"
+                                      onClick={() => {
+                                        setRegSelectedProblems(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(num)) next.delete(num); else next.add(num);
+                                          return next;
+                                        });
+                                      }}
+                                      className={`w-10 h-10 rounded-lg text-sm font-medium transition-all ${
+                                        isSelected
+                                          ? 'bg-red-500 text-white shadow-md scale-105'
+                                          : 'bg-white text-gray-700 border border-gray-300 hover:border-red-300 hover:bg-red-50'
+                                      }`}>
+                                      {num}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {regSelectedProblems.size > 0 && (
+                                <div className="mt-2 flex items-center justify-between">
+                                  <p className="text-sm text-gray-500">
+                                    선택: {Array.from(regSelectedProblems).sort((a, b) => a - b).join(', ')}
+                                  </p>
+                                  <button type="button" onClick={() => setRegSelectedProblems(new Set())}
+                                    className="text-xs text-gray-400 hover:text-red-500 underline">전체 해제</button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : (
+                          <input type="text" value={regProblemNumbers} onChange={e => setRegProblemNumbers(e.target.value)}
+                            placeholder="시험지를 선택하거나 직접 입력 (예: 3, 7, 12, 15)"
+                            className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                        )}
                       </div>
                       <button onClick={handleRegisterWrongAnswers} disabled={registering}
                         className="w-full py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">
