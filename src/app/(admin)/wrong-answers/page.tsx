@@ -83,6 +83,7 @@ export default function WrongAnswersPage() {
   const [regProblemNumbers, setRegProblemNumbers] = useState('');
   const [regSelectedProblems, setRegSelectedProblems] = useState<Set<number>>(new Set());
   const [registering, setRegistering] = useState(false);
+  const [regSuccess, setRegSuccess] = useState(false);
 
   // Test creation modal
   const [testCreateModal, setTestCreateModal] = useState<{ studentId: string; studentName: string; activeCount: number } | null>(null);
@@ -488,6 +489,8 @@ export default function WrongAnswersPage() {
       showMsg(`${nums.length}개 오답이 등록되었습니다`);
       setRegProblemNumbers('');
       setRegSelectedProblems(new Set());
+      setRegSuccess(true);
+      setTimeout(() => setRegSuccess(false), 4000);
       if (regClassroom) await fetchDataForClassroom(regClassroom);
     } catch (err: any) {
       showMsg(err.message || '오답 등록 실패', 'error');
@@ -525,28 +528,30 @@ export default function WrongAnswersPage() {
 <html><head><meta charset="utf-8">
 <title>오답 테스트 - ${test.student.name}</title>
 <style>
-  @page { size: A4; margin: 15mm; }
+  @page { size: A4; margin: 10mm 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 16px; }
-  .header { text-align: center; border-bottom: 3px solid #222; padding-bottom: 12px; margin-bottom: 16px; }
-  .header h1 { font-size: 22px; margin-bottom: 6px; }
-  .info-row { display: flex; justify-content: center; gap: 24px; font-size: 13px; color: #555; }
-  .problem { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; overflow: hidden; page-break-inside: avoid; }
-  .problem-header { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
-  .problem-header .num { font-weight: bold; font-size: 16px; color: #2563eb; }
-  .problem-header .source { color: #888; font-size: 11px; }
-  .problem-body { padding: 8px; text-align: center; min-height: 80px; }
-  .problem-body img { max-width: 100%; max-height: 300px; object-fit: contain; }
-  .problem-body .no-img { color: #aaa; padding: 24px; font-size: 13px; }
-  .answer-line { border-top: 1px dashed #ddd; padding: 8px 12px; font-size: 13px; color: #888; min-height: 40px; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .score-box { margin-top: 20px; text-align: right; font-size: 16px; font-weight: bold; }
-  .score-box span { border: 2px solid #222; padding: 6px 20px; border-radius: 6px; }
-  .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #bbb; }
+  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 8px; }
+  .header { text-align: center; border-bottom: 2px solid #222; padding-bottom: 8px; margin-bottom: 10px; }
+  .header h1 { font-size: 20px; margin-bottom: 4px; }
+  .info-row { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: #555; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .problem { border: 1px solid #bbb; border-radius: 6px; overflow: hidden; page-break-inside: avoid; display: flex; flex-direction: column; }
+  .problem-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #f3f4f6; border-bottom: 1px solid #ddd; font-size: 12px; }
+  .problem-header .num { font-weight: bold; font-size: 15px; color: #2563eb; }
+  .problem-header .source { color: #999; font-size: 10px; }
+  .problem-body { padding: 4px; text-align: center; flex: 1; }
+  .problem-body img { max-width: 100%; max-height: 200px; object-fit: contain; }
+  .problem-body .no-img { color: #ccc; padding: 16px; font-size: 11px; }
+  .answer-area { border-top: 1px dashed #ccc; padding: 4px 8px; min-height: 50px; }
+  .answer-area span { font-size: 11px; color: #aaa; }
+  .page-break { page-break-after: always; }
+  .score-box { margin-top: 12px; text-align: right; font-size: 15px; font-weight: bold; }
+  .score-box span { border: 2px solid #222; padding: 4px 16px; border-radius: 6px; }
+  .footer { margin-top: 12px; text-align: center; font-size: 10px; color: #bbb; }
   @media print { .no-print { display: none !important; } body { padding: 0; } }
 </style>
 </head><body>
-<div class="no-print" style="text-align:center;margin-bottom:12px;">
+<div class="no-print" style="text-align:center;margin-bottom:10px;">
   <button onclick="window.print()" style="padding:10px 32px;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">인쇄 / PDF 저장</button>
 </div>
 <div class="header">
@@ -559,17 +564,19 @@ export default function WrongAnswersPage() {
     <span><b>총 ${problems.length}문항</b></span>
   </div>
 </div>
-${problems.map(p => `
+<div class="grid">
+${problems.map((p, idx) => `
 <div class="problem">
   <div class="problem-header">
-    <span class="num">${p.num}번</span>
+    <span class="num">${p.num}</span>
     <span class="source">${p.testName} #${p.originalNum}</span>
   </div>
   <div class="problem-body">
     ${p.imgUrl ? `<img src="${p.imgUrl}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
   </div>
-  <div class="answer-line">답:</div>
-</div>`).join('')}
+  <div class="answer-area"><span>답:</span></div>
+</div>${(idx + 1) % 4 === 0 && idx < problems.length - 1 ? '</div><div class="page-break"></div><div class="grid">' : ''}`).join('')}
+</div>
 <div class="score-box">점수: <span>&nbsp;&nbsp;&nbsp;&nbsp;/ ${problems.length}</span></div>
 <div class="footer">수학탐구 오답관리 시스템</div>
 </body></html>`;
@@ -1071,9 +1078,13 @@ ${problems.map(p => `
                             className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
                         )}
                       </div>
-                      <button onClick={handleRegisterWrongAnswers} disabled={registering}
-                        className="w-full py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">
-                        {registering ? '등록 중...' : '오답 등록'}
+                      <button onClick={handleRegisterWrongAnswers} disabled={registering || regSuccess}
+                        className={`w-full py-2.5 text-white rounded-lg font-medium transition-all ${
+                          regSuccess
+                            ? 'bg-green-500 cursor-default'
+                            : 'bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                        }`}>
+                        {registering ? '등록 중...' : regSuccess ? '등록 완료!' : '오답 등록'}
                       </button>
                     </>
                   )}

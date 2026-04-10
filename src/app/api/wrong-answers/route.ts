@@ -76,19 +76,24 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Determine which page image to link (simple: use first page if only 1, else try to match)
-      const problemImage = pageImages[1] || null;
+      // Match problem N to image page N (each problem is stored as a separate page)
+      const problemImage = pageImages[num] || null;
 
       if (existing) {
+        // Always update testPaperId and image if provided (even for ACTIVE records)
+        const updateData: any = {};
+        if (testPaperId && !existing.testPaperId) updateData.testPaperId = testPaperId;
+        if (problemImage && !existing.problemImage) updateData.problemImage = problemImage;
         if (existing.status === 'MASTERED') {
+          updateData.status = 'ACTIVE';
+          updateData.round = existing.round + 1;
+          if (testPaperId) updateData.testPaperId = testPaperId;
+          if (problemImage) updateData.problemImage = problemImage;
+        }
+        if (Object.keys(updateData).length > 0) {
           await prisma.wrongAnswer.update({
             where: { id: existing.id },
-            data: {
-              status: 'ACTIVE',
-              round: existing.round + 1,
-              testPaperId: testPaperId || existing.testPaperId,
-              problemImage: problemImage || existing.problemImage,
-            },
+            data: updateData,
           });
         }
         results.push(existing);

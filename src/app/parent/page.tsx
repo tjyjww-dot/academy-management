@@ -150,7 +150,7 @@ export default function ParentPage() {
     {id:'video',label:'수업영상',icon:'🎬'},
     {id:'counsel',label:'상담요청',icon:'💬'},
     {id:'memo',label:'메모',icon:'💭'},
-    {id:'wrongAnswers',label:'오답노트(준비중)',icon:'⚠️'}
+    {id:'wrongAnswers',label:'오답노트',icon:'⚠️'}
   ];
 
   // 과제완성도 데이터 파싱 (attitude 필드: "GRADE::MEMO" 형식)
@@ -494,7 +494,7 @@ export default function ParentPage() {
         </div>)}
 
         {tab==='wrongAnswers'&&(<div className="space-y-3">
-          <h2 className="text-base font-bold text-slate-800 px-1">오답노트 <span className="text-xs font-normal text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">준비중</span></h2>
+          <h2 className="text-base font-bold text-slate-800 px-1">오답노트</h2>
           {waStats && (
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-red-50 rounded-2xl p-3 text-center border border-red-100">
@@ -508,6 +508,57 @@ export default function ParentPage() {
               <div className="bg-blue-50 rounded-2xl p-3 text-center border border-blue-100">
                 <p className="text-xl font-bold text-blue-600">{waStats.rate}%</p>
                 <p className="text-xs text-blue-400">습득률</p>
+              </div>
+            </div>
+          )}
+          {/* Practice test generation */}
+          {waStats && waStats.active > 0 && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-100">
+              <p className="font-medium text-slate-800 mb-2">연습 테스트 만들기</p>
+              <p className="text-xs text-slate-500 mb-3">미해결 오답에서 랜덤으로 출제됩니다</p>
+              <div className="flex flex-wrap gap-2">
+                {[5, 10, waStats.active].filter((n: number, i: number, arr: number[]) => n <= waStats.active && arr.indexOf(n) === i).map((cnt: number) => (
+                  <button key={cnt} onClick={async () => {
+                    try {
+                      const sid = data.students[0].id;
+                      const classroomId = wrongAnswers.find((wa: any) => wa.status === 'ACTIVE')?.classroomId;
+                      if (!classroomId) return;
+                      const res = await fetch('/api/wrong-answers/tests', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ studentId: sid, classroomId, maxCount: cnt, isParentTest: true }),
+                      });
+                      if (!res.ok) throw new Error('생성 실패');
+                      const test = await res.json();
+                      // Generate printable test
+                      const shuffled = test.items.sort(() => Math.random() - 0.5);
+                      const problems = shuffled.map((item: any, idx: number) => {
+                        const wa = item.wrongAnswer;
+                        let imgUrl = '';
+                        if (wa.testPaper?.pages) {
+                          const page = wa.testPaper.pages.find((p: any) => p.pageNumber === wa.problemNumber);
+                          if (page) imgUrl = page.imageUrl;
+                        }
+                        if (!imgUrl && wa.problemImage) imgUrl = wa.problemImage;
+                        return { num: idx + 1, originalNum: wa.problemNumber, testName: wa.testName, imgUrl };
+                      });
+                      const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+                      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>연습 테스트 - ${s?.name}</title>
+<style>@page{size:A4;margin:10mm 8mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Malgun Gothic',sans-serif;color:#222;background:#fff;padding:8px}.header{text-align:center;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:10px}.header h1{font-size:20px;margin-bottom:4px}.info-row{display:flex;justify-content:center;gap:16px;font-size:12px;color:#555}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.problem{border:1px solid #bbb;border-radius:6px;overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column}.problem-header{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#f3f4f6;border-bottom:1px solid #ddd;font-size:12px}.problem-header .num{font-weight:bold;font-size:15px;color:#2563eb}.problem-header .source{color:#999;font-size:10px}.problem-body{padding:4px;text-align:center;flex:1}.problem-body img{max-width:100%;max-height:200px;object-fit:contain}.problem-body .no-img{color:#ccc;padding:16px;font-size:11px}.answer-area{border-top:1px dashed #ccc;padding:4px 8px;min-height:50px}.answer-area span{font-size:11px;color:#aaa}.page-break{page-break-after:always}.footer{margin-top:12px;text-align:center;font-size:10px;color:#bbb}@media print{.no-print{display:none!important}body{padding:0}}</style></head><body>
+<div class="no-print" style="text-align:center;margin-bottom:10px"><button onclick="window.print()" style="padding:10px 32px;font-size:16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer">인쇄 / PDF 저장</button></div>
+<div class="header"><h1>연습 테스트</h1><div class="info-row"><span><b>이름:</b> ${s?.name}</span><span><b>날짜:</b> ${today}</span><span><b>총 ${problems.length}문항</b></span></div></div>
+<div class="grid">${problems.map((p: any, idx: number) => `<div class="problem"><div class="problem-header"><span class="num">${p.num}</span><span class="source">${p.testName} #${p.originalNum}</span></div><div class="problem-body">${p.imgUrl ? `<img src="${p.imgUrl}" />` : '<div class="no-img">문제 이미지 없음</div>'}</div><div class="answer-area"><span>답:</span></div></div>${(idx+1)%4===0&&idx<problems.length-1?'</div><div class="page-break"></div><div class="grid">':''}`).join('')}</div>
+<div class="footer">수학탐구 오답관리 시스템 - 연습용</div></body></html>`;
+                      const w = window.open('', '_blank');
+                      if (w) { w.document.write(html); w.document.close(); }
+                      // Delete the temporary test (parent tests are disposable)
+                      await fetch(`/api/wrong-answers/tests/${test.id}`, { method: 'DELETE' }).catch(() => {});
+                    } catch (e) { alert('테스트 생성에 실패했습니다'); }
+                  }}
+                    className="px-4 py-2.5 bg-white text-blue-600 border border-blue-200 rounded-xl text-sm font-medium hover:bg-blue-50 transition-all">
+                    {cnt === waStats.active ? `전체 (${cnt})` : `${cnt}문항`}
+                  </button>
+                ))}
               </div>
             </div>
           )}
