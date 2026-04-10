@@ -28,7 +28,6 @@ model User {
   studentProfile     Student?
   memos           Memo[]   @relation("memoAuthor")
   testPapers       TestPaper[]
-  studentTestPapers TestPaper[] @relation("StudentTestPapers")
 }
 
 model Student {
@@ -62,6 +61,7 @@ model Student {
   wrongAnswers             WrongAnswer[]
   wrongAnswerTests         WrongAnswerTest[]
   examPreps                ExamPrep[]
+  studentTestPapers        TestPaper[] @relation("StudentTestPapers")
 }
 
 model ParentStudent {
@@ -433,7 +433,7 @@ model TestPaper {
   classroomId   String
   uploadedBy    User     @relation(fields: [uploadedById], references: [id])
   uploadedById  String
-  student       User?    @relation("StudentTestPapers", fields: [studentId], references: [id])
+  student       Student? @relation("StudentTestPapers", fields: [studentId], references: [id])
   studentId     String?
   answers       String?
   totalProblems Int
