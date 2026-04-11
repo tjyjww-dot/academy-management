@@ -77,12 +77,20 @@ export async function POST(request: NextRequest) {
       if (duStr) dataUrls = JSON.parse(duStr);
     } catch {}
 
+    // 정답 이미지 처리
+    const answerFiles = formData.getAll('answerImages') as File[];
+    let answerDataUrls: string[] = [];
+    try {
+      const aduStr = formData.get('answerDataUrls') as string;
+      if (aduStr) answerDataUrls = JSON.parse(aduStr);
+    } catch {}
+
     if (!name || !classroomId || !totalProblems) {
       return NextResponse.json({ error: '시험명, 반, 총 문항수를 모두 입력해주세요' }, { status: 400 });
     }
 
     // Upload files to Google Drive (with base64 fallback)
-    const pageData: { pageNumber: number; imageUrl: string }[] = [];
+    const pageData: { pageNumber: number; imageUrl: string; answerImageUrl?: string }[] = [];
     let uploadWarning = '';
 
     if (files.length > 0 && files[0].size > 0) {
@@ -116,6 +124,36 @@ export async function POST(request: NextRequest) {
         pageData.push({ pageNumber: pNum, imageUrl: dataUrls[i] });
       }
       console.log(`[test-papers] Used base64 fallback for ${pageData.length} problem images`);
+    }
+
+    // 정답 이미지 업로드 (Google Drive 또는 base64 폴백)
+    const answerImageMap: Record<number, string> = {};
+    if (answerFiles.length > 0 && answerFiles[0]?.size > 0) {
+      try {
+        for (let i = 0; i < answerFiles.length; i++) {
+          const file = answerFiles[i];
+          if (!file || file.size === 0) continue;
+          const pNum = problemNumbers[i] || (i + 1);
+          const fileName = `${Date.now()}-answer${pNum}.png`;
+          const result = await uploadFileFromBlob(fileName, file, 'image/png', ['수탐학원', '시험지', name, '정답']);
+          answerImageMap[pNum] = result.url;
+        }
+      } catch (e: any) {
+        console.error('Answer image upload failed, using base64:', e?.message);
+      }
+    }
+    // 폴백: base64 정답 이미지 사용
+    if (Object.keys(answerImageMap).length === 0 && answerDataUrls.length > 0) {
+      for (let i = 0; i < answerDataUrls.length; i++) {
+        const pNum = problemNumbers[i] || (i + 1);
+        answerImageMap[pNum] = answerDataUrls[i];
+      }
+    }
+    // pageData에 정답 이미지 URL 매핑
+    for (const pd of pageData) {
+      if (answerImageMap[pd.pageNumber]) {
+        pd.answerImageUrl = answerImageMap[pd.pageNumber];
+      }
     }
 
     // Create test paper (even if file upload failed)

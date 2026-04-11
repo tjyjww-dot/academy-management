@@ -444,11 +444,12 @@ model TestPaper {
 }
 
 model TestPaperPage {
-  id            String    @id @default(cuid())
-  testPaper     TestPaper @relation(fields: [testPaperId], references: [id], onDelete: Cascade)
-  testPaperId   String
-  pageNumber    Int
-  imageUrl      String
+  id              String    @id @default(cuid())
+  testPaper       TestPaper @relation(fields: [testPaperId], references: [id], onDelete: Cascade)
+  testPaperId     String
+  pageNumber      Int
+  imageUrl        String
+  answerImageUrl  String?
 
   @@unique([testPaperId, pageNumber])
 }

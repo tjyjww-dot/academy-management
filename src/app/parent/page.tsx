@@ -17,6 +17,7 @@ export default function ParentPage() {
   const [wrongAnswers, setWrongAnswers] = useState<any[]>([]);
   const [waStats, setWaStats] = useState<any>(null);
   const [expandedWA, setExpandedWA] = useState<Set<string>>(new Set());
+  const [showAnswer, setShowAnswer] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // 영구 로그인: localStorage에서 토큰 복원
@@ -611,11 +612,12 @@ export default function ParentPage() {
                     </div>
                     {/* 오답 문제 이미지 + 정답 보기 */}
                     {items.some((wa: any) => wa.testPaper?.pages?.length > 0 || wa.testPaper?.answers) && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-slate-500 mb-1">문제 이미지 및 정답 확인</p>
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium text-slate-500 mb-1">문제를 풀고 정답을 확인하세요</p>
                         {items.filter((wa: any) => wa.status === 'ACTIVE').sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => {
                           const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
                           const imgUrl = page?.imageUrl || wa.problemImage;
+                          const answerImgUrl = page?.answerImageUrl || null;
                           let correctAnswer: string | null = null;
                           try {
                             if (wa.testPaper?.answers) {
@@ -623,20 +625,41 @@ export default function ParentPage() {
                               correctAnswer = parsed[wa.problemNumber] || parsed[String(wa.problemNumber)] || null;
                             }
                           } catch {}
-                          if (!imgUrl && !correctAnswer) return null;
+                          if (!imgUrl && !correctAnswer && !answerImgUrl) return null;
+                          const isAnswerShown = showAnswer.has(wa.id);
                           return (
                             <div key={wa.id} className="border border-slate-200 rounded-xl overflow-hidden">
-                              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-100">
+                              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
                                 <span className="text-xs font-bold text-blue-600">{wa.problemNumber}번</span>
-                                {correctAnswer && (
-                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700" style={{boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'}}>
-                                    정답: {correctAnswer}
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {correctAnswer && (
+                                    <span className={'px-2.5 py-0.5 rounded-full text-xs font-bold transition-all ' + (isAnswerShown ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-200')} style={isAnswerShown ? {boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'} : {userSelect:'none'}}>
+                                      {isAnswerShown ? `정답: ${correctAnswer}` : '정답: ?'}
+                                    </span>
+                                  )}
+                                  {(answerImgUrl || correctAnswer) && (
+                                    <button
+                                      onClick={() => setShowAnswer(prev => {
+                                        const next = new Set(prev);
+                                        next.has(wa.id) ? next.delete(wa.id) : next.add(wa.id);
+                                        return next;
+                                      })}
+                                      className={'px-3 py-1 rounded-lg text-xs font-semibold transition-all ' + (isAnswerShown ? 'bg-slate-200 text-slate-600' : 'bg-blue-500 text-white')}
+                                    >
+                                      {isAnswerShown ? '정답 숨기기' : '정답 보기'}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               {imgUrl && (
                                 <div className="p-2">
-                                  <img src={imgUrl} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-64 rounded" />
+                                  <img src={imgUrl} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-72 rounded" />
+                                </div>
+                              )}
+                              {isAnswerShown && answerImgUrl && (
+                                <div className="border-t border-emerald-200 bg-emerald-50 p-2">
+                                  <p className="text-xs font-semibold text-emerald-700 mb-1 px-1">정답 풀이</p>
+                                  <img src={answerImgUrl} alt={`정답 ${wa.problemNumber}`} className="w-full object-contain max-h-72 rounded" />
                                 </div>
                               )}
                             </div>

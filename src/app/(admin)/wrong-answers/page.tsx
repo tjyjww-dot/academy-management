@@ -475,6 +475,7 @@ export default function WrongAnswersPage() {
       // Upload problem images with actual problem numbers
       const problemNumbers: number[] = [];
       const dataUrls: string[] = [];
+      const answerDataUrls: string[] = [];
       for (let i = 0; i < extractedProblems.length; i++) {
         const p = extractedProblems[i];
         const blob = dataURLtoBlob(p.imageDataUrl);
@@ -482,12 +483,28 @@ export default function WrongAnswersPage() {
         formData.append('images', file);
         problemNumbers.push(p.number);
         dataUrls.push(p.imageDataUrl);
+
+        // 정답 이미지도 함께 전송
+        if (p.answerImageDataUrl) {
+          const ansBlob = dataURLtoBlob(p.answerImageDataUrl);
+          const ansFile = new File([ansBlob], `answer-${p.number}.png`, { type: 'image/png' });
+          formData.append('answerImages', ansFile);
+          answerDataUrls.push(p.answerImageDataUrl);
+        } else {
+          // 정답 이미지가 없는 문제는 빈 파일로 순서 유지
+          const emptyBlob = new Blob([], { type: 'image/png' });
+          formData.append('answerImages', new File([emptyBlob], `answer-${p.number}-empty.png`, { type: 'image/png' }));
+          answerDataUrls.push('');
+        }
+
         setExtractProgress({ current: i + 1, total: extractedProblems.length, message: `이미지 업로드 중 (${i + 1}/${extractedProblems.length})` });
       }
       // Send actual problem numbers so pages get correct pageNumber
       formData.append('problemNumbers', JSON.stringify(problemNumbers));
       // Send base64 data URLs as fallback when Google Drive upload fails
       formData.append('dataUrls', JSON.stringify(dataUrls));
+      // 정답 이미지 base64 폴백
+      formData.append('answerDataUrls', JSON.stringify(answerDataUrls.filter(u => u)));
 
       const res = await fetch('/api/test-papers', { method: 'POST', body: formData });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
