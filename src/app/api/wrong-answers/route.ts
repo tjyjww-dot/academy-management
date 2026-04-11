@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     if (studentId) where.studentId = studentId;
     if (classroomId) where.classroomId = classroomId;
     if (status) where.status = status;
+    console.log('[wrong-answers GET] classroomId:', classroomId, 'studentId:', studentId, 'where:', JSON.stringify(where));
 
     let wrongAnswers = await prisma.wrongAnswer.findMany({
       where,
