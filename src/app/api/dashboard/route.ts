@@ -112,10 +112,18 @@ export async function GET(request: NextRequest) {
             createdAt: { gte: oneWeekAgo },
           },
           include: {
-            student: { select: { id: true, name: true } },
+            student: {
+              select: {
+                id: true, name: true,
+                enrollments: {
+                  where: { status: 'ACTIVE' },
+                  include: { classroom: { include: { teacher: { select: { name: true } } } } },
+                  take: 1,
+                },
+              },
+            },
             parent: { select: { name: true } },
           },
-          // createdByName 포함 (select 없이 전체)
           orderBy: { createdAt: 'desc' },
           take: 10,
         });

@@ -426,22 +426,6 @@ export default function WrongAnswersPage() {
       setExtractProgress({ current: 0, total: 0, message: '문제와 답지를 매칭 중...' });
       const matched = matchProblemsToAnswers(problemImages, answerImages);
 
-      // Attach answer text from server or client detection
-      const useServer = Object.keys(serverAnswers).length > detectedAnswerCount;
-      for (const m of matched) {
-        if (useServer && serverAnswers[String(m.number)]) {
-          (m as any).answerText = serverAnswers[String(m.number)];
-          // Mark as "server matched" even without answer image
-          if (!m.answerPageNumber) {
-            (m as any).answerText = serverAnswers[String(m.number)];
-            (m as any).serverMatched = true;
-          }
-        } else {
-          const detectedAns = answersDetected.find(a => a.problemNumber === m.number);
-          if (detectedAns) (m as any).answerText = detectedAns.answerText;
-        }
-      }
-
       setExtractedProblems(matched);
       setExtractState('done');
     } catch (err: any) {
@@ -930,26 +914,11 @@ ${problems.map((p, idx) => `
                           {p.answerImageDataUrl ? (
                             <div className="bg-green-50 rounded overflow-hidden border border-green-200">
                               <img src={p.answerImageDataUrl} alt={`답 ${p.number}`} className="w-full object-contain max-h-24" />
-                              <div className="text-xs text-green-600 text-center py-1">
-                                {(() => {
-                                  const txt = (p as any).answerText || '';
-                                  // Hide garbled text (contains □, tofu, or only non-readable chars)
-                                  const isReadable = txt && !/^[\s\d)\(\-]*$/.test(txt) && !/[\u25A1\uFFFD]/.test(txt) && /[a-zA-Z0-9가-힣①②③④⑤+\-=<>]/.test(txt);
-                                  return isReadable ? <span className="font-semibold mr-1">답: {txt}</span> : null;
-                                })()}
-                                <span>p.{p.answerPageNumber}</span>
-                              </div>
-                            </div>
-                          ) : (p as any).answerText ? (
-                            <div className="bg-blue-50 rounded border border-blue-200 p-2">
-                              <div className="text-xs text-blue-700 text-center">
-                                <span className="font-semibold">답: {(p as any).answerText}</span>
-                                {(p as any).serverMatched && <span className="ml-1 text-blue-500">(서버 추출)</span>}
-                              </div>
+                              <div className="text-xs text-green-600 text-center py-0.5">정답 이미지</div>
                             </div>
                           ) : (
                             <div className="bg-yellow-50 rounded border border-yellow-200 p-2 text-center">
-                              <span className="text-xs text-yellow-600">답 미매칭</span>
+                              <span className="text-xs text-yellow-600">정답 이미지 없음</span>
                             </div>
                           )}
                         </div>

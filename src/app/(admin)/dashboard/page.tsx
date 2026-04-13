@@ -443,6 +443,7 @@ export default function DashboardPage() {
                         </span>
                         <span className="text-xs font-medium text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">{c.student.name}</span>
                         <span className="text-xs text-gray-500">{c.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
+                        {(() => { const t = (c.student as any)?.enrollments?.[0]?.classroom?.teacher?.name; return t ? <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{t} 선생님</span> : null; })()}
                       </div>
                       <p className="font-medium text-gray-900 truncate">{c.title}</p>
                       {c.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-1">{c.description}</p>}
