@@ -137,7 +137,7 @@ export default function ClassDetailPage() {
         }
         setProgressNote(loadedProgressNote);
         setHomework(data.dailyReports[0].homework || '');
-        setAnnouncement(data.dailyReports[0].specialNote || '');
+        setAnnouncement(data.dailyReports[0].specialNote || data.prevAnnouncement || '');
         const pshMap: Record<string, string> = {};
         const pspMap: Record<string, string> = {};
         const pnMap: Record<string, string> = {};
@@ -151,7 +151,7 @@ export default function ClassDetailPage() {
       } else {
         setProgressNote('');
         setHomework('');
-        setAnnouncement('');
+        setAnnouncement(data.prevAnnouncement || '');
       }
 
       if (data.videos && data.videos.length > 0) {

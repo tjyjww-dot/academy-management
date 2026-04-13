@@ -84,6 +84,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .sort((a: any, b: any) => b.assignmentDate.localeCompare(a.assignmentDate))
       .slice(0, 5);
 
+    // 이전 날짜에서 공지사항 가져오기 (현재 날짜에 공지가 없으면 이전 공지 유지)
+    let prevAnnouncement = '';
+    const todayHasAnnouncement = dailyReports.some((dr) => dr.specialNote && dr.specialNote.trim() !== '');
+    if (!todayHasAnnouncement) {
+      const latestPrevAnnouncement = await prisma.dailyReport.findFirst({
+        where: { classroomId, date: { lt: date }, specialNote: { not: '' } },
+        orderBy: { date: 'desc' },
+      });
+      if (latestPrevAnnouncement && latestPrevAnnouncement.specialNote?.trim()) {
+        prevAnnouncement = latestPrevAnnouncement.specialNote;
+      }
+    }
+
     let prevAssignmentForHomework = '';
     const todayHasHomework = dailyReports.some((dr) => dr.homework && dr.homework.trim() !== '');
     if (!todayHasHomework) {
@@ -121,7 +134,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({
       classroom, attendance, grades, allGrades, todayAssignments, prevAssignments: allPrevItems,
-      videos, dailyReports, date, prevAssignmentForHomework, savedTestName, savedMaxScore,
+      videos, dailyReports, date, prevAssignmentForHomework, prevAnnouncement, savedTestName, savedMaxScore,
     });
   } catch (error) {
     console.error('Daily fetch error:', error);
