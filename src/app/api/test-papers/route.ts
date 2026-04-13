@@ -128,12 +128,13 @@ export async function POST(request: NextRequest) {
 
     // 정답 이미지 업로드 (Google Drive 또는 base64 폴백)
     const answerImageMap: Record<number, string> = {};
-    if (answerFiles.length > 0 && answerFiles[0]?.size > 0) {
+    if (answerFiles.length > 0) {
       try {
         for (let i = 0; i < answerFiles.length; i++) {
           const file = answerFiles[i];
-          if (!file || file.size === 0) continue;
           const pNum = problemNumbers[i] || (i + 1);
+          // 빈 파일(정답 이미지 없는 문제)은 건너뛰되 인덱스는 유지
+          if (!file || file.size === 0) continue;
           const fileName = `${Date.now()}-answer${pNum}.png`;
           const result = await uploadFileFromBlob(fileName, file, 'image/png', ['수탐학원', '시험지', name, '정답']);
           answerImageMap[pNum] = result.url;
@@ -142,9 +143,10 @@ export async function POST(request: NextRequest) {
         console.error('Answer image upload failed, using base64:', e?.message);
       }
     }
-    // 폴백: base64 정답 이미지 사용
+    // 폴백: base64 정답 이미지 사용 (Google Drive 실패 시)
     if (Object.keys(answerImageMap).length === 0 && answerDataUrls.length > 0) {
       for (let i = 0; i < answerDataUrls.length; i++) {
+        if (!answerDataUrls[i] || answerDataUrls[i].length < 10) continue;
         const pNum = problemNumbers[i] || (i + 1);
         answerImageMap[pNum] = answerDataUrls[i];
       }

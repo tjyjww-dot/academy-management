@@ -509,8 +509,8 @@ export default function WrongAnswersPage() {
       formData.append('problemNumbers', JSON.stringify(problemNumbers));
       // Send base64 data URLs as fallback when Google Drive upload fails
       formData.append('dataUrls', JSON.stringify(dataUrls));
-      // 정답 이미지 base64 폴백
-      formData.append('answerDataUrls', JSON.stringify(answerDataUrls.filter(u => u)));
+      // 정답 이미지 base64 폴백 (빈 문자열 유지하여 인덱스 매핑 보존)
+      formData.append('answerDataUrls', JSON.stringify(answerDataUrls));
 
       const res = await fetch('/api/test-papers', { method: 'POST', body: formData });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
