@@ -519,12 +519,11 @@ export default function ParentPage() {
               </div>
             </div>
           )}
-          {/* Practice test generation */}
+          {/* Practice test generation - compact */}
           {waStats && waStats.active > 0 && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4 border border-blue-100">
-              <p className="font-medium text-slate-800 mb-2">연습 테스트 만들기</p>
-              <p className="text-xs text-slate-500 mb-3">미해결 오답에서 랜덤으로 출제됩니다</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2 border border-blue-100">
+              <span className="text-xs text-slate-600 whitespace-nowrap">📝 연습테스트</span>
+              <div className="flex gap-1.5 flex-wrap">
                 {[5, 10, waStats.active].filter((n: number, i: number, arr: number[]) => n <= waStats.active && arr.indexOf(n) === i).map((cnt: number) => (
                   <button key={cnt} onClick={async () => {
                     try {
@@ -563,8 +562,8 @@ export default function ParentPage() {
                       await fetch(`/api/wrong-answers/tests/${test.id}`, { method: 'DELETE' }).catch(() => {});
                     } catch (e) { alert('테스트 생성에 실패했습니다'); }
                   }}
-                    className="px-4 py-2.5 bg-white text-blue-600 border border-blue-200 rounded-xl text-sm font-medium hover:bg-blue-50 transition-all">
-                    {cnt === waStats.active ? `전체 (${cnt})` : `${cnt}문항`}
+                    className="px-2.5 py-1 bg-white text-blue-600 border border-blue-200 rounded-lg text-xs font-medium hover:bg-blue-100 transition-all">
+                    {cnt === waStats.active ? `전체${cnt}` : `${cnt}문항`}
                   </button>
                 ))}
               </div>
@@ -611,40 +610,28 @@ export default function ParentPage() {
                       ))}
                     </div>
                     {/* 오답 문제 이미지 + 정답 보기 */}
-                    {items.some((wa: any) => wa.testPaper?.pages?.length > 0 || wa.testPaper?.answers) && (
+                    {items.some((wa: any) => wa.testPaper?.pages?.length > 0) && (
                       <div className="space-y-3">
                         <p className="text-xs font-medium text-slate-500 mb-1">문제를 풀고 정답을 확인하세요</p>
                         {items.filter((wa: any) => wa.status === 'ACTIVE').sort((a: any, b: any) => a.problemNumber - b.problemNumber).map((wa: any) => {
                           const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
                           const imgUrl = page?.imageUrl || wa.problemImage;
                           const answerImgUrl = page?.answerImageUrl || null;
-                          let correctAnswer: string | null = null;
-                          try {
-                            if (wa.testPaper?.answers) {
-                              const parsed = typeof wa.testPaper.answers === 'string' ? JSON.parse(wa.testPaper.answers) : wa.testPaper.answers;
-                              correctAnswer = parsed[wa.problemNumber] || parsed[String(wa.problemNumber)] || null;
-                            }
-                          } catch {}
-                          if (!imgUrl && !correctAnswer && !answerImgUrl) return null;
+                          if (!imgUrl && !answerImgUrl) return null;
                           const isAnswerShown = showAnswer.has(wa.id);
                           return (
                             <div key={wa.id} className="border border-slate-200 rounded-xl overflow-hidden">
                               <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
                                 <span className="text-xs font-bold text-blue-600">{wa.problemNumber}번</span>
                                 <div className="flex items-center gap-2">
-                                  {correctAnswer && (
-                                    <span className={'px-2.5 py-0.5 rounded-full text-xs font-bold transition-all ' + (isAnswerShown ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-200')} style={isAnswerShown ? {boxShadow:'inset 0 0 0 1px rgba(16,185,129,0.2)'} : {userSelect:'none'}}>
-                                      {isAnswerShown ? `정답: ${correctAnswer}` : '정답: ?'}
-                                    </span>
-                                  )}
-                                  {(answerImgUrl || correctAnswer) && (
+                                  {answerImgUrl && (
                                     <button
                                       onClick={() => setShowAnswer(prev => {
                                         const next = new Set(prev);
                                         next.has(wa.id) ? next.delete(wa.id) : next.add(wa.id);
                                         return next;
                                       })}
-                                      className={'px-3 py-1 rounded-lg text-xs font-semibold transition-all ' + (isAnswerShown ? 'bg-slate-200 text-slate-600' : 'bg-blue-500 text-white')}
+                                      className={'px-3 py-1 rounded-lg text-xs font-semibold transition-all ' + (isAnswerShown ? 'bg-slate-200 text-slate-600' : 'bg-emerald-500 text-white')}
                                     >
                                       {isAnswerShown ? '정답 숨기기' : '정답 보기'}
                                     </button>
@@ -659,7 +646,7 @@ export default function ParentPage() {
                               {isAnswerShown && answerImgUrl && (
                                 <div className="border-t border-emerald-200 bg-emerald-50 p-2">
                                   <p className="text-xs font-semibold text-emerald-700 mb-1 px-1">정답 풀이</p>
-                                  <img src={answerImgUrl} alt={`정답 ${wa.problemNumber}`} className="w-full object-contain max-h-72 rounded" />
+                                  <img src={answerImgUrl} alt={`정답 ${wa.problemNumber}`} className="w-full object-contain max-h-96 rounded" />
                                 </div>
                               )}
                             </div>
