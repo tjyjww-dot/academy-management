@@ -621,31 +621,35 @@ export default function ParentPage() {
                           const isAnswerShown = showAnswer.has(wa.id);
                           return (
                             <div key={wa.id} className="border border-slate-200 rounded-xl overflow-hidden">
-                              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
+                              <div className="px-3 py-2 bg-slate-50 border-b border-slate-100">
                                 <span className="text-xs font-bold text-blue-600">{wa.problemNumber}번</span>
-                                <div className="flex items-center gap-2">
-                                  {answerImgUrl && (
-                                    <button
-                                      onClick={() => setShowAnswer(prev => {
-                                        const next = new Set(prev);
-                                        next.has(wa.id) ? next.delete(wa.id) : next.add(wa.id);
-                                        return next;
-                                      })}
-                                      className={'px-3 py-1 rounded-lg text-xs font-semibold transition-all ' + (isAnswerShown ? 'bg-slate-200 text-slate-600' : 'bg-emerald-500 text-white')}
-                                    >
-                                      {isAnswerShown ? '정답 숨기기' : '정답 보기'}
-                                    </button>
-                                  )}
-                                </div>
                               </div>
                               {imgUrl && (
                                 <div className="p-2">
                                   <img src={imgUrl} alt={`문제 ${wa.problemNumber}`} className="w-full object-contain max-h-72 rounded" />
                                 </div>
                               )}
+                              {/* 정답확인 버튼 - 문제 이미지 아래에 크게 배치 */}
+                              {answerImgUrl ? (
+                                <div
+                                  onClick={() => setShowAnswer(prev => {
+                                    const next = new Set(prev);
+                                    next.has(wa.id) ? next.delete(wa.id) : next.add(wa.id);
+                                    return next;
+                                  })}
+                                  className={'w-full text-center py-3 cursor-pointer select-none border-t transition-all ' + (isAnswerShown ? 'bg-slate-100 border-slate-200' : 'bg-emerald-50 border-emerald-200')}
+                                >
+                                  <span className={'text-sm font-bold ' + (isAnswerShown ? 'text-slate-500' : 'text-emerald-600')}>
+                                    {isAnswerShown ? '▲ 정답 숨기기' : '▼ 정답확인'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="w-full text-center py-2 border-t border-slate-100">
+                                  <span className="text-xs text-slate-400">정답 이미지가 등록되지 않았습니다</span>
+                                </div>
+                              )}
                               {isAnswerShown && answerImgUrl && (
-                                <div className="border-t border-emerald-200 bg-emerald-50 p-2">
-                                  <p className="text-xs font-semibold text-emerald-700 mb-1 px-1">정답 풀이</p>
+                                <div className="bg-emerald-50 p-2 border-t border-emerald-100">
                                   <img src={answerImgUrl} alt={`정답 ${wa.problemNumber}`} className="w-full object-contain max-h-96 rounded" />
                                 </div>
                               )}
