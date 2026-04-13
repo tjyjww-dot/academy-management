@@ -11,8 +11,19 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+// 쿠키 설정 (localStorage보다 안드로이드에서 더 안정적)
+function setCookie(name: string, value: string, days: number) {
+  const d = new Date();
+  d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+
 export default function PushNotificationManager() {
-  const [permission, setPermission] = useState<string>('default');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
 
@@ -21,42 +32,75 @@ export default function PushNotificationManager() {
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidKey) return;
 
-    // 이미 처리된 적 있으면 배너를 아예 표시하지 않음
-    const dismissed = localStorage.getItem('push-banner-dismissed');
-    if (dismissed) return;
+    // 1차: 쿠키 확인 (안드로이드에서도 안정적)
+    if (getCookie('push-dismissed') === '1') return;
 
+    // 2차: localStorage 확인 (백업)
+    try {
+      if (localStorage.getItem('push-banner-dismissed') === 'true') {
+        // localStorage에 있으면 쿠키에도 동기화
+        setCookie('push-dismissed', '1', 365);
+        return;
+      }
+    } catch {}
+
+    // 3차: 브라우저 권한 확인
     const perm = Notification.permission;
-    setPermission(perm);
-
-    // 이미 허용 또는 거부한 경우 배너 표시 안 함
     if (perm === 'granted' || perm === 'denied') {
-      localStorage.setItem('push-banner-dismissed', 'true');
+      markDismissed();
       return;
     }
 
-    navigator.serviceWorker.register('/sw.js').then(async (reg) => {
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        setIsSubscribed(true);
-        localStorage.setItem('push-banner-dismissed', 'true');
-      } else {
-        setTimeout(() => setShowBanner(true), 3000);
-      }
-    }).catch(() => {
-      // 서비스워커 등록 실패 시에도 배너 표시하지 않음
-      localStorage.setItem('push-banner-dismissed', 'true');
-    });
+    // 4차: 서버에서 이미 등록된 푸시 토큰이 있는지 확인
+    fetch('/api/push/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.subscribed) {
+          markDismissed();
+          setIsSubscribed(true);
+        } else {
+          // 서비스워커 등록 후 구독 확인
+          navigator.serviceWorker.register('/sw.js').then(async (reg) => {
+            const sub = await reg.pushManager.getSubscription();
+            if (sub) {
+              setIsSubscribed(true);
+              markDismissed();
+            } else {
+              setTimeout(() => setShowBanner(true), 3000);
+            }
+          }).catch(() => {
+            markDismissed();
+          });
+        }
+      })
+      .catch(() => {
+        // API 실패해도 서비스워커로 체크
+        navigator.serviceWorker.register('/sw.js').then(async (reg) => {
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            setIsSubscribed(true);
+            markDismissed();
+          } else {
+            setTimeout(() => setShowBanner(true), 3000);
+          }
+        }).catch(() => {
+          markDismissed();
+        });
+      });
   }, []);
+
+  function markDismissed() {
+    try { localStorage.setItem('push-banner-dismissed', 'true'); } catch {}
+    setCookie('push-dismissed', '1', 365);
+  }
 
   const subscribe = async () => {
     try {
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidKey) return;
-      // 허용/거부 어떤 선택이든 다시 묻지 않도록 저장
-      localStorage.setItem('push-banner-dismissed', 'true');
-      const perm = await Notification.requestPermission();
-      setPermission(perm);
+      markDismissed();
       setShowBanner(false);
+      const perm = await Notification.requestPermission();
       if (perm !== 'granted') return;
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
@@ -76,7 +120,7 @@ export default function PushNotificationManager() {
     }
   };
 
-  if (isSubscribed || permission === 'denied' || !showBanner) return null;
+  if (isSubscribed || !showBanner) return null;
 
   return (
     <div style={{
@@ -93,7 +137,7 @@ export default function PushNotificationManager() {
         <p style={{ color: 'rgba(191,219,254,1)', fontSize: 12, margin: '4px 0 0' }}>출결, 성적 등 학원 소식을 바로 받아보세요</p>
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button onClick={() => { localStorage.setItem('push-banner-dismissed', 'true'); setShowBanner(false); }} style={{
+        <button onClick={() => { markDismissed(); setShowBanner(false); }} style={{
           background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
           padding: '8px 12px', color: 'white', fontSize: 12, cursor: 'pointer',
         }}>나중에</button>
