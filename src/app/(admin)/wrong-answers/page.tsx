@@ -2,6 +2,7 @@
 // @ts-nocheck
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 
 /* ============================================================
    Types
@@ -43,6 +44,7 @@ interface ExtractedProblem {
    Main Page Component
    ============================================================ */
 export default function WrongAnswersPage() {
+  const router = useRouter();
   // Global state
   const [classrooms, setClassrooms] = useState<ClassroomOption[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState('');
@@ -739,7 +741,30 @@ ${problems.map((p, idx) => `
      ============================================================ */
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">오답 관리</h1>
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <h1 className="text-2xl font-bold text-gray-800">오답 관리</h1>
+        <button
+          onClick={() => {
+            const targetClassId = filterClassroom || regClassroom || '';
+            if (targetClassId) {
+              router.push(`/classes/${targetClassId}`);
+            } else if (classrooms.length === 1) {
+              // 강사가 담당반이 1개뿐이면 바로 그 반으로 이동
+              router.push(`/classes/${classrooms[0].id}`);
+            } else {
+              router.push('/classes');
+            }
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+          title="현재 선택한 반의 반관리 페이지로 이동"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          반관리로 이동
+        </button>
+      </div>
 
       {/* Message */}
       {message && (
