@@ -62,7 +62,18 @@ export default function ClassDetailPage() {
   const fetchDaily = useCallback(async () => {
     try {
       setLoading(true);
-      setReportSent(new Set());
+      // 날짜별 전송 상태를 localStorage에서 복원 (저장 후에도 유지)
+      try {
+        const key = 'reportSent::' + classId + '::' + selectedDate;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) setReportSent(new Set(arr));
+          else setReportSent(new Set());
+        } else {
+          setReportSent(new Set());
+        }
+      } catch { setReportSent(new Set()); }
       const res = await fetch('/api/classes/' + classId + '/daily?date=' + selectedDate);
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -374,7 +385,14 @@ export default function ClassDetailPage() {
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-    setReportSent(prev => new Set(prev).add(student.id));
+    setReportSent(prev => {
+      const next = new Set(prev).add(student.id);
+      try {
+        const key = 'reportSent::' + classId + '::' + selectedDate;
+        localStorage.setItem(key, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
 
     // Send push notification to parents & student
     try {
