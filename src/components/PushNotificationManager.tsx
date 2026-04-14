@@ -23,6 +23,60 @@ function getCookie(name: string): string | null {
   return match ? match[2] : null;
 }
 
+async function saveSubscriptionToServer(sub: PushSubscription): Promise<boolean> {
+  try {
+    const subJson = sub.toJSON();
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: subJson.endpoint, keys: { p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth } }),
+    });
+    return res.ok;
+  } catch (e) {
+    console.error('[push] save to server failed', e);
+    return false;
+  }
+}
+
+async function ensureSubscription(vapidKey: string): Promise<PushSubscription | null> {
+  try {
+    // 서비스워커 등록 및 활성화 대기
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+
+    // 기존 구독 확인
+    let sub = await reg.pushManager.getSubscription();
+
+    // 구독이 있지만 VAPID 키가 다를 수 있음 - 유효성 체크
+    if (sub) {
+      const currentKey = sub.options?.applicationServerKey;
+      const expectedKeyArr = urlBase64ToUint8Array(vapidKey);
+      if (currentKey) {
+        const currentArr = new Uint8Array(currentKey);
+        if (currentArr.length !== expectedKeyArr.length ||
+          !currentArr.every((v, i) => v === expectedKeyArr[i])) {
+          console.log('[push] VAPID key mismatch, resubscribing');
+          await sub.unsubscribe();
+          sub = null;
+        }
+      }
+    }
+
+    // 구독이 없으면 생성
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    }
+
+    return sub;
+  } catch (e) {
+    console.error('[push] ensureSubscription error', e);
+    return null;
+  }
+}
+
 export default function PushNotificationManager() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
@@ -32,61 +86,43 @@ export default function PushNotificationManager() {
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidKey) return;
 
-    // 1차: 쿠키 확인 (안드로이드에서도 안정적)
-    if (getCookie('push-dismissed') === '1') return;
+    const run = async () => {
+      const perm = Notification.permission;
 
-    // 2차: localStorage 확인 (백업)
-    try {
-      if (localStorage.getItem('push-banner-dismissed') === 'true') {
-        // localStorage에 있으면 쿠키에도 동기화
-        setCookie('push-dismissed', '1', 365);
+      // 이미 권한 허용 상태 → 항상 구독 상태 동기화 (핵심 수정)
+      if (perm === 'granted') {
+        const sub = await ensureSubscription(vapidKey);
+        if (sub) {
+          await saveSubscriptionToServer(sub);
+          setIsSubscribed(true);
+          setCookie('push-dismissed', '1', 365);
+          try { localStorage.setItem('push-banner-dismissed', 'true'); } catch {}
+        }
         return;
       }
-    } catch {}
 
-    // 3차: 브라우저 권한 확인
-    const perm = Notification.permission;
-    if (perm === 'granted' || perm === 'denied') {
-      markDismissed();
-      return;
-    }
+      // 거부 상태 → 배너 숨김
+      if (perm === 'denied') {
+        setCookie('push-dismissed', '1', 365);
+        try { localStorage.setItem('push-banner-dismissed', 'true'); } catch {}
+        return;
+      }
 
-    // 4차: 서버에서 이미 등록된 푸시 토큰이 있는지 확인
-    fetch('/api/push/status')
-      .then(res => res.json())
-      .then(data => {
-        if (data.subscribed) {
-          markDismissed();
-          setIsSubscribed(true);
-        } else {
-          // 서비스워커 등록 후 구독 확인
-          navigator.serviceWorker.register('/sw.js').then(async (reg) => {
-            const sub = await reg.pushManager.getSubscription();
-            if (sub) {
-              setIsSubscribed(true);
-              markDismissed();
-            } else {
-              setTimeout(() => setShowBanner(true), 3000);
-            }
-          }).catch(() => {
-            markDismissed();
-          });
+      // perm === 'default': 사용자가 아직 선택하지 않음
+      // 이전에 "나중에"를 눌렀으면 배너 숨김
+      if (getCookie('push-dismissed') === '1') return;
+      try {
+        if (localStorage.getItem('push-banner-dismissed') === 'true') {
+          setCookie('push-dismissed', '1', 365);
+          return;
         }
-      })
-      .catch(() => {
-        // API 실패해도 서비스워커로 체크
-        navigator.serviceWorker.register('/sw.js').then(async (reg) => {
-          const sub = await reg.pushManager.getSubscription();
-          if (sub) {
-            setIsSubscribed(true);
-            markDismissed();
-          } else {
-            setTimeout(() => setShowBanner(true), 3000);
-          }
-        }).catch(() => {
-          markDismissed();
-        });
-      });
+      } catch {}
+
+      // 배너 노출 (3초 후)
+      setTimeout(() => setShowBanner(true), 3000);
+    };
+
+    run();
   }, []);
 
   function markDismissed() {
@@ -98,22 +134,18 @@ export default function PushNotificationManager() {
     try {
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidKey) return;
-      markDismissed();
       setShowBanner(false);
       const perm = await Notification.requestPermission();
-      if (perm !== 'granted') return;
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
-      const subJson = sub.toJSON();
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: subJson.endpoint, keys: { p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth } }),
-      });
-      if (res.ok) setIsSubscribed(true);
+      if (perm !== 'granted') {
+        markDismissed();
+        return;
+      }
+      const sub = await ensureSubscription(vapidKey);
+      if (sub) {
+        const saved = await saveSubscriptionToServer(sub);
+        if (saved) setIsSubscribed(true);
+        markDismissed();
+      }
     } catch (err) {
       console.error('Push subscription error:', err);
       setShowBanner(false);
