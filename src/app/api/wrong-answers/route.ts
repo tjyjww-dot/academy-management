@@ -18,6 +18,24 @@ export async function GET(request: NextRequest) {
     if (studentId) where.studentId = studentId;
     if (classroomId) where.classroomId = classroomId;
     if (status) where.status = status;
+
+    // 강사(TEACHER)는 본인이 담당하는 반의 오답만 조회 가능
+    if (decoded.role === 'TEACHER') {
+      const myClassrooms = await prisma.classroom.findMany({
+        where: { teacherId: decoded.userId },
+        select: { id: true },
+      });
+      const myClassroomIds = myClassrooms.map(c => c.id);
+      if (classroomId) {
+        // 요청된 classroomId가 본인 담당반이 아니면 빈 결과
+        if (!myClassroomIds.includes(classroomId)) {
+          return NextResponse.json([]);
+        }
+      } else {
+        // classroomId 미지정 시 본인 담당반으로 제한
+        where.classroomId = { in: myClassroomIds.length > 0 ? myClassroomIds : ['__none__'] };
+      }
+    }
     console.log('[wrong-answers GET] classroomId:', classroomId, 'studentId:', studentId, 'where:', JSON.stringify(where));
 
     let wrongAnswers = await prisma.wrongAnswer.findMany({

@@ -17,6 +17,22 @@ export async function GET(request: NextRequest) {
     if (classroomId) where.classroomId = classroomId;
     if (studentId) where.studentId = studentId;
 
+    // 강사(TEACHER)는 본인 담당반만 통계 집계
+    if (payload.role === 'TEACHER') {
+      const myClassrooms = await prisma.classroom.findMany({
+        where: { teacherId: payload.userId },
+        select: { id: true },
+      });
+      const myClassroomIds = myClassrooms.map(c => c.id);
+      if (classroomId) {
+        if (!myClassroomIds.includes(classroomId)) {
+          return NextResponse.json({ totalActive: 0, totalMastered: 0, totalTests: 0, pendingTests: 0, masteryRate: 0 });
+        }
+      } else {
+        where.classroomId = { in: myClassroomIds.length > 0 ? myClassroomIds : ['__none__'] };
+      }
+    }
+
     const [totalActive, totalMastered, totalTests, pendingTests] = await Promise.all([
       prisma.wrongAnswer.count({ where: { ...where, status: 'ACTIVE' } }),
       prisma.wrongAnswer.count({ where: { ...where, status: 'MASTERED' } }),

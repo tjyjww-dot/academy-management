@@ -17,6 +17,22 @@ export async function GET(request: NextRequest) {
     if (studentId) where.studentId = studentId;
     if (classroomId) where.classroomId = classroomId;
 
+    // 강사(TEACHER)는 본인이 담당하는 반의 데이터만 조회
+    if (payload.role === 'TEACHER') {
+      const myClassrooms = await prisma.classroom.findMany({
+        where: { teacherId: payload.userId },
+        select: { id: true },
+      });
+      const myClassroomIds = myClassrooms.map(c => c.id);
+      if (classroomId) {
+        if (!myClassroomIds.includes(classroomId)) {
+          return NextResponse.json([]);
+        }
+      } else {
+        where.classroomId = { in: myClassroomIds.length > 0 ? myClassroomIds : ['__none__'] };
+      }
+    }
+
     let tests = await prisma.wrongAnswerTest.findMany({
       where,
       include: {

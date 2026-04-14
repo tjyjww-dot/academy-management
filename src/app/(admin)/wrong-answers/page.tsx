@@ -191,7 +191,9 @@ export default function WrongAnswersPage() {
     } catch (e) { console.error('[students] Fetch error:', e); }
   };
 
+  const fetchSeqRef = useRef(0);
   const fetchDataForClassroom = async (id: string) => {
+    const seq = ++fetchSeqRef.current;
     try {
       const classroomParam = id ? `?classroomId=${id}` : '';
       const [waRes, testRes, statsRes] = await Promise.all([
@@ -199,9 +201,11 @@ export default function WrongAnswersPage() {
         fetch(`/api/wrong-answers/tests${classroomParam}`),
         fetch(`/api/wrong-answers/stats${classroomParam}`),
       ]);
-      if (waRes.ok) { const d = await waRes.json(); setWrongAnswers(Array.isArray(d) ? d : []); }
-      if (testRes.ok) { const d = await testRes.json(); setTests(Array.isArray(d) ? d : []); }
-      if (statsRes.ok) setStats(await statsRes.json());
+      // 경합 방지: 이 호출이 가장 최신이 아닌 경우 결과 무시
+      if (seq !== fetchSeqRef.current) return;
+      if (waRes.ok) { const d = await waRes.json(); if (seq === fetchSeqRef.current) setWrongAnswers(Array.isArray(d) ? d : []); }
+      if (testRes.ok) { const d = await testRes.json(); if (seq === fetchSeqRef.current) setTests(Array.isArray(d) ? d : []); }
+      if (statsRes.ok) { const d = await statsRes.json(); if (seq === fetchSeqRef.current) setStats(d); }
     } catch (e) { console.error(e); }
   };
 
