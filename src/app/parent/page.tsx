@@ -621,14 +621,14 @@ export default function ParentPage() {
                       href={v.videoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block overflow-hidden transition-all hover:shadow-md"
+                      onPointerDown={() => hapticLight()}
+                      className="block overflow-hidden press press-subtle"
                       style={{
                         background: 'var(--color-surface)',
                         border: '1px solid var(--color-border)',
                         borderRadius: 'var(--radius-card)',
                         boxShadow: 'var(--shadow-sh1)',
                         textDecoration: 'none',
-                        WebkitTapHighlightColor: 'transparent',
                       }}
                     >
                       {ytId && (
@@ -677,20 +677,18 @@ export default function ParentPage() {
             <SectionHeader eyebrow="COUNSELING" title="상담 요청" />
             {!showCounselForm ? (
               <div className="space-y-3">
-                <button
-                  onPointerDown={() => hapticLight()}
+                <Card
+                  interactive
+                  haptic="light"
+                  elevation="sh1"
+                  padding="none"
                   onClick={() => { setCounselType('PHONE'); setShowCounselForm(true); }}
-                  className="w-full text-left hover:shadow-md press press-subtle"
-                  style={{
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-card)',
-                    padding: '18px 20px',
-                    boxShadow: 'var(--shadow-sh1)',
-                  }}
+                  className="w-full text-left"
+                  style={{ padding: '18px 20px' }}
                 >
                   <div className="flex items-center gap-3">
                     <div
+                      className="shrink-0"
                       style={{
                         width: 44, height: 44,
                         background: 'var(--color-info-bg)',
@@ -702,26 +700,31 @@ export default function ParentPage() {
                     >
                       ☏
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-h3" style={{ fontSize: 15 }}>전화 상담 요청</p>
                       <p className="text-caption mt-0.5">선생님이 전화를 드립니다</p>
                     </div>
+                    <span
+                      className="shrink-0"
+                      style={{ color: 'var(--color-mute)', fontSize: 16, lineHeight: 1 }}
+                      aria-hidden
+                    >
+                      ›
+                    </span>
                   </div>
-                </button>
-                <button
-                  onPointerDown={() => hapticLight()}
+                </Card>
+                <Card
+                  interactive
+                  haptic="light"
+                  elevation="sh1"
+                  padding="none"
                   onClick={() => { setCounselType('VISIT'); setShowCounselForm(true); }}
-                  className="w-full text-left hover:shadow-md press press-subtle"
-                  style={{
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-card)',
-                    padding: '18px 20px',
-                    boxShadow: 'var(--shadow-sh1)',
-                  }}
+                  className="w-full text-left"
+                  style={{ padding: '18px 20px' }}
                 >
                   <div className="flex items-center gap-3">
                     <div
+                      className="shrink-0"
                       style={{
                         width: 44, height: 44,
                         background: 'var(--color-gold-soft)',
@@ -733,12 +736,19 @@ export default function ParentPage() {
                     >
                       ⌂
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-h3" style={{ fontSize: 15 }}>방문 상담 요청</p>
                       <p className="text-caption mt-0.5">학원에 방문하여 상담</p>
                     </div>
+                    <span
+                      className="shrink-0"
+                      style={{ color: 'var(--color-mute)', fontSize: 16, lineHeight: 1 }}
+                      aria-hidden
+                    >
+                      ›
+                    </span>
                   </div>
-                </button>
+                </Card>
               </div>
             ) : (
               <Card padding="md" elevation="sh1">
@@ -860,9 +870,11 @@ export default function ParentPage() {
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {[5, 10, waStats.active].filter((n: number, i: number, arr: number[]) => n <= waStats.active && arr.indexOf(n) === i).map((cnt: number) => (
-                      <button
+                      <Button
                         key={cnt}
-                        onPointerDown={() => hapticMedium()}
+                        variant="secondary"
+                        size="sm"
+                        haptic="medium"
                         onClick={async () => {
                           try {
                             const sid = data.students[0].id;
@@ -898,22 +910,10 @@ export default function ParentPage() {
                             await fetch(`/api/wrong-answers/tests/${test.id}`, { method: 'DELETE' }).catch(() => {});
                           } catch (e) { alert('테스트 생성에 실패했습니다'); }
                         }}
-                        className="press press-strong"
-                        style={{
-                          background: 'var(--color-surface)',
-                          color: 'var(--color-accent)',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 'var(--radius-chip)',
-                          padding: '6px 12px',
-                          minHeight: 32,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          letterSpacing: '-0.01em',
-                          boxShadow: '0 1px 2px rgba(31,58,95,0.06)',
-                        }}
+                        style={{ color: 'var(--color-accent)' }}
                       >
                         {cnt === waStats.active ? `전체 ${cnt}` : `${cnt}문항`}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -939,6 +939,7 @@ export default function ParentPage() {
                   return (
                     <Card key={testName} padding="none" elevation="sh1">
                       <button
+                        onPointerDown={() => hapticSelection()}
                         onClick={() =>
                           setExpandedWA(prev => {
                             const next = new Set(prev);
@@ -946,7 +947,8 @@ export default function ParentPage() {
                             return next;
                           })
                         }
-                        className="w-full flex items-center justify-between p-4 text-left"
+                        className="w-full flex items-center justify-between p-4 text-left press press-subtle"
+                        style={{ borderRadius: 'var(--radius-card)' }}
                       >
                         <div className="min-w-0">
                           <p className="text-h3" style={{ fontSize: 14.5, fontWeight: 600 }}>{testName}</p>
@@ -960,14 +962,15 @@ export default function ParentPage() {
                             color: 'var(--color-mute)',
                             fontSize: 12,
                             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 200ms',
+                            transition: 'transform var(--dur-base) var(--ease-apple-inout)',
+                            display: 'inline-block',
                           }}
                         >
                           ▼
                         </span>
                       </button>
                       {isOpen && (
-                        <div className="px-4 pb-4">
+                        <div className="px-4 pb-4 anim-tab-in">
                           <Divider className="mb-3" />
                           <div className="flex flex-wrap gap-1.5 mb-3">
                             {items
@@ -1036,7 +1039,9 @@ export default function ParentPage() {
                                         </div>
                                       )}
                                       {answerImgUrl ? (
-                                        <div
+                                        <button
+                                          type="button"
+                                          onPointerDown={() => hapticSelection()}
                                           onClick={() =>
                                             setShowAnswer(prev => {
                                               const next = new Set(prev);
@@ -1044,10 +1049,12 @@ export default function ParentPage() {
                                               return next;
                                             })
                                           }
-                                          className="w-full text-center py-3 cursor-pointer select-none transition-all"
+                                          className="w-full text-center py-3 press press-subtle"
                                           style={{
+                                            minHeight: 44,
                                             background: isAnswerShown ? 'var(--color-surface-2)' : 'var(--color-success-bg)',
                                             borderTop: `1px solid ${isAnswerShown ? 'var(--color-border)' : 'var(--color-success-bg)'}`,
+                                            transition: 'background-color var(--dur-base) var(--ease-apple-inout), border-color var(--dur-base) var(--ease-apple-inout)',
                                           }}
                                         >
                                           <span
@@ -1056,11 +1063,12 @@ export default function ParentPage() {
                                               fontWeight: 700,
                                               color: isAnswerShown ? 'var(--color-mute)' : 'var(--color-success)',
                                               letterSpacing: '-0.01em',
+                                              transition: 'color var(--dur-base) var(--ease-apple-inout)',
                                             }}
                                           >
                                             {isAnswerShown ? '▲ 정답 숨기기' : '▼ 정답 확인'}
                                           </span>
-                                        </div>
+                                        </button>
                                       ) : (
                                         <div
                                           className="w-full text-center py-2"
@@ -1070,7 +1078,7 @@ export default function ParentPage() {
                                         </div>
                                       )}
                                       {isAnswerShown && answerImgUrl && (
-                                        <div className="p-2" style={{ background: 'var(--color-success-bg)', borderTop: '1px solid var(--color-success-bg)' }}>
+                                        <div className="p-2 anim-pop-in" style={{ background: 'var(--color-success-bg)', borderTop: '1px solid var(--color-success-bg)' }}>
                                           <img
                                             src={answerImgUrl}
                                             alt={`정답 ${wa.problemNumber}`}
