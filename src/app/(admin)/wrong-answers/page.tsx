@@ -25,6 +25,11 @@ interface WrongAnswerRecord {
   round: number; createdAt: string;
   student: { id: string; name: string; studentNumber: string | null };
   classroom: { id: string; name: string };
+  testPaper?: {
+    id?: string;
+    name?: string;
+    pages?: { id?: string; pageNumber: number; imageUrl: string; answerImageUrl?: string | null }[];
+  } | null;
 }
 interface WrongAnswerTestRecord {
   id: string; studentId: string; classroomId: string; round: number;
@@ -103,6 +108,7 @@ export default function WrongAnswersPage() {
   // Grading modal
   const [gradingTest, setGradingTest] = useState<WrongAnswerTestRecord | null>(null);
   const [gradeResults, setGradeResults] = useState<Record<string, boolean>>({});
+  const [showGradeAnswer, setShowGradeAnswer] = useState<Set<string>>(new Set());
 
   // Filter classroom for answers/tests tabs
   const [filterClassroom, setFilterClassroom] = useState('');
@@ -733,6 +739,7 @@ ${problems.map((p, idx) => `
     const init: Record<string, boolean> = {};
     test.items.forEach(i => { init[i.wrongAnswerId] = i.isCorrect ?? false; });
     setGradeResults(init);
+    setShowGradeAnswer(new Set());
   };
 
   const handleSubmitGrade = async () => {
@@ -2007,61 +2014,162 @@ ${problems.map((p, idx) => `
           style={{ background: 'rgba(0,0,0,0.55)' }}
         >
           <div
-            className="anim-sheet-up max-w-md w-full p-6 max-h-[80vh] overflow-y-auto rounded-[16px]"
+            className="anim-sheet-up max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto rounded-[16px]"
             style={{ background: 'var(--color-surface)', boxShadow: 'var(--shadow-sh3)' }}
           >
             <h3 className="text-lg font-bold text-ink mb-1" style={{ letterSpacing: '-0.01em' }}>채점</h3>
             <p className="text-sm mb-4" style={{ color: 'var(--color-ink-2)' }}>
               {gradingTest.student.name} <span style={{ color: 'var(--color-mute)' }}>·</span> {gradingTest.round}회차
             </p>
-            <div className="space-y-1">
+            <div className="space-y-3">
               {gradingTest.items.map(item => {
                 const val = gradeResults[item.wrongAnswerId];
+                const wa = item.wrongAnswer;
+                const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
+                const problemImg = page?.imageUrl || wa.problemImage || null;
+                const answerImg = page?.answerImageUrl || null;
+                const isAnswerShown = showGradeAnswer.has(wa.id);
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between py-2.5"
-                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-btn)',
+                      overflow: 'hidden',
+                      background: 'var(--color-surface)',
+                    }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-full font-semibold text-sm num-tabular shrink-0"
-                        style={{ background: 'var(--color-surface-2)', color: 'var(--color-ink)' }}
-                      >
-                        {item.wrongAnswer.problemNumber}
-                      </span>
-                      <span className="text-sm truncate" style={{ color: 'var(--color-ink-2)' }}>{item.wrongAnswer.testName}</span>
+                    {/* Header */}
+                    <div
+                      className="px-3 py-2 flex items-center justify-between gap-2"
+                      style={{
+                        background: 'var(--color-surface-2)',
+                        borderBottom: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-full font-semibold text-xs num-tabular shrink-0"
+                          style={{ background: 'var(--color-accent)', color: '#fff' }}
+                        >
+                          {wa.problemNumber}
+                        </span>
+                        <span className="text-xs truncate" style={{ color: 'var(--color-ink-2)', fontWeight: 500 }}>
+                          {wa.testName}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+
+                    {/* Problem Image */}
+                    {problemImg ? (
+                      <div className="p-2">
+                        <img
+                          src={problemImg}
+                          alt={`문제 ${wa.problemNumber}`}
+                          className="w-full object-contain max-h-80"
+                          style={{ borderRadius: 'var(--radius-chip)' }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center" style={{ color: 'var(--color-mute)', fontSize: 13 }}>
+                        문제 이미지가 없습니다
+                      </div>
+                    )}
+
+                    {/* O / X Grading Buttons */}
+                    <div
+                      className="flex gap-2 px-3 py-2"
+                      style={{ borderTop: '1px solid var(--color-border)' }}
+                    >
                       <button
+                        type="button"
                         onPointerDown={() => hapticSelection()}
                         onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: true }))}
-                        className="press press-strong w-10 h-9 rounded-[10px] text-sm font-bold"
+                        className="press press-strong flex-1 h-11 rounded-[10px] text-base font-bold"
                         style={{
                           background: val === true ? 'var(--color-success)' : 'var(--color-surface-2)',
                           color: val === true ? '#fff' : 'var(--color-ink-2)',
                           border: val === true ? '1px solid var(--color-success)' : '1px solid var(--color-border)',
                           transition: 'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout)',
                         }}
-                        aria-label="정답"
+                        aria-label="정답 처리"
                       >
                         O
                       </button>
                       <button
+                        type="button"
                         onPointerDown={() => hapticSelection()}
                         onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: false }))}
-                        className="press press-strong w-10 h-9 rounded-[10px] text-sm font-bold"
+                        className="press press-strong flex-1 h-11 rounded-[10px] text-base font-bold"
                         style={{
                           background: val === false ? 'var(--color-danger)' : 'var(--color-surface-2)',
                           color: val === false ? '#fff' : 'var(--color-ink-2)',
                           border: val === false ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
                           transition: 'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout)',
                         }}
-                        aria-label="오답"
+                        aria-label="오답 처리"
                       >
                         X
                       </button>
                     </div>
+
+                    {/* Answer Reveal Toggle */}
+                    {answerImg ? (
+                      <button
+                        type="button"
+                        onPointerDown={() => hapticSelection()}
+                        onClick={() =>
+                          setShowGradeAnswer(prev => {
+                            const next = new Set(prev);
+                            next.has(wa.id) ? next.delete(wa.id) : next.add(wa.id);
+                            return next;
+                          })
+                        }
+                        className="w-full text-center py-3 press press-subtle"
+                        style={{
+                          minHeight: 44,
+                          background: isAnswerShown ? 'var(--color-surface-2)' : 'var(--color-success-bg)',
+                          borderTop: `1px solid ${isAnswerShown ? 'var(--color-border)' : 'var(--color-success-bg)'}`,
+                          transition: 'background-color var(--dur-base) var(--ease-apple-inout), border-color var(--dur-base) var(--ease-apple-inout)',
+                        }}
+                        aria-label={isAnswerShown ? '정답 이미지 숨기기' : '정답 이미지 보기'}
+                        aria-expanded={isAnswerShown}
+                      >
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: isAnswerShown ? 'var(--color-mute)' : 'var(--color-success)',
+                            letterSpacing: '-0.01em',
+                            transition: 'color var(--dur-base) var(--ease-apple-inout)',
+                          }}
+                        >
+                          {isAnswerShown ? '▲ 정답 숨기기' : '▼ 정답 확인'}
+                        </span>
+                      </button>
+                    ) : (
+                      <div
+                        className="w-full text-center py-2"
+                        style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-mute)', fontSize: 12 }}
+                      >
+                        정답 이미지가 등록되지 않았습니다
+                      </div>
+                    )}
+
+                    {/* Answer Image (revealed) */}
+                    {isAnswerShown && answerImg && (
+                      <div
+                        className="p-2 anim-pop-in"
+                        style={{ background: 'var(--color-success-bg)', borderTop: '1px solid var(--color-success-bg)' }}
+                      >
+                        <img
+                          src={answerImg}
+                          alt={`정답 ${wa.problemNumber}`}
+                          className="w-full object-contain max-h-96"
+                          style={{ borderRadius: 'var(--radius-chip)' }}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
