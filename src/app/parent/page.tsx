@@ -155,7 +155,6 @@ export default function ParentPage() {
     { id: 'homework',     label: '숙제' },
     { id: 'video',        label: '수업영상' },
     { id: 'counsel',      label: '상담' },
-    { id: 'memo',         label: '메모' },
   ];
 
   // 과제완성도 데이터 파싱 (attitude 필드: "GRADE::MEMO" 형식)
@@ -671,7 +670,7 @@ export default function ParentPage() {
           </>
         )}
 
-        {/* 상담 */}
+        {/* 상담 (상담 요청 + 메모 통합) */}
         {tab === 'counsel' && (
           <>
             <SectionHeader eyebrow="COUNSELING" title="상담 요청" />
@@ -771,13 +770,13 @@ export default function ParentPage() {
                 </div>
               </Card>
             )}
-          </>
-        )}
 
-        {/* 메모 */}
-        {tab === 'memo' && (
-          <>
-            <SectionHeader eyebrow="MEMO" title="메모" />
+            {/* 구분선 */}
+            <div className="pt-2" />
+            <Divider />
+
+            {/* 메모 섹션 (상담 탭 하단) */}
+            <SectionHeader eyebrow="MEMO" title="선생님과 메모" />
             <div
               className="px-4 py-3"
               style={{
