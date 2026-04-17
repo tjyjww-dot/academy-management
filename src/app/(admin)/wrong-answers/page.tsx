@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { hapticSelection, hapticMedium, hapticLight, hapticHeavy } from '@/lib/haptics';
 import { Button, Card, Badge, Stepper, SectionHeader } from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 /* ============================================================
    Types
@@ -1237,11 +1238,12 @@ ${problems.map((p, idx) => `
                   <button onClick={fetchAllTestPapers} className="text-sm text-blue-600 hover:text-blue-700 hover:underline">새로고침</button>
                 </div>
                 {allTestPapers.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400">
-                    <div className="text-3xl mb-2">📄</div>
-                    <p className="text-sm">업로드된 시험지가 없습니다.</p>
-                    <p className="text-xs mt-1">위에서 PDF를 업로드하면 여기에 나타납니다.</p>
-                  </div>
+                  <EmptyState
+                    size="sm"
+                    icon="📄"
+                    title="업로드된 시험지가 없습니다"
+                    description="위에서 PDF를 업로드하면 여기에 나타납니다."
+                  />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -1642,11 +1644,13 @@ ${problems.map((p, idx) => `
               </Card>
 
               {Object.keys(groupedByStudent).length === 0 ? (
-                <Card padding="lg" elevation="sh1">
-                  <div className="text-center py-8" style={{ color: 'var(--color-mute)' }}>
-                    {filterClassroom ? '선택한 반에 등록된 오답이 없습니다.' : '등록된 오답이 없습니다.'}
-                  </div>
-                </Card>
+                <EmptyState
+                  size="md"
+                  icon="📝"
+                  title={filterClassroom ? '선택한 반에 등록된 오답이 없습니다' : '등록된 오답이 없습니다'}
+                  description="'오답 등록' 탭에서 학생별 틀린 문제를 등록하면 여기에 모입니다."
+                  asCard
+                />
               ) : (
                 Object.entries(groupedByStudent).map(([studentId, { name, items }]) => {
                   const active = items.filter(i => i.status === 'ACTIVE');
@@ -1733,11 +1737,13 @@ ${problems.map((p, idx) => `
               </Card>
 
               {tests.length === 0 ? (
-                <Card padding="lg" elevation="sh1">
-                  <div className="text-center py-8" style={{ color: 'var(--color-mute)' }}>
-                    생성된 테스트가 없습니다.
-                  </div>
-                </Card>
+                <EmptyState
+                  size="md"
+                  icon="🎯"
+                  title="생성된 테스트가 없습니다"
+                  description="오답이 등록된 학생에 대해 '테스트 생성'으로 복습 시험을 만들어 보세요."
+                  asCard
+                />
               ) : (
                 <div className="space-y-3">
                   {tests.map(test => {
