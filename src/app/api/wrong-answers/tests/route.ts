@@ -94,14 +94,20 @@ export async function POST(request: NextRequest) {
     if (!payload) return NextResponse.json({ error: '유효하지 않은 토큰입니다' }, { status: 401 });
 
     const body = await request.json();
-    const { studentId, classroomId, maxCount } = body;
+    const { studentId, classroomId, maxCount, testNames } = body;
 
     if (!studentId || !classroomId) {
       return NextResponse.json({ error: '학생과 수업을 선택해주세요' }, { status: 400 });
     }
 
+    // testNames가 지정되면 해당 시험지의 오답만 필터링
+    const whereFilter: any = { studentId, classroomId, status: 'ACTIVE' };
+    if (testNames && Array.isArray(testNames) && testNames.length > 0) {
+      whereFilter.testName = { in: testNames };
+    }
+
     let activeWrongAnswers = await prisma.wrongAnswer.findMany({
-      where: { studentId, classroomId, status: 'ACTIVE' },
+      where: whereFilter,
       orderBy: [{ testName: 'asc' }, { problemNumber: 'asc' }],
     });
 

@@ -93,8 +93,9 @@ export default function WrongAnswersPage() {
   const [regSuccess, setRegSuccess] = useState(false);
 
   // Test creation modal
-  const [testCreateModal, setTestCreateModal] = useState<{ studentId: string; studentName: string; activeCount: number; classroomId?: string } | null>(null);
+  const [testCreateModal, setTestCreateModal] = useState<{ studentId: string; studentName: string; activeCount: number; classroomId?: string; testNameGroups: { testName: string; count: number }[] } | null>(null);
   const [testCreateCount, setTestCreateCount] = useState(0);
+  const [selectedTestNames, setSelectedTestNames] = useState<Set<string>>(new Set());
 
   // Grading modal
   const [gradingTest, setGradingTest] = useState<WrongAnswerTestRecord | null>(null);
@@ -668,7 +669,18 @@ ${problems.map((p, idx) => `
   };
 
   const openTestCreateModal = (studentId: string, studentName: string, activeCount: number, classroomId?: string) => {
-    setTestCreateModal({ studentId, studentName, activeCount, classroomId: classroomId || filterClassroom || '' });
+    // 학생의 활성 오답을 시험지명별로 그룹화
+    const studentActive = wrongAnswers.filter(wa => wa.studentId === studentId && wa.status === 'ACTIVE');
+    const nameMap: Record<string, number> = {};
+    for (const wa of studentActive) {
+      nameMap[wa.testName] = (nameMap[wa.testName] || 0) + 1;
+    }
+    const testNameGroups = Object.entries(nameMap)
+      .map(([testName, count]) => ({ testName, count }))
+      .sort((a, b) => b.count - a.count);
+
+    setTestCreateModal({ studentId, studentName, activeCount, classroomId: classroomId || filterClassroom || '', testNameGroups });
+    setSelectedTestNames(new Set()); // 기본: 전체 선택 안 함 (= 전체 출제)
     setTestCreateCount(activeCount); // default to all
   };
 
@@ -678,10 +690,15 @@ ${problems.map((p, idx) => `
     const cId = classroomId || filterClassroom || regClassroom || '';
     if (!cId) { showMsg('반을 선택해주세요', 'error'); return; }
     try {
+      const payload: any = { studentId, classroomId: cId, maxCount: testCreateCount };
+      // 특정 시험지 선택 시 testNames 전달
+      if (selectedTestNames.size > 0) {
+        payload.testNames = Array.from(selectedTestNames);
+      }
       const res = await fetch('/api/wrong-answers/tests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, classroomId: cId, maxCount: testCreateCount }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
       const test = await res.json();
@@ -1418,38 +1435,89 @@ ${problems.map((p, idx) => `
       )}
 
       {/* Test Create Modal */}
-      {testCreateModal && (
+      {testCreateModal && (() => {
+        // 선택된 시험지의 총 오답 수 계산
+        const filteredTotal = selectedTestNames.size > 0
+          ? testCreateModal.testNameGroups.filter(g => selectedTestNames.has(g.testName)).reduce((s, g) => s + g.count, 0)
+          : testCreateModal.activeCount;
+        const effectiveCount = Math.min(testCreateCount, filteredTotal);
+
+        return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-800 mb-1">테스트 생성</h3>
             <p className="text-sm text-gray-500 mb-4">{testCreateModal.studentName} - 활성 오답 {testCreateModal.activeCount}개</p>
+
+            {/* 시험지 선택 */}
+            {testCreateModal.testNameGroups.length > 1 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">시험지 선택 <span className="text-gray-400 font-normal">(미선택 시 전체)</span></label>
+                <div className="border rounded-lg max-h-48 overflow-y-auto">
+                  {testCreateModal.testNameGroups.map(g => {
+                    const isChecked = selectedTestNames.has(g.testName);
+                    return (
+                      <label key={g.testName}
+                        className={'flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b last:border-b-0 transition-colors ' + (isChecked ? 'bg-blue-50' : '')}>
+                        <input type="checkbox" checked={isChecked}
+                          onChange={() => {
+                            setSelectedTestNames(prev => {
+                              const next = new Set(prev);
+                              if (next.has(g.testName)) next.delete(g.testName);
+                              else next.add(g.testName);
+                              // 선택 변경 시 출제 문항수도 자동 조정
+                              const newTotal = next.size > 0
+                                ? testCreateModal.testNameGroups.filter(tg => next.has(tg.testName)).reduce((s, tg) => s + tg.count, 0)
+                                : testCreateModal.activeCount;
+                              setTestCreateCount(newTotal);
+                              return next;
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                        <span className="flex-1 text-sm text-gray-700 truncate">{g.testName}</span>
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{g.count}문제</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {selectedTestNames.size > 0 && (
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-blue-600">{selectedTestNames.size}개 시험지 선택 → {filteredTotal}문제</p>
+                    <button onClick={() => { setSelectedTestNames(new Set()); setTestCreateCount(testCreateModal.activeCount); }}
+                      className="text-xs text-gray-400 hover:text-gray-600">선택 초기화</button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 출제 문항수 */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">출제 문항수</label>
               <div className="flex flex-wrap gap-2">
-                {[5, 10, 15, 20].filter(n => n <= testCreateModal.activeCount).map(n => (
+                {[5, 10, 15, 20].filter(n => n <= filteredTotal).map(n => (
                   <button key={n} onClick={() => setTestCreateCount(n)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       testCreateCount === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}>{n}문항</button>
                 ))}
-                <button onClick={() => setTestCreateCount(testCreateModal.activeCount)}
+                <button onClick={() => setTestCreateCount(filteredTotal)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    testCreateCount === testCreateModal.activeCount ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}>전체 ({testCreateModal.activeCount})</button>
+                    testCreateCount === filteredTotal ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>전체 ({filteredTotal})</button>
               </div>
               <p className="text-xs text-gray-400 mt-2">문제 순서는 랜덤으로 섞입니다</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setTestCreateModal(null)}
                 className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">취소</button>
-              <button onClick={handleCreateTest} disabled={testCreateCount === 0}
+              <button onClick={handleCreateTest} disabled={effectiveCount === 0}
                 className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
-                생성 및 출력
+                생성 및 출력{effectiveCount > 0 ? ` (${effectiveCount}문제)` : ''}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Grading Modal */}
       {gradingTest && (
