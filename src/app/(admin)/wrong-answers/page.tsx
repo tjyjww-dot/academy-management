@@ -763,14 +763,20 @@ ${problems.map((p, idx) => `
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <h1 className="text-2xl font-bold text-gray-800">오답 관리</h1>
+        <h1 className="text-[22px] md:text-2xl font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>오답 관리</h1>
         <select
           value=""
           onChange={(e) => {
             const id = e.target.value;
             if (id) router.push(`/classes/${id}`);
           }}
-          className="px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="press press-subtle px-3 py-1.5 text-sm font-medium rounded-full cursor-pointer focus:outline-none focus-visible:ring-2"
+          style={{
+            background: 'var(--color-info-bg)',
+            color: 'var(--color-accent)',
+            border: '1px solid var(--color-border)',
+            transition: 'background-color 200ms var(--ease-apple-inout)',
+          }}
           title="반관리 페이지로 바로 이동"
         >
           <option value="">🏠 반관리로 이동...</option>
@@ -784,29 +790,62 @@ ${problems.map((p, idx) => `
 
       {/* Message */}
       {message && (
-        <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
-          messageType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>{message}</div>
+        <div
+          className="anim-pop-in mb-4 p-3 rounded-[12px] text-sm font-medium flex items-center gap-2"
+          style={{
+            background: messageType === 'success' ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+            color: messageType === 'success' ? 'var(--color-success)' : 'var(--color-danger)',
+            border: `1px solid ${messageType === 'success' ? 'var(--color-success)' : 'var(--color-danger)'}`,
+          }}
+        >
+          <span aria-hidden>{messageType === 'success' ? '✓' : '!'}</span>
+          <span>{message}</span>
+        </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
+      {/* Tabs (segmented pill style, tokenized) */}
+      <div
+        className="flex gap-1 mb-6 overflow-x-auto p-1 rounded-[14px]"
+        style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+        role="tablist"
+      >
         {[
           { key: 'upload' as const, label: '시험지 업로드' },
           { key: 'register' as const, label: '오답 등록' },
           { key: 'answers' as const, label: '오답 목록' },
           { key: 'tests' as const, label: '테스트 관리' },
-        ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}>{tab.label}</button>
-        ))}
+        ].map(tab => {
+          const on = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onPointerDown={() => hapticSelection()}
+              onClick={() => setActiveTab(tab.key)}
+              className="press press-subtle px-4 py-2 text-[13.5px] font-semibold rounded-[10px] whitespace-nowrap min-h-[40px]"
+              style={{
+                background: on ? 'var(--color-surface)' : 'transparent',
+                color: on ? 'var(--color-accent)' : 'var(--color-ink-2)',
+                boxShadow: on ? 'var(--shadow-sh1)' : 'none',
+                transition:
+                  'background-color 200ms var(--ease-apple-inout), color 200ms var(--ease-apple-inout), box-shadow 200ms var(--ease-apple-inout)',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {loading && activeTab !== 'upload' ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div
+            className="animate-spin rounded-full h-8 w-8"
+            style={{ borderBottom: '2px solid var(--color-accent)' }}
+          />
         </div>
       ) : (
         <>
@@ -1308,202 +1347,365 @@ ${problems.map((p, idx) => `
 
           {/* ========== TAB: REGISTER ========== */}
           {activeTab === 'register' && (
-            <div className="max-w-2xl">
-              <div className="bg-white rounded-xl border p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">오답 등록</h3>
-                <div className="space-y-4">
+            <div key="tab-register" className="anim-tab-in space-y-6 max-w-3xl">
+              {/* Register Flow Stepper */}
+              {(() => {
+                const hasClassroom = !!regClassroom;
+                const hasStudentAndPaper = hasClassroom && !!regStudent && (!!regTestPaper || !!regProblemNumbers.trim());
+                const hasProblems = hasStudentAndPaper && (regSelectedProblems.size > 0 || regProblemNumbers.trim().length > 0);
+                const regStep = regSuccess ? 3 : !hasClassroom ? 0 : !hasStudentAndPaper ? 1 : !hasProblems ? 2 : 2;
+                const regCompletedUntil =
+                  regSuccess ? 3 :
+                  hasProblems ? 1 :
+                  hasStudentAndPaper ? 0 :
+                  hasClassroom ? -1 :
+                  -1;
+                return (
+                  <Card padding="md" elevation="sh1">
+                    <Stepper
+                      steps={[
+                        { label: '학생 지정', description: '반·학생 선택' },
+                        { label: '문제 선택', description: '시험지·번호' },
+                        { label: '등록', description: '확정' },
+                      ]}
+                      current={regStep > 2 ? 2 : regStep}
+                      completedUntil={regCompletedUntil}
+                    />
+                  </Card>
+                );
+              })()}
+
+              {/* Step 1 — 학생 지정 Card */}
+              <Card padding="lg" elevation="sh1">
+                <SectionHeader title="학생 지정" description="오답을 등록할 반과 학생을 고르세요" className="mb-3" />
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">반 선택</label>
-                    <select value={regClassroom} onChange={e => {
-                      setRegClassroom(e.target.value);
-                      setRegStudent('');
-                      if (e.target.value) {
-                        fetchStudentsForClassroom(e.target.value);
-                        fetchTestPapersForClassroom(e.target.value);
-                      }
-                    }}
-                      className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                    <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>반</label>
+                    <select
+                      value={regClassroom}
+                      onChange={e => {
+                        setRegClassroom(e.target.value);
+                        setRegStudent('');
+                        if (e.target.value) {
+                          fetchStudentsForClassroom(e.target.value);
+                          fetchTestPapersForClassroom(e.target.value);
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-ink)',
+                      }}
+                    >
                       <option value="">반을 선택하세요</option>
                       {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
-
-                  {regClassroom && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">학생</label>
-                        <select value={regStudent} onChange={e => setRegStudent(e.target.value)}
-                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
-                          <option value="">학생을 선택하세요</option>
-                          {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">시험지 선택</label>
-                        <select value={regTestPaper} onChange={e => {
-                          const val = e.target.value;
-                          setRegTestPaper(val);
-                          setRegSelectedProblems(new Set());
-                          if (val) {
-                            const tp = testPapers.find(t => t.id === val) || allTestPapers.find(t => t.id === val);
-                            if (tp) setRegTestName(tp.name);
-                          } else {
-                            setRegTestName('');
-                          }
-                        }}
-                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
-                          <option value="">시험지를 선택하세요</option>
-                          {testPapers.length > 0 && (
-                            <optgroup label="📋 이 반 시험지">
-                              {testPapers.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제)</option>)}
-                            </optgroup>
-                          )}
-                          {(() => {
-                            const otherTps = allTestPapers.filter(tp => tp.classroomId !== regClassroom);
-                            if (otherTps.length > 0) return (
-                              <optgroup label="📁 다른 반 시험지">
-                                {otherTps.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제) [{tp.classroom?.name}]</option>)}
-                              </optgroup>
-                            );
-                            return null;
-                          })()}
-                        </select>
-                        {testPapers.length === 0 && allTestPapers.length === 0 && (
-                          <p className="text-xs text-orange-500 mt-1">시험지가 없습니다. &apos;시험지 업로드&apos; 탭에서 먼저 시험지를 업로드해주세요.</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
-                        <input type="text" value={regTestName} onChange={e => setRegTestName(e.target.value)}
-                          placeholder={regTestPaper ? '시험지 이름이 자동 입력됩니다' : '예: 3월 모의고사'}
-                          readOnly={!!regTestPaper}
-                          className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 ${regTestPaper ? 'bg-gray-50 text-gray-600' : ''}`} />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          틀린 문제 번호
-                          {regTestPaper && regSelectedProblems.size > 0 && (
-                            <span className="ml-2 text-red-500 font-normal">({regSelectedProblems.size}개 선택)</span>
-                          )}
-                        </label>
-                        {regTestPaper ? (() => {
-                          const tp = testPapers.find(t => t.id === regTestPaper) || allTestPapers.find(t => t.id === regTestPaper);
-                          const total = tp?.totalProblems || 0;
-                          return (
-                            <div>
-                              <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border">
-                                {Array.from({ length: total }, (_, i) => i + 1).map(num => {
-                                  const isSelected = regSelectedProblems.has(num);
-                                  return (
-                                    <button key={num} type="button"
-                                      onClick={() => {
-                                        setRegSelectedProblems(prev => {
-                                          const next = new Set(prev);
-                                          if (next.has(num)) next.delete(num); else next.add(num);
-                                          return next;
-                                        });
-                                      }}
-                                      className={`w-10 h-10 rounded-lg text-sm font-medium transition-all ${
-                                        isSelected
-                                          ? 'bg-red-500 text-white shadow-md scale-105'
-                                          : 'bg-white text-gray-700 border border-gray-300 hover:border-red-300 hover:bg-red-50'
-                                      }`}>
-                                      {num}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              {regSelectedProblems.size > 0 && (
-                                <div className="mt-2 flex items-center justify-between">
-                                  <p className="text-sm text-gray-500">
-                                    선택: {Array.from(regSelectedProblems).sort((a, b) => a - b).join(', ')}
-                                  </p>
-                                  <button type="button" onClick={() => setRegSelectedProblems(new Set())}
-                                    className="text-xs text-gray-400 hover:text-red-500 underline">전체 해제</button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })() : (
-                          <input type="text" value={regProblemNumbers} onChange={e => setRegProblemNumbers(e.target.value)}
-                            placeholder="시험지를 선택하거나 직접 입력 (예: 3, 7, 12, 15)"
-                            className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-                        )}
-                      </div>
-                      {regSuccess ? (
-                        <div className="space-y-3">
-                          <div className="w-full py-4 bg-green-50 border-2 border-green-400 rounded-lg text-center">
-                            <div className="text-green-700 font-bold text-lg mb-1">✅ 오답 등록 완료!</div>
-                            <p className="text-green-600 text-sm">오답 목록 탭에서 확인할 수 있습니다.</p>
-                          </div>
-                          <button onClick={() => { setRegSuccess(false); setRegStudent(''); setRegTestPaper(''); setRegTestName(''); setRegSelectedProblems(new Set()); }}
-                            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">
-                            새 오답 등록하기
-                          </button>
-                        </div>
-                      ) : (
-                        <button onClick={handleRegisterWrongAnswers} disabled={registering}
-                          className="w-full py-2.5 text-white rounded-lg font-medium transition-all bg-red-600 hover:bg-red-700 disabled:opacity-50">
-                          {registering ? '등록 중...' : '오답 등록'}
-                        </button>
-                      )}
-                    </>
-                  )}
+                  <div>
+                    <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>학생</label>
+                    <select
+                      value={regStudent}
+                      onChange={e => setRegStudent(e.target.value)}
+                      disabled={!regClassroom}
+                      className="w-full px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-ink)',
+                      }}
+                    >
+                      <option value="">{regClassroom ? '학생을 선택하세요' : '먼저 반을 선택하세요'}</option>
+                      {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
                 </div>
-              </div>
+              </Card>
+
+              {/* Step 2 — 문제 선택 Card */}
+              <Card padding="lg" elevation="sh1" className={!regClassroom || !regStudent ? 'opacity-60 pointer-events-none select-none' : ''}>
+                <SectionHeader title="문제 선택" description="시험지를 고르고 틀린 문제 번호를 체크하세요" className="mb-3" />
+
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>시험지</label>
+                    <select
+                      value={regTestPaper}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setRegTestPaper(val);
+                        setRegSelectedProblems(new Set());
+                        if (val) {
+                          const tp = testPapers.find(t => t.id === val) || allTestPapers.find(t => t.id === val);
+                          if (tp) setRegTestName(tp.name);
+                        } else {
+                          setRegTestName('');
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-ink)',
+                      }}
+                    >
+                      <option value="">시험지를 선택하세요</option>
+                      {testPapers.length > 0 && (
+                        <optgroup label="📋 이 반 시험지">
+                          {testPapers.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제)</option>)}
+                        </optgroup>
+                      )}
+                      {(() => {
+                        const otherTps = allTestPapers.filter(tp => tp.classroomId !== regClassroom);
+                        if (otherTps.length > 0) return (
+                          <optgroup label="📁 다른 반 시험지">
+                            {otherTps.map(tp => <option key={tp.id} value={tp.id}>{tp.name} ({tp.totalProblems}문제) [{tp.classroom?.name}]</option>)}
+                          </optgroup>
+                        );
+                        return null;
+                      })()}
+                    </select>
+                    {testPapers.length === 0 && allTestPapers.length === 0 && (
+                      <p className="text-xs mt-1.5" style={{ color: 'var(--color-warn)' }}>
+                        시험지가 없습니다. &apos;시험지 업로드&apos; 탭에서 먼저 시험지를 업로드해주세요.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>시험명</label>
+                    <input
+                      type="text"
+                      value={regTestName}
+                      onChange={e => setRegTestName(e.target.value)}
+                      placeholder={regTestPaper ? '시험지 이름이 자동 입력됩니다' : '예: 3월 모의고사'}
+                      readOnly={!!regTestPaper}
+                      className="w-full px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                      style={{
+                        background: regTestPaper ? 'var(--color-surface-2)' : 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        color: regTestPaper ? 'var(--color-ink-2)' : 'var(--color-ink)',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>
+                      틀린 문제 번호
+                      {regTestPaper && regSelectedProblems.size > 0 && (
+                        <Badge tone="danger" size="sm">{regSelectedProblems.size}개 선택</Badge>
+                      )}
+                    </label>
+
+                    {regTestPaper ? (() => {
+                      const tp = testPapers.find(t => t.id === regTestPaper) || allTestPapers.find(t => t.id === regTestPaper);
+                      const total = tp?.totalProblems || 0;
+                      return (
+                        <div>
+                          <div
+                            className="flex flex-wrap gap-2 p-3 rounded-[12px]"
+                            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+                          >
+                            {Array.from({ length: total }, (_, i) => i + 1).map(num => {
+                              const isSelected = regSelectedProblems.has(num);
+                              return (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  onPointerDown={() => hapticSelection()}
+                                  onClick={() => {
+                                    setRegSelectedProblems(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(num)) next.delete(num); else next.add(num);
+                                      return next;
+                                    });
+                                  }}
+                                  className="press press-strong w-10 h-10 rounded-[10px] text-sm font-semibold num-tabular"
+                                  style={{
+                                    background: isSelected ? 'var(--color-danger)' : 'var(--color-surface)',
+                                    color: isSelected ? '#fff' : 'var(--color-ink)',
+                                    border: isSelected ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
+                                    boxShadow: isSelected ? 'var(--shadow-sh1)' : 'none',
+                                    transition:
+                                      'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout), border-color 180ms var(--ease-apple-inout)',
+                                  }}
+                                >
+                                  {num}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {regSelectedProblems.size > 0 && (
+                            <div className="mt-2 flex items-center justify-between">
+                              <p className="text-[12px]" style={{ color: 'var(--color-ink-2)' }}>
+                                선택: {Array.from(regSelectedProblems).sort((a, b) => a - b).join(', ')}
+                              </p>
+                              <button
+                                type="button"
+                                onPointerDown={() => hapticLight()}
+                                onClick={() => setRegSelectedProblems(new Set())}
+                                className="press text-[12px] underline"
+                                style={{ color: 'var(--color-mute)' }}
+                              >
+                                전체 해제
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })() : (
+                      <input
+                        type="text"
+                        value={regProblemNumbers}
+                        onChange={e => setRegProblemNumbers(e.target.value)}
+                        placeholder="시험지를 선택하거나 직접 입력 (예: 3, 7, 12, 15)"
+                        className="w-full px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                        style={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-border)',
+                          color: 'var(--color-ink)',
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Step 3 — 등록 Card */}
+              {regSuccess ? (
+                <Card
+                  padding="lg"
+                  elevation="sh1"
+                  className="anim-pop-in"
+                  style={{ background: 'var(--color-success-bg)', borderColor: 'var(--color-success)' }}
+                >
+                  <div className="text-center py-2">
+                    <div className="inline-flex items-center gap-2 mb-2">
+                      <Badge tone="success" size="md">완료</Badge>
+                      <span className="text-[17px] font-bold" style={{ color: 'var(--color-success)' }}>오답 등록 완료!</span>
+                    </div>
+                    <p className="text-sm mb-4" style={{ color: 'var(--color-ink-2)' }}>오답 목록 탭에서 확인할 수 있습니다.</p>
+                    <Button
+                      variant="accent"
+                      size="lg"
+                      fullWidth
+                      onClick={() => {
+                        setRegSuccess(false);
+                        setRegStudent('');
+                        setRegTestPaper('');
+                        setRegTestName('');
+                        setRegSelectedProblems(new Set());
+                      }}
+                    >
+                      새 오답 등록하기
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Card padding="lg" elevation="sh1">
+                  <SectionHeader title="등록" description="입력한 내용을 확인하고 등록하세요" className="mb-3" />
+                  <div className="mt-3">
+                    <Button
+                      variant="accent"
+                      size="lg"
+                      fullWidth
+                      onClick={handleRegisterWrongAnswers}
+                      disabled={registering || !regClassroom || !regStudent || !(regTestPaper || regProblemNumbers.trim())}
+                      loading={registering}
+                    >
+                      {registering ? '등록 중...' : '오답 등록'}
+                    </Button>
+                  </div>
+                </Card>
+              )}
             </div>
           )}
 
           {/* ========== TAB: ANSWERS ========== */}
           {activeTab === 'answers' && (
-            <div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">반 선택 (선택사항)</label>
-                <select value={filterClassroom} onChange={e => setFilterClassroom(e.target.value)}
-                  className="w-full max-w-md px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+            <div key="tab-answers" className="anim-tab-in space-y-4">
+              <Card padding="md" elevation="sh1">
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>반 선택 <span style={{ color: 'var(--color-mute)' }}>(선택사항)</span></label>
+                <select
+                  value={filterClassroom}
+                  onChange={e => setFilterClassroom(e.target.value)}
+                  className="w-full max-w-md px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-ink)',
+                  }}
+                >
                   <option value="">전체 반</option>
                   {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-              </div>
+              </Card>
 
               {Object.keys(groupedByStudent).length === 0 ? (
-                <div className="text-center py-12 text-gray-500">{filterClassroom ? '선택한 반에 등록된 오답이 없습니다.' : '등록된 오답이 없습니다.'}</div>
+                <Card padding="lg" elevation="sh1">
+                  <div className="text-center py-8" style={{ color: 'var(--color-mute)' }}>
+                    {filterClassroom ? '선택한 반에 등록된 오답이 없습니다.' : '등록된 오답이 없습니다.'}
+                  </div>
+                </Card>
               ) : (
                 Object.entries(groupedByStudent).map(([studentId, { name, items }]) => {
                   const active = items.filter(i => i.status === 'ACTIVE');
                   const mastered = items.filter(i => i.status === 'MASTERED');
                   return (
-                    <div key={studentId} className="mb-6 bg-white rounded-xl border overflow-hidden">
-                      <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b">
-                        <div>
-                          <span className="font-semibold text-gray-800">{name}</span>
-                          <span className="ml-3 text-sm text-gray-500">활성: {active.length} / 마스터: {mastered.length}</span>
+                    <Card key={studentId} padding="none" elevation="sh1" className="overflow-hidden">
+                      <div
+                        className="flex items-center justify-between px-5 py-3.5"
+                        style={{
+                          background: 'var(--color-surface-2)',
+                          borderBottom: '1px solid var(--color-border)',
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-semibold text-ink" style={{ letterSpacing: '-0.01em' }}>{name}</span>
+                          <Badge tone="warn" size="sm">미해결 {active.length}</Badge>
+                          <Badge tone="success" size="sm">마스터 {mastered.length}</Badge>
                         </div>
                         {active.length > 0 && (
-                          <button onClick={() => openTestCreateModal(studentId, name, active.length, active[0]?.classroomId)}
-                            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                          <Button
+                            variant="accent"
+                            size="sm"
+                            onClick={() => openTestCreateModal(studentId, name, active.length, active[0]?.classroomId)}
+                          >
                             테스트 생성
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1.5 px-4 py-3">
                         {items.map(wa => (
-                          <div key={wa.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ${
-                            wa.status === 'MASTERED'
-                              ? 'bg-green-50 border-green-200 text-green-700'
-                              : 'bg-white border-gray-200 text-gray-700'
-                          }`}>
-                            <span className="font-bold text-blue-600">{wa.problemNumber}번</span>
-                            <span className="text-gray-400">{wa.testName}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              wa.status === 'ACTIVE' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
-                            }`}>{wa.status === 'ACTIVE' ? '미해결' : '마스터'}</span>
-                            <span className="text-gray-400">{wa.round}회</span>
-                            <button onClick={() => handleDeleteWrongAnswer(wa.id)} className="text-red-300 hover:text-red-500 ml-0.5">✕</button>
+                          <div
+                            key={wa.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs"
+                            style={{
+                              background: wa.status === 'MASTERED' ? 'var(--color-success-bg)' : 'var(--color-surface)',
+                              color: wa.status === 'MASTERED' ? 'var(--color-success)' : 'var(--color-ink)',
+                              border: `1px solid ${wa.status === 'MASTERED' ? 'var(--color-success)' : 'var(--color-border)'}`,
+                            }}
+                          >
+                            <span className="font-bold num-tabular" style={{ color: 'var(--color-accent)' }}>{wa.problemNumber}번</span>
+                            <span style={{ color: 'var(--color-mute)' }}>{wa.testName}</span>
+                            <Badge tone={wa.status === 'ACTIVE' ? 'warn' : 'success'} size="sm">
+                              {wa.status === 'ACTIVE' ? '미해결' : '마스터'}
+                            </Badge>
+                            <span className="num-tabular" style={{ color: 'var(--color-mute)' }}>{wa.round}회</span>
+                            <button
+                              onPointerDown={() => hapticHeavy()}
+                              onClick={() => handleDeleteWrongAnswer(wa.id)}
+                              className="press ml-0.5 w-6 h-6 rounded-full flex items-center justify-center"
+                              style={{ color: 'var(--color-mute)' }}
+                              title="삭제"
+                              aria-label="삭제"
+                            >
+                              ✕
+                            </button>
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   );
                 })
               )}
@@ -1512,56 +1714,94 @@ ${problems.map((p, idx) => `
 
           {/* ========== TAB: TESTS ========== */}
           {activeTab === 'tests' && (
-            <div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">반 선택 (선택사항)</label>
-                <select value={filterClassroom} onChange={e => setFilterClassroom(e.target.value)}
-                  className="w-full max-w-md px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+            <div key="tab-tests" className="anim-tab-in space-y-4">
+              <Card padding="md" elevation="sh1">
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>반 선택 <span style={{ color: 'var(--color-mute)' }}>(선택사항)</span></label>
+                <select
+                  value={filterClassroom}
+                  onChange={e => setFilterClassroom(e.target.value)}
+                  className="w-full max-w-md px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-ink)',
+                  }}
+                >
                   <option value="">전체 반</option>
                   {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-              </div>
+              </Card>
 
               {tests.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">생성된 테스트가 없습니다.</div>
+                <Card padding="lg" elevation="sh1">
+                  <div className="text-center py-8" style={{ color: 'var(--color-mute)' }}>
+                    생성된 테스트가 없습니다.
+                  </div>
+                </Card>
               ) : (
-                <div className="space-y-4">
-                  {tests.map(test => (
-                    <div key={test.id} className="bg-white rounded-xl border p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <span className="font-semibold text-gray-800">{test.student.name}</span>
-                          <span className="ml-3 text-sm text-gray-500">{test.round}회차 | {test.items.length}문항</span>
+                <div className="space-y-3">
+                  {tests.map(test => {
+                    const graded = test.status === 'GRADED';
+                    const correctCount = graded ? test.items.filter(it => it.isCorrect).length : 0;
+                    return (
+                      <Card key={test.id} padding="lg" elevation="sh1">
+                        <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="font-semibold text-ink" style={{ letterSpacing: '-0.01em' }}>{test.student.name}</span>
+                            <Badge tone="neutral" size="sm">{test.round}회차</Badge>
+                            <Badge tone="neutral" size="sm">{test.items.length}문항</Badge>
+                            <Badge tone={graded ? 'success' : 'warn'} size="sm">
+                              {graded ? '채점완료' : '채점대기'}
+                            </Badge>
+                            {graded && (
+                              <Badge tone="accent" size="sm">
+                                {correctCount}/{test.items.length}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button variant="secondary" size="sm" onClick={() => generateTestPDF(test)}>
+                              테스트지 출력
+                            </Button>
+                            {test.status === 'PENDING' && (
+                              <Button variant="accent" size="sm" onClick={() => handleStartGrading(test)}>
+                                채점하기
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteTest(test.id)}
+                              style={{ color: 'var(--color-danger)' }}
+                            >
+                              삭제
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            test.status === 'GRADED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>{test.status === 'GRADED' ? '채점완료' : '채점대기'}</span>
-                          <button onClick={() => generateTestPDF(test)}
-                            className="px-4 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">테스트지 출력</button>
-                          {test.status === 'PENDING' && (
-                            <button onClick={() => handleStartGrading(test)}
-                              className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">채점하기</button>
-                          )}
-                          <button onClick={() => handleDeleteTest(test.id)}
-                            className="px-3 py-1.5 text-red-400 hover:text-red-600 text-sm">삭제</button>
+                        <div className="text-xs" style={{ color: 'var(--color-mute)' }}>
+                          생성: {new Date(test.createdAt).toLocaleDateString('ko-KR')}
+                          {test.gradedAt && ` · 채점: ${new Date(test.gradedAt).toLocaleDateString('ko-KR')}`}
                         </div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        생성: {new Date(test.createdAt).toLocaleDateString('ko-KR')}
-                        {test.gradedAt && ` | 채점: ${new Date(test.gradedAt).toLocaleDateString('ko-KR')}`}
-                      </div>
-                      {test.status === 'GRADED' && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {test.items.map(item => (
-                            <span key={item.id} className={`inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold ${
-                              item.isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                            }`}>{item.wrongAnswer.problemNumber}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {graded && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {test.items.map(item => (
+                              <span
+                                key={item.id}
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold num-tabular"
+                                style={{
+                                  background: item.isCorrect ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+                                  color: item.isCorrect ? 'var(--color-success)' : 'var(--color-danger)',
+                                  border: `1px solid ${item.isCorrect ? 'var(--color-success)' : 'var(--color-danger)'}`,
+                                }}
+                              >
+                                {item.wrongAnswer.problemNumber}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1571,13 +1811,36 @@ ${problems.map((p, idx) => `
 
       {/* Problem Detail Modal */}
       {selectedProblem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedProblem(null)}>
-          <div className="bg-white rounded-xl max-w-3xl max-h-[90vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setSelectedProblem(null)}
+        >
+          <div
+            className="anim-sheet-up max-w-3xl max-h-[90vh] overflow-auto p-6 rounded-[16px]"
+            style={{ background: 'var(--color-surface)', boxShadow: 'var(--shadow-sh3)' }}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">{selectedProblem.number}번 문제 (p.{selectedProblem.pageNumber})</h3>
-              <button onClick={() => setSelectedProblem(null)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+              <h3 className="text-lg font-bold text-ink" style={{ letterSpacing: '-0.01em' }}>
+                {selectedProblem.number}번 문제 <span style={{ color: 'var(--color-mute)', fontWeight: 500 }}>(p.{selectedProblem.pageNumber})</span>
+              </h3>
+              <button
+                onPointerDown={() => hapticLight()}
+                onClick={() => setSelectedProblem(null)}
+                className="press w-10 h-10 rounded-full flex items-center justify-center text-2xl"
+                style={{ color: 'var(--color-mute)' }}
+                aria-label="닫기"
+              >
+                ✕
+              </button>
             </div>
-            <img src={selectedProblem.imageDataUrl} alt={`문제 ${selectedProblem.number}`} className="w-full" />
+            <img
+              src={selectedProblem.imageDataUrl}
+              alt={`문제 ${selectedProblem.number}`}
+              className="w-full rounded-[10px]"
+              style={{ border: '1px solid var(--color-border)' }}
+            />
           </div>
         </div>
       )}
@@ -1591,28 +1854,50 @@ ${problems.map((p, idx) => `
         const effectiveCount = Math.min(testCreateCount, filteredTotal);
 
         return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[85vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-800 mb-1">테스트 생성</h3>
-            <p className="text-sm text-gray-500 mb-4">{testCreateModal.studentName} - 활성 오답 {testCreateModal.activeCount}개</p>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+        >
+          <div
+            className="anim-sheet-up max-w-md w-full p-6 max-h-[85vh] overflow-y-auto rounded-[16px]"
+            style={{ background: 'var(--color-surface)', boxShadow: 'var(--shadow-sh3)' }}
+          >
+            <h3 className="text-lg font-bold text-ink mb-1" style={{ letterSpacing: '-0.01em' }}>테스트 생성</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-ink-2)' }}>
+              {testCreateModal.studentName} <span style={{ color: 'var(--color-mute)' }}>·</span> 활성 오답 {testCreateModal.activeCount}개
+            </p>
 
             {/* 시험지 선택 */}
             {testCreateModal.testNameGroups.length > 1 && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">시험지 선택 <span className="text-gray-400 font-normal">(미선택 시 전체)</span></label>
-                <div className="border rounded-lg max-h-48 overflow-y-auto">
+                <label className="block text-[12px] font-semibold mb-2" style={{ color: 'var(--color-ink-2)' }}>
+                  시험지 선택 <span style={{ color: 'var(--color-mute)', fontWeight: 500 }}>(미선택 시 전체)</span>
+                </label>
+                <div
+                  className="rounded-[10px] max-h-48 overflow-y-auto"
+                  style={{ border: '1px solid var(--color-border)' }}
+                >
                   {testCreateModal.testNameGroups.map(g => {
                     const isChecked = selectedTestNames.has(g.testName);
                     return (
-                      <label key={g.testName}
-                        className={'flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b last:border-b-0 transition-colors ' + (isChecked ? 'bg-blue-50' : '')}>
-                        <input type="checkbox" checked={isChecked}
+                      <label
+                        key={g.testName}
+                        className="press press-subtle flex items-center gap-3 px-3 py-2.5 cursor-pointer"
+                        style={{
+                          background: isChecked ? 'var(--color-info-bg)' : 'transparent',
+                          borderBottom: '1px solid var(--color-border)',
+                          transition: 'background-color 180ms var(--ease-apple-inout)',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
                           onChange={() => {
+                            hapticSelection();
                             setSelectedTestNames(prev => {
                               const next = new Set(prev);
                               if (next.has(g.testName)) next.delete(g.testName);
                               else next.add(g.testName);
-                              // 선택 변경 시 출제 문항수도 자동 조정
                               const newTotal = next.size > 0
                                 ? testCreateModal.testNameGroups.filter(tg => next.has(tg.testName)).reduce((s, tg) => s + tg.count, 0)
                                 : testCreateModal.activeCount;
@@ -1620,18 +1905,28 @@ ${problems.map((p, idx) => `
                               return next;
                             });
                           }}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                        <span className="flex-1 text-sm text-gray-700 truncate">{g.testName}</span>
-                        <span className="text-xs text-gray-400 whitespace-nowrap">{g.count}문제</span>
+                          className="w-4 h-4 rounded"
+                          style={{ accentColor: 'var(--color-accent)' }}
+                        />
+                        <span className="flex-1 text-sm truncate" style={{ color: 'var(--color-ink)' }}>{g.testName}</span>
+                        <span className="text-xs num-tabular whitespace-nowrap" style={{ color: 'var(--color-mute)' }}>{g.count}문제</span>
                       </label>
                     );
                   })}
                 </div>
                 {selectedTestNames.size > 0 && (
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-blue-600">{selectedTestNames.size}개 시험지 선택 → {filteredTotal}문제</p>
-                    <button onClick={() => { setSelectedTestNames(new Set()); setTestCreateCount(testCreateModal.activeCount); }}
-                      className="text-xs text-gray-400 hover:text-gray-600">선택 초기화</button>
+                    <p className="text-xs" style={{ color: 'var(--color-accent)' }}>
+                      {selectedTestNames.size}개 시험지 선택 → {filteredTotal}문제
+                    </p>
+                    <button
+                      onPointerDown={() => hapticLight()}
+                      onClick={() => { setSelectedTestNames(new Set()); setTestCreateCount(testCreateModal.activeCount); }}
+                      className="press text-xs underline"
+                      style={{ color: 'var(--color-mute)' }}
+                    >
+                      선택 초기화
+                    </button>
                   </div>
                 )}
               </div>
@@ -1639,37 +1934,60 @@ ${problems.map((p, idx) => `
 
             {/* 출제 문항수 */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">출제 문항수</label>
+              <label className="block text-[12px] font-semibold mb-2" style={{ color: 'var(--color-ink-2)' }}>출제 문항수</label>
               <div className="flex flex-wrap gap-2">
                 {[5, 10, 15, 20].filter(n => n <= filteredTotal).map(n => (
-                  <button key={n}
+                  <button
+                    key={n}
                     onPointerDown={() => hapticSelection()}
                     onClick={() => setTestCreateCount(n)}
-                    className={`press press-strong px-4 py-2 rounded-lg text-sm font-medium min-h-[44px] ${
-                      testCreateCount === n ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}>{n}문항</button>
+                    className="press press-strong px-4 py-2 rounded-[10px] text-sm font-semibold min-h-[44px]"
+                    style={{
+                      background: testCreateCount === n ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                      color: testCreateCount === n ? '#fff' : 'var(--color-ink-2)',
+                      boxShadow: testCreateCount === n ? 'var(--shadow-sh1)' : 'none',
+                      border: testCreateCount === n ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      transition: 'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout)',
+                    }}
+                  >
+                    {n}문항
+                  </button>
                 ))}
                 <button
                   onPointerDown={() => hapticSelection()}
                   onClick={() => setTestCreateCount(filteredTotal)}
-                  className={`press press-strong px-4 py-2 rounded-lg text-sm font-medium min-h-[44px] ${
-                    testCreateCount === filteredTotal ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}>전체 ({filteredTotal})</button>
+                  className="press press-strong px-4 py-2 rounded-[10px] text-sm font-semibold min-h-[44px]"
+                  style={{
+                    background: testCreateCount === filteredTotal ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                    color: testCreateCount === filteredTotal ? '#fff' : 'var(--color-ink-2)',
+                    boxShadow: testCreateCount === filteredTotal ? 'var(--shadow-sh1)' : 'none',
+                    border: testCreateCount === filteredTotal ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                    transition: 'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout)',
+                  }}
+                >
+                  전체 ({filteredTotal})
+                </button>
               </div>
-              <p className="text-xs text-gray-400 mt-2">문제 순서는 랜덤으로 섞입니다</p>
+              <p className="text-xs mt-2" style={{ color: 'var(--color-mute)' }}>문제 순서는 랜덤으로 섞입니다</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onPointerDown={() => hapticLight()}
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
                 onClick={() => setTestCreateModal(null)}
-                className="press flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 min-h-[44px]">취소</button>
-              <button
-                onPointerDown={() => { if (effectiveCount > 0) hapticMedium(); }}
-                onClick={handleCreateTest}
+              >
+                취소
+              </Button>
+              <Button
+                variant="accent"
+                size="md"
+                fullWidth
                 disabled={effectiveCount === 0}
-                className="press press-strong flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 min-h-[44px]">
+                onClick={handleCreateTest}
+              >
                 생성 및 출력{effectiveCount > 0 ? ` (${effectiveCount}문제)` : ''}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1678,37 +1996,77 @@ ${problems.map((p, idx) => `
 
       {/* Grading Modal */}
       {gradingTest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-gray-800 mb-1">채점</h3>
-            <p className="text-sm text-gray-500 mb-4">{gradingTest.student.name} - {gradingTest.round}회차</p>
-            <div className="space-y-3">
-              {gradingTest.items.map(item => (
-                <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full font-semibold text-sm">
-                      {item.wrongAnswer.problemNumber}
-                    </span>
-                    <span className="text-sm text-gray-600">{item.wrongAnswer.testName}</span>
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+        >
+          <div
+            className="anim-sheet-up max-w-md w-full p-6 max-h-[80vh] overflow-y-auto rounded-[16px]"
+            style={{ background: 'var(--color-surface)', boxShadow: 'var(--shadow-sh3)' }}
+          >
+            <h3 className="text-lg font-bold text-ink mb-1" style={{ letterSpacing: '-0.01em' }}>채점</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-ink-2)' }}>
+              {gradingTest.student.name} <span style={{ color: 'var(--color-mute)' }}>·</span> {gradingTest.round}회차
+            </p>
+            <div className="space-y-1">
+              {gradingTest.items.map(item => {
+                const val = gradeResults[item.wrongAnswerId];
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between py-2.5"
+                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-full font-semibold text-sm num-tabular shrink-0"
+                        style={{ background: 'var(--color-surface-2)', color: 'var(--color-ink)' }}
+                      >
+                        {item.wrongAnswer.problemNumber}
+                      </span>
+                      <span className="text-sm truncate" style={{ color: 'var(--color-ink-2)' }}>{item.wrongAnswer.testName}</span>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onPointerDown={() => hapticSelection()}
+                        onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: true }))}
+                        className="press press-strong w-10 h-9 rounded-[10px] text-sm font-bold"
+                        style={{
+                          background: val === true ? 'var(--color-success)' : 'var(--color-surface-2)',
+                          color: val === true ? '#fff' : 'var(--color-ink-2)',
+                          border: val === true ? '1px solid var(--color-success)' : '1px solid var(--color-border)',
+                          transition: 'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout)',
+                        }}
+                        aria-label="정답"
+                      >
+                        O
+                      </button>
+                      <button
+                        onPointerDown={() => hapticSelection()}
+                        onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: false }))}
+                        className="press press-strong w-10 h-9 rounded-[10px] text-sm font-bold"
+                        style={{
+                          background: val === false ? 'var(--color-danger)' : 'var(--color-surface-2)',
+                          color: val === false ? '#fff' : 'var(--color-ink-2)',
+                          border: val === false ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
+                          transition: 'background-color 180ms var(--ease-apple-inout), color 180ms var(--ease-apple-inout)',
+                        }}
+                        aria-label="오답"
+                      >
+                        X
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: true }))}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                        gradeResults[item.wrongAnswerId] === true ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-50'
-                      }`}>O</button>
-                    <button onClick={() => setGradeResults(p => ({ ...p, [item.wrongAnswerId]: false }))}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                        gradeResults[item.wrongAnswerId] === false ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-50'
-                      }`}>X</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setGradingTest(null)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50">취소</button>
-              <button onClick={handleSubmitGrade}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">채점 완료</button>
+              <Button variant="secondary" size="md" fullWidth onClick={() => setGradingTest(null)}>
+                취소
+              </Button>
+              <Button variant="accent" size="md" fullWidth onClick={handleSubmitGrade}>
+                채점 완료
+              </Button>
             </div>
           </div>
         </div>
