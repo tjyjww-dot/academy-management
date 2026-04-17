@@ -232,8 +232,8 @@ function detectProblemsInColumn(
 ): (DetectedProblem & { _method?: string })[] {
   if (columnItems.length < 2) return [];
 
-  // Filter footer (bottom 10%) and header (top 4%)
-  const items = columnItems.filter(i => i.y > pageHeight * 0.04 && i.y < pageHeight * 0.90);
+  // Filter footer (bottom 7%) and header (top 3%)
+  const items = columnItems.filter(i => i.y > pageHeight * 0.03 && i.y < pageHeight * 0.93);
   if (items.length < 2) return [];
 
   // Find column's left margin (leftmost X of items)
@@ -641,7 +641,8 @@ export async function detectAllProblems(
 
     // Text height for Y adjustment (baseline → top of character)
     const textH = cur._textHeight || 15;
-    const topPad = textH + 5;
+    // 문제 번호 위쪽 여유를 넉넉하게 (그래프, 표, 조건문 등이 번호 위에 올 수 있음)
+    const topPad = textH + 12;
 
     // Top of problem: above the number text
     const problemTop = cur.bbox.y - topPad;
@@ -655,7 +656,7 @@ export async function detectAllProblems(
     } else {
       // Last problem in this column on this page
       // Extend to the footer boundary to capture any graphs/figures
-      const footerY = pi.height * 0.85;
+      const footerY = pi.height * 0.92;
       problemBottom = footerY;
     }
 
@@ -1119,8 +1120,8 @@ export function clearPageCache() { pageCanvasCache.clear(); }
 export async function extractProblemImage(pdf: any, problem: DetectedProblem, scale: number = 2.0): Promise<string> {
   const fullCanvas = await getOrRenderPage(pdf, problem.pageNumber, scale);
 
-  // 왼쪽에 여백을 추가하여 문제 번호가 잘리지 않도록 함
-  const leftPadding = 15; // PDF 좌표 기준 15pt 왼쪽 여유
+  // 왼쪽에 여백을 추가하여 문제 번호/텍스트가 잘리지 않도록 함
+  const leftPadding = 25; // PDF 좌표 기준 25pt 왼쪽 여유 (기존 15 → 25)
   const adjustedX = Math.max(0, problem.bbox.x - leftPadding);
   const extraWidth = problem.bbox.x - adjustedX; // 실제 추가된 너비
 
@@ -1156,7 +1157,7 @@ function trimWhitespace(canvas: HTMLCanvasElement): string {
   const { data, width, height } = imageData;
 
   const THRESHOLD = 230; // slightly off-white threshold
-  const MIN_PIXELS = Math.max(5, Math.floor(width * 0.005));  // minimum non-white pixels for a row/col to count
+  const MIN_PIXELS = Math.max(2, Math.floor(width * 0.003));  // 얇은 선/글자 획도 콘텐츠로 인식 (기존 5 → 2)
 
   // Count non-white pixels per row
   const rowCounts = new Int32Array(height);
@@ -1181,8 +1182,8 @@ function trimWhitespace(canvas: HTMLCanvasElement): string {
   // prevent basic trimming from working properly
   const contentHeight = bottom - top;
   if (contentHeight > 100) {
-    const scanStart = top + Math.floor(contentHeight * 0.35);
-    const gapThresholdPx = Math.max(30, Math.floor(contentHeight * 0.12));
+    const scanStart = top + Math.floor(contentHeight * 0.45); // 더 아래에서부터 스캔 (기존 0.35)
+    const gapThresholdPx = Math.max(50, Math.floor(contentHeight * 0.18)); // 더 큰 빈 공간만 잘라냄 (기존 30/0.12)
     let gapStart = -1;
     let currentGapStart = -1;
     let inGap = false;
@@ -1218,10 +1219,10 @@ function trimWhitespace(canvas: HTMLCanvasElement): string {
 
   if (top >= bottom || left >= right) return canvas.toDataURL('image/png');
 
-  // Small padding around content
-  const padTop = 12;
-  const padBottom = 15;
-  const padLR = 8;
+  // 콘텐츠 주변 여백 (잘림 방지를 위해 넉넉하게)
+  const padTop = 18;
+  const padBottom = 20;
+  const padLR = 15;
   top = Math.max(0, top - padTop);
   bottom = Math.min(height - 1, bottom + padBottom);
   left = Math.max(0, left - padLR);
