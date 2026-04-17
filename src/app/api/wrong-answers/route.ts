@@ -176,3 +176,53 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+// 오답 일괄 삭제 — 요청 본문: { ids: string[] }
+export async function DELETE(request: NextRequest) {
+  try {
+    const tkn = getTokenFromCookies(request);
+    if (!tkn) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const decoded = verifyToken(tkn);
+    if (!decoded || ['PARENT', 'STUDENT'].includes(decoded.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const ids: string[] = Array.isArray(body?.ids) ? body.ids.filter((x: any) => typeof x === 'string') : [];
+    if (ids.length === 0) {
+      return NextResponse.json({ error: '삭제할 항목이 없습니다' }, { status: 400 });
+    }
+
+    // TEACHER: 본인이 담당하는 반에 속한 오답만 삭제 가능
+    let allowedIds = ids;
+    if (decoded.role === 'TEACHER') {
+      const myClassrooms = await prisma.classroom.findMany({
+        where: { teacherId: decoded.userId },
+        select: { id: true },
+      });
+      const myClassroomIds = myClassrooms.map(c => c.id);
+      const filtered = await prisma.wrongAnswer.findMany({
+        where: {
+          id: { in: ids },
+          classroomId: { in: myClassroomIds.length > 0 ? myClassroomIds : ['__none__'] },
+        },
+        select: { id: true },
+      });
+      allowedIds = filtered.map(f => f.id);
+    }
+
+    if (allowedIds.length === 0) {
+      return NextResponse.json({ deleted: 0 });
+    }
+
+    // WrongAnswerTestItem 은 onDelete: Cascade 가 지정돼 있으므로 연쇄 삭제됨
+    const result = await prisma.wrongAnswer.deleteMany({
+      where: { id: { in: allowedIds } },
+    });
+
+    return NextResponse.json({ deleted: result.count });
+  } catch (error) {
+    console.error('Bulk delete wrong answers 오류:', error);
+    return NextResponse.json({ error: '서버 오류' }, { status: 500 });
+  }
+}

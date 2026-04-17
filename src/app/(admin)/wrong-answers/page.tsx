@@ -113,6 +113,11 @@ export default function WrongAnswersPage() {
   // Filter classroom for answers/tests tabs
   const [filterClassroom, setFilterClassroom] = useState('');
 
+  // 오답 목록 일괄 삭제 — 선택 모드
+  const [wrongSelectMode, setWrongSelectMode] = useState(false);
+  const [selectedWrongIds, setSelectedWrongIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   useEffect(() => { fetchClassrooms(); fetchAllTestPapers(); }, []);
 
   // When tab changes, reload data for the selected classroom
@@ -589,6 +594,60 @@ export default function WrongAnswersPage() {
       const res = await fetch(`/api/wrong-answers/${id}`, { method: 'DELETE' });
       if (res.ok) { showMsg('삭제됨'); if (filterClassroom) await fetchDataForClassroom(filterClassroom); }
     } catch { showMsg('삭제 실패', 'error'); }
+  };
+
+  // 체크박스 선택 토글
+  const toggleSelectWrong = (id: string) => {
+    setSelectedWrongIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  // 학생 단위 전체 선택/해제 토글
+  const toggleSelectStudentAll = (studentIds: string[]) => {
+    setSelectedWrongIds(prev => {
+      const next = new Set(prev);
+      const allSelected = studentIds.every(id => next.has(id));
+      if (allSelected) {
+        studentIds.forEach(id => next.delete(id));
+      } else {
+        studentIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  // 선택 모드 종료 + 선택 해제
+  const exitSelectMode = () => {
+    setWrongSelectMode(false);
+    setSelectedWrongIds(new Set());
+  };
+
+  // 일괄 삭제 실행
+  const handleBulkDeleteWrongAnswers = async () => {
+    const ids = Array.from(selectedWrongIds);
+    if (ids.length === 0) return;
+    if (!confirm(`${ids.length}개의 오답을 삭제하시겠습니까? (되돌릴 수 없습니다)`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetch('/api/wrong-answers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      hapticMedium();
+      showMsg(`${data.deleted ?? ids.length}개 삭제됨`);
+      exitSelectMode();
+      if (filterClassroom) await fetchDataForClassroom(filterClassroom);
+    } catch {
+      showMsg('일괄 삭제 실패', 'error');
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const generateTestPDF = (test: WrongAnswerTestRecord) => {
@@ -1632,22 +1691,45 @@ ${problems.map((p, idx) => `
 
           {/* ========== TAB: ANSWERS ========== */}
           {activeTab === 'answers' && (
-            <div key="tab-answers" className="anim-tab-in space-y-4">
+            <div key="tab-answers" className="anim-tab-in space-y-4" style={{ paddingBottom: wrongSelectMode ? 96 : 0 }}>
               <Card padding="md" elevation="sh1">
-                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>반 선택 <span style={{ color: 'var(--color-mute)' }}>(선택사항)</span></label>
-                <select
-                  value={filterClassroom}
-                  onChange={e => setFilterClassroom(e.target.value)}
-                  className="w-full max-w-md px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
-                  style={{
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-ink)',
-                  }}
-                >
-                  <option value="">전체 반</option>
-                  {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex items-end justify-between gap-3 flex-wrap">
+                  <div className="flex-1 min-w-[180px]">
+                    <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--color-ink-2)' }}>반 선택 <span style={{ color: 'var(--color-mute)' }}>(선택사항)</span></label>
+                    <select
+                      value={filterClassroom}
+                      onChange={e => setFilterClassroom(e.target.value)}
+                      className="w-full max-w-md px-4 py-2.5 rounded-[10px] text-sm focus:outline-none focus-visible:ring-2"
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-ink)',
+                      }}
+                    >
+                      <option value="">전체 반</option>
+                      {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  {Object.keys(groupedByStudent).length > 0 && (
+                    wrongSelectMode ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={exitSelectMode}
+                      >
+                        선택 취소
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => { hapticLight(); setWrongSelectMode(true); }}
+                      >
+                        선택 모드
+                      </Button>
+                    )
+                  )}
+                </div>
               </Card>
 
               {Object.keys(groupedByStudent).length === 0 ? (
@@ -1662,10 +1744,13 @@ ${problems.map((p, idx) => `
                 Object.entries(groupedByStudent).map(([studentId, { name, items }]) => {
                   const active = items.filter(i => i.status === 'ACTIVE');
                   const mastered = items.filter(i => i.status === 'MASTERED');
+                  const studentItemIds = items.map(i => i.id);
+                  const allStudentSelected = studentItemIds.length > 0 && studentItemIds.every(id => selectedWrongIds.has(id));
+                  const someStudentSelected = studentItemIds.some(id => selectedWrongIds.has(id));
                   return (
                     <Card key={studentId} padding="none" elevation="sh1" className="overflow-hidden">
                       <div
-                        className="flex items-center justify-between px-5 py-3.5"
+                        className="flex items-center justify-between px-5 py-3.5 gap-2"
                         style={{
                           background: 'var(--color-surface-2)',
                           borderBottom: '1px solid var(--color-border)',
@@ -1676,49 +1761,158 @@ ${problems.map((p, idx) => `
                           <Badge tone="warn" size="sm">미해결 {active.length}</Badge>
                           <Badge tone="success" size="sm">마스터 {mastered.length}</Badge>
                         </div>
-                        {active.length > 0 && (
-                          <Button
-                            variant="accent"
-                            size="sm"
-                            onClick={() => openTestCreateModal(studentId, name, active.length, active[0]?.classroomId)}
+                        {wrongSelectMode ? (
+                          <button
+                            type="button"
+                            onPointerDown={() => hapticSelection()}
+                            onClick={() => toggleSelectStudentAll(studentItemIds)}
+                            className="press press-subtle text-[12px] font-semibold rounded-[8px] px-2.5 py-1.5"
+                            style={{
+                              background: allStudentSelected ? 'var(--color-accent)' : 'var(--color-surface)',
+                              color: allStudentSelected ? '#fff' : 'var(--color-ink-2)',
+                              border: `1px solid ${allStudentSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                              minHeight: 32,
+                            }}
+                            aria-label={allStudentSelected ? `${name} 전체 선택 해제` : `${name} 전체 선택`}
                           >
-                            테스트 생성
-                          </Button>
+                            {allStudentSelected ? '전체 해제' : someStudentSelected ? '전체 선택' : '전체 선택'}
+                          </button>
+                        ) : (
+                          active.length > 0 && (
+                            <Button
+                              variant="accent"
+                              size="sm"
+                              onClick={() => openTestCreateModal(studentId, name, active.length, active[0]?.classroomId)}
+                            >
+                              테스트 생성
+                            </Button>
+                          )
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1.5 px-4 py-3">
-                        {items.map(wa => (
-                          <div
-                            key={wa.id}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs"
-                            style={{
-                              background: wa.status === 'MASTERED' ? 'var(--color-success-bg)' : 'var(--color-surface)',
-                              color: wa.status === 'MASTERED' ? 'var(--color-success)' : 'var(--color-ink)',
-                              border: `1px solid ${wa.status === 'MASTERED' ? 'var(--color-success)' : 'var(--color-border)'}`,
-                            }}
-                          >
-                            <span className="font-bold num-tabular" style={{ color: 'var(--color-accent)' }}>{wa.problemNumber}번</span>
-                            <span style={{ color: 'var(--color-mute)' }}>{wa.testName}</span>
-                            <Badge tone={wa.status === 'ACTIVE' ? 'warn' : 'success'} size="sm">
-                              {wa.status === 'ACTIVE' ? '미해결' : '마스터'}
-                            </Badge>
-                            <span className="num-tabular" style={{ color: 'var(--color-mute)' }}>{wa.round}회</span>
-                            <button
-                              onPointerDown={() => hapticHeavy()}
-                              onClick={() => handleDeleteWrongAnswer(wa.id)}
-                              className="press ml-0.5 w-6 h-6 rounded-full flex items-center justify-center"
-                              style={{ color: 'var(--color-mute)' }}
-                              title="삭제"
-                              aria-label="삭제"
+                        {items.map(wa => {
+                          const isSelected = selectedWrongIds.has(wa.id);
+                          const isMastered = wa.status === 'MASTERED';
+                          if (wrongSelectMode) {
+                            return (
+                              <button
+                                type="button"
+                                key={wa.id}
+                                onPointerDown={() => hapticSelection()}
+                                onClick={() => toggleSelectWrong(wa.id)}
+                                className="press press-subtle inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs"
+                                style={{
+                                  background: isSelected
+                                    ? 'var(--color-danger-bg)'
+                                    : (isMastered ? 'var(--color-success-bg)' : 'var(--color-surface)'),
+                                  color: isSelected
+                                    ? 'var(--color-danger)'
+                                    : (isMastered ? 'var(--color-success)' : 'var(--color-ink)'),
+                                  border: `1px solid ${isSelected
+                                    ? 'var(--color-danger)'
+                                    : (isMastered ? 'var(--color-success)' : 'var(--color-border)')}`,
+                                  minHeight: 32,
+                                  transition: 'background-color var(--dur-base) var(--ease-apple-inout), border-color var(--dur-base) var(--ease-apple-inout), color var(--dur-base) var(--ease-apple-inout)',
+                                }}
+                                aria-pressed={isSelected}
+                                aria-label={`${wa.problemNumber}번 ${wa.testName} ${isSelected ? '선택 해제' : '선택'}`}
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="inline-flex items-center justify-center w-4 h-4 rounded-[4px] shrink-0"
+                                  style={{
+                                    background: isSelected ? 'var(--color-danger)' : 'transparent',
+                                    border: `1.5px solid ${isSelected ? 'var(--color-danger)' : 'var(--color-mute)'}`,
+                                    color: '#fff',
+                                    fontSize: 10,
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  {isSelected ? '✓' : ''}
+                                </span>
+                                <span className="font-bold num-tabular" style={{ color: isSelected ? 'var(--color-danger)' : 'var(--color-accent)' }}>{wa.problemNumber}번</span>
+                                <span style={{ color: 'var(--color-mute)' }}>{wa.testName}</span>
+                                <Badge tone={wa.status === 'ACTIVE' ? 'warn' : 'success'} size="sm">
+                                  {wa.status === 'ACTIVE' ? '미해결' : '마스터'}
+                                </Badge>
+                                <span className="num-tabular" style={{ color: 'var(--color-mute)' }}>{wa.round}회</span>
+                              </button>
+                            );
+                          }
+                          return (
+                            <div
+                              key={wa.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs"
+                              style={{
+                                background: isMastered ? 'var(--color-success-bg)' : 'var(--color-surface)',
+                                color: isMastered ? 'var(--color-success)' : 'var(--color-ink)',
+                                border: `1px solid ${isMastered ? 'var(--color-success)' : 'var(--color-border)'}`,
+                              }}
                             >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
+                              <span className="font-bold num-tabular" style={{ color: 'var(--color-accent)' }}>{wa.problemNumber}번</span>
+                              <span style={{ color: 'var(--color-mute)' }}>{wa.testName}</span>
+                              <Badge tone={wa.status === 'ACTIVE' ? 'warn' : 'success'} size="sm">
+                                {wa.status === 'ACTIVE' ? '미해결' : '마스터'}
+                              </Badge>
+                              <span className="num-tabular" style={{ color: 'var(--color-mute)' }}>{wa.round}회</span>
+                              <button
+                                onPointerDown={() => hapticHeavy()}
+                                onClick={() => handleDeleteWrongAnswer(wa.id)}
+                                className="press ml-0.5 w-6 h-6 rounded-full flex items-center justify-center"
+                                style={{ color: 'var(--color-mute)' }}
+                                title="삭제"
+                                aria-label="삭제"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </Card>
                   );
                 })
+              )}
+
+              {/* 일괄 삭제 고정 하단바 */}
+              {wrongSelectMode && (
+                <div
+                  className="fixed bottom-0 left-0 right-0 z-40 anim-sheet-up"
+                  style={{
+                    background: 'rgba(255,255,255,0.94)',
+                    backdropFilter: 'saturate(180%) blur(14px)',
+                    WebkitBackdropFilter: 'saturate(180%) blur(14px)',
+                    borderTop: '1px solid var(--color-border)',
+                    boxShadow: 'var(--shadow-sh2)',
+                  }}
+                >
+                  <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold" style={{ color: 'var(--color-ink)', letterSpacing: '-0.01em' }}>
+                        <span className="num-tabular" style={{ color: selectedWrongIds.size > 0 ? 'var(--color-danger)' : 'var(--color-mute)' }}>
+                          {selectedWrongIds.size}
+                        </span>
+                        개 선택됨
+                      </div>
+                      <div className="text-[11px] hidden sm:block" style={{ color: 'var(--color-mute)' }}>
+                        삭제할 오답을 탭해 선택하세요
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button variant="ghost" size="md" onClick={exitSelectMode} disabled={bulkDeleting}>
+                        취소
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="md"
+                        onClick={handleBulkDeleteWrongAnswers}
+                        disabled={selectedWrongIds.size === 0 || bulkDeleting}
+                      >
+                        {bulkDeleting ? '삭제 중…' : `${selectedWrongIds.size}개 삭제`}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

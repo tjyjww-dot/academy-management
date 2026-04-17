@@ -372,7 +372,7 @@ export default function AdminLayout({
         aria-label="주요 메뉴"
         className={`fixed inset-y-0 left-0 z-50 w-64 transition-transform ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 md:relative`}
+        } md:translate-x-0 md:sticky md:top-0 md:left-auto md:bottom-auto md:h-screen md:self-start md:z-30`}
         style={{
           background: 'var(--color-surface)',
           borderRight: '1px solid var(--color-border)',
