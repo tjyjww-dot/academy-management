@@ -32,10 +32,10 @@ const sizes: Record<Size, string> = {
 };
 
 const variants: Record<Variant, string> = {
-  // 잉크 블랙 — 가장 강한 primary
+  // 브랜드 네이비 — 편안한 톤의 primary (기존 잉크 블랙 대비 완화)
   primary:
-    'bg-ink text-white hover:bg-black ' +
-    'shadow-[0_1px_2px_rgba(14,14,12,0.08)]',
+    'bg-accent text-white hover:bg-accent-2 ' +
+    'shadow-[0_1px_2px_rgba(31,58,95,0.15)]',
   // 흰 배경 + 얇은 테두리
   secondary:
     'bg-surface text-ink border border-border-2 hover:bg-surface-2',
@@ -45,7 +45,7 @@ const variants: Record<Variant, string> = {
   // 위험 액션
   danger:
     'bg-danger text-white hover:brightness-95',
-  // 딥 네이비 포인트
+  // 딥 네이비 포인트 (primary 와 동일 톤 · 시맨틱 구분 목적 유지)
   accent:
     'bg-accent text-white hover:bg-accent-2',
 };

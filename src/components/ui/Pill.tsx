@@ -13,7 +13,7 @@ export interface PillProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 
 /**
  * Pill — 탭/필터/세그먼트용 선택 가능한 알약형 버튼.
- * active 상태일 때 잉크 블랙 배경 + 흰 텍스트.
+ * active 상태일 때 네이비(accent) 배경 + 흰 텍스트. 잉크 블랙보다 부드러운 톤.
  * 터치 시 미세한 haptic selection + press 스케일 피드백 제공.
  */
 export const Pill = React.forwardRef<HTMLButtonElement, PillProps>(
@@ -32,7 +32,7 @@ export const Pill = React.forwardRef<HTMLButtonElement, PillProps>(
           'text-xs font-medium px-3 h-7',
           'press',
           active
-            ? 'bg-ink text-white border border-ink'
+            ? 'bg-accent text-white border border-accent'
             : 'bg-transparent text-mute hover:text-ink border border-transparent hover:bg-surface-2',
           className
         )}
