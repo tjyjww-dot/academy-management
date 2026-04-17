@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button, Card, Badge, Pill, Stat, SectionHeader, Divider } from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { hapticLight, hapticSelection, hapticMedium, hapticHeavy, hapticSuccess } from '@/lib/haptics';
 
 type TabKey = 'lesson' | 'students';
@@ -466,7 +467,15 @@ export default function ClassDetailPage() {
     <div className="p-8 text-center" style={{ color: 'var(--color-danger)' }}>{error}</div>
   );
   if (!classroom) return (
-    <div className="p-8 text-center text-mute">데이터가 없습니다</div>
+    <div className="p-6">
+      <EmptyState
+        size="md"
+        icon="📭"
+        title="반 정보를 찾을 수 없습니다"
+        description="이미 삭제되었거나 접근 권한이 없는 반입니다. 반 목록에서 다시 선택해 주세요."
+        asCard
+      />
+    </div>
   );
 
   const students = classroom.enrollments.map((e: any) => e.student).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ko'));
@@ -876,8 +885,13 @@ export default function ClassDetailPage() {
                   ))}
                   {students.length === 0 && (
                     <tr>
-                      <td colSpan={isCustomClass ? 8 : 6} className="p-8 text-center text-mute text-[13px]">
-                        아직 등록된 원생이 없습니다. 위 검색으로 원생을 추가해 주세요.
+                      <td colSpan={isCustomClass ? 8 : 6} className="p-4">
+                        <EmptyState
+                          size="sm"
+                          icon="👥"
+                          title="아직 등록된 원생이 없습니다"
+                          description="위 검색창에서 원생을 찾아 반에 추가해 주세요."
+                        />
                       </td>
                     </tr>
                   )}
