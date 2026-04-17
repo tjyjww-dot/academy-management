@@ -71,6 +71,13 @@ export default function CounselingPage() {
     // Check if studentId is in URL params
     const studentId = searchParams.get('studentId');
     const studentName = searchParams.get('studentName');
+    // Check if a specific counseling id is in URL params (from dashboard)
+    const _id = searchParams.get('id');
+    if (_id) {
+      // 목록 fetch 이후 별도 effect에서 자동 선택 처리됨
+      // 상태 필터가 ALL이 아닐 경우에도 대상이 잘 보이도록 ALL로 맞춰 둠
+      setStatusFilter('ALL');
+    }
 
     if (studentId && studentName) {
       setIsNewRecord(true);
@@ -139,6 +146,19 @@ export default function CounselingPage() {
       description: request.description || '',
     });
   };
+
+  // URL에 ?id=... 가 있으면 목록 로딩 후 자동으로 해당 상담 상세를 선택한다 (대시보드에서 진입 시).
+  useEffect(() => {
+    const _id = searchParams.get('id');
+    if (!_id) return;
+    if (selectedRequest && selectedRequest.id === _id) return;
+    if (counselingRequests.length === 0) return;
+    const match = counselingRequests.find((r) => r.id === _id);
+    if (match) {
+      handleSelectRequest(match);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counselingRequests, searchParams]);
 
   const handleStatusFilterChange = (status: string) => {
     setStatusFilter(status);

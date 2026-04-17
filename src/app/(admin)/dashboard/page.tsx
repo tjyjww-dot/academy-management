@@ -497,7 +497,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={c.id}
-                      href={`/counseling`}
+                      href={`/counseling?id=${c.id}`}
                       onPointerDown={() => hapticLight()}
                       className="press press-subtle block rounded-lg p-3"
                       style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
@@ -645,7 +645,7 @@ export default function DashboardPage() {
                   {pendingCounselingRequests.map((cr) => (
                     <Link
                       key={cr.id}
-                      href="/counseling"
+                      href={`/counseling?id=${cr.id}`}
                       onPointerDown={() => hapticLight()}
                       className="press press-subtle block rounded-lg p-3"
                       style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-bg)' }}
