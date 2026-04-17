@@ -18,3 +18,5 @@ export type { StatProps } from './Stat';
 export { Divider } from './Divider';
 export { Skeleton } from './Skeleton';
 export { SectionHeader } from './SectionHeader';
+export { Stepper } from './Stepper';
+export type { StepperProps, StepItem } from './Stepper';

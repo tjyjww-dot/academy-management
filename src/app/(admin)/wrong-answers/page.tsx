@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { hapticSelection, hapticMedium, hapticLight, hapticHeavy } from '@/lib/haptics';
+import { Button, Card, Badge, Stepper, SectionHeader } from '@/components/ui';
 
 /* ============================================================
    Types
@@ -812,189 +813,316 @@ ${problems.map((p, idx) => `
           {/* ========== TAB: UPLOAD ========== */}
           {activeTab === 'upload' && (
             <div className="space-y-6">
-              {/* PDF Upload */}
-              <div className="bg-white rounded-xl border p-5">
-                <h3 className="font-semibold text-gray-800 mb-3">PDF 시험지 업로드</h3>
+              {/* ===== Upload Flow Stepper ===== */}
+              {(() => {
+                const uploadStep =
+                  !pdfFile ? 0 :
+                  (extractState === 'detecting' || extractState === 'extracting') ? 2 :
+                  (extractState === 'done' || extractState === 'saving' || extractState === 'saved') ? 3 :
+                  1;
+                const uploadCompletedUntil =
+                  !pdfFile ? -1 :
+                  extractState === 'saved' ? 3 :
+                  (extractState === 'done' || extractState === 'saving') ? 2 :
+                  (extractState === 'detecting' || extractState === 'extracting') ? 1 :
+                  0;
+                return (
+                  <Card padding="md" elevation="sh1">
+                    <Stepper
+                      steps={[
+                        { label: '업로드', description: 'PDF 선택' },
+                        { label: '범위 설정', description: '문제·답지' },
+                        { label: '추출', description: '자동 감지' },
+                        { label: '저장', description: '반 지정' },
+                      ]}
+                      current={uploadStep}
+                      completedUntil={uploadCompletedUntil}
+                    />
+                  </Card>
+                );
+              })()}
+
+              {/* ===== Step 1: PDF Upload ===== */}
+              <Card padding="md">
+                <SectionHeader title="PDF 시험지 업로드" description="수학 교재·시험지 PDF 를 드래그하거나 클릭하여 선택하세요." />
 
                 <label
                   onDragOver={handleDragOver}
                   onDragEnter={handleDragEnter}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`block border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer ${
-                    isDragging
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-                  }`}>
-                  <div className="text-3xl mb-2">📁</div>
-                  <p className="text-gray-600 text-sm">PDF 파일을 클릭하거나 드래그해서 업로드하세요</p>
-                  <p className="text-xs text-gray-400 mt-1">수학 교재, 시험지 등의 PDF</p>
+                  className="block border-2 border-dashed p-8 text-center transition-colors cursor-pointer press press-subtle"
+                  style={{
+                    borderRadius: 'var(--radius-card)',
+                    borderColor: isDragging ? 'var(--color-accent)' : 'var(--color-border-2)',
+                    background: isDragging ? 'var(--color-info-bg)' : 'var(--color-surface-2)',
+                  }}>
+                  <div className="text-3xl mb-2" aria-hidden>📁</div>
+                  <p className="text-sm text-ink-2 font-medium">PDF 파일을 클릭하거나 드래그해서 업로드하세요</p>
+                  <p className="text-xs text-mute mt-1">수학 교재, 시험지 등의 PDF</p>
                   <input type="file" accept=".pdf" onChange={handleFileSelect} className="hidden" />
                 </label>
 
                 {pdfFile && (
-                  <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200 flex items-center gap-2">
-                    <span className="text-lg">✅</span>
-                    <span className="font-medium text-green-800 text-sm">{pdfFile.name}</span>
-                    <span className="text-xs text-green-600">({(pdfFile.size / 1024 / 1024).toFixed(1)}MB)</span>
+                  <div
+                    className="mt-3 p-3 flex items-center gap-2"
+                    style={{
+                      borderRadius: 'var(--radius-btn)',
+                      background: 'var(--color-success-bg)',
+                      border: '1px solid var(--color-success)',
+                    }}>
+                    <Badge tone="success" variant="solid" size="sm">선택됨</Badge>
+                    <span className="font-medium text-sm truncate" style={{ color: 'var(--color-success)' }}>
+                      {pdfFile.name}
+                    </span>
+                    <span className="text-xs ml-auto shrink-0" style={{ color: 'var(--color-success)' }}>
+                      {(pdfFile.size / 1024 / 1024).toFixed(1)}MB
+                    </span>
                   </div>
                 )}
-              </div>
+              </Card>
 
-              {/* Page Range Settings */}
+              {/* ===== Step 2: Page Range Settings ===== */}
               {pdfFile && totalPages > 0 && extractState !== 'detecting' && extractState !== 'extracting' && extractState !== 'saving' && (
-                <div className="bg-white rounded-xl border p-5">
-                  <h3 className="font-semibold text-gray-800 mb-4">페이지 범위 설정</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card padding="md" className="anim-pop-in">
+                  <SectionHeader title="페이지 범위 설정" description={`총 ${totalPages}페이지 · 문제와 답지 페이지 구간을 각각 지정하세요.`} />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Problem pages */}
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <h4 className="text-sm font-semibold text-blue-900 mb-3">문제 페이지 범위</h4>
-                      <div className="space-y-3">
+                    <div
+                      className="p-4"
+                      style={{
+                        borderRadius: 'var(--radius-card)',
+                        background: 'var(--color-info-bg)',
+                        border: '1px solid var(--color-accent)',
+                      }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Badge tone="accent" variant="solid" size="sm">문제</Badge>
+                        <span className="text-xs font-semibold text-accent">문제 페이지 범위</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-xs font-medium text-blue-700 mb-1">시작 페이지</label>
+                          <label className="block text-[11px] font-medium mb-1 text-accent">시작</label>
                           <input type="number" min={1} max={totalPages} value={problemPageRange.start}
                             onChange={e => setProblemPageRange(p => ({ ...p, start: Math.max(1, parseInt(e.target.value) || 1) }))}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                            className="w-full px-3 py-2 text-sm border bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+                            style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-border)' }} />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-blue-700 mb-1">끝 페이지</label>
+                          <label className="block text-[11px] font-medium mb-1 text-accent">끝</label>
                           <input type="number" min={1} max={totalPages} value={problemPageRange.end}
                             onChange={e => setProblemPageRange(p => ({ ...p, end: Math.min(totalPages, parseInt(e.target.value) || totalPages) }))}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                            className="w-full px-3 py-2 text-sm border bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+                            style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-border)' }} />
                         </div>
-                        <p className="text-xs text-blue-600">선택: {problemPageRange.start} ~ {problemPageRange.end}페이지</p>
                       </div>
+                      <p className="text-xs mt-2 text-accent">{problemPageRange.start} ~ {problemPageRange.end} 페이지</p>
                     </div>
 
                     {/* Answer pages */}
-                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                      <h4 className="text-sm font-semibold text-green-900 mb-3">답지 페이지 범위</h4>
-                      <div className="space-y-3">
+                    <div
+                      className="p-4"
+                      style={{
+                        borderRadius: 'var(--radius-card)',
+                        background: 'var(--color-success-bg)',
+                        border: '1px solid var(--color-success)',
+                      }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Badge tone="success" variant="solid" size="sm">답지</Badge>
+                        <span className="text-xs font-semibold" style={{ color: 'var(--color-success)' }}>답지 페이지 범위</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-xs font-medium text-green-700 mb-1">시작 페이지</label>
+                          <label className="block text-[11px] font-medium mb-1" style={{ color: 'var(--color-success)' }}>시작</label>
                           <input type="number" min={1} max={totalPages} value={answerPageRange.start}
                             onChange={e => setAnswerPageRange(p => ({ ...p, start: Math.max(1, parseInt(e.target.value) || 1) }))}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" />
+                            className="w-full px-3 py-2 text-sm border bg-surface focus:outline-none focus:ring-2"
+                            style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-border)' }} />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-green-700 mb-1">끝 페이지</label>
+                          <label className="block text-[11px] font-medium mb-1" style={{ color: 'var(--color-success)' }}>끝</label>
                           <input type="number" min={1} max={totalPages} value={answerPageRange.end}
                             onChange={e => setAnswerPageRange(p => ({ ...p, end: Math.min(totalPages, parseInt(e.target.value) || totalPages) }))}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" />
+                            className="w-full px-3 py-2 text-sm border bg-surface focus:outline-none focus:ring-2"
+                            style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-border)' }} />
                         </div>
-                        <p className="text-xs text-green-600">선택: {answerPageRange.start} ~ {answerPageRange.end}페이지</p>
                       </div>
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-success)' }}>{answerPageRange.start} ~ {answerPageRange.end} 페이지</p>
                     </div>
                   </div>
 
                   <div className="mt-5 space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">시험지 이름</label>
+                      <label className="block text-sm font-medium text-ink-2 mb-1.5">시험지 이름</label>
                       <input type="text" value={workbookName} onChange={e => setWorkbookName(e.target.value)}
                         placeholder="예: 3월 모의고사"
-                        className="w-full max-w-md px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                        className="w-full max-w-md px-3 py-2 text-sm border bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+                        style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-border)' }} />
                     </div>
 
-                    <button onClick={handleExtract}
-                      className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-                      🔍 문제 및 답지 추출 시작
-                    </button>
+                    <Button variant="accent" size="md" onClick={handleExtract}>
+                      문제 및 답지 추출 시작
+                    </Button>
                   </div>
-                </div>
+                </Card>
               )}
 
-              {/* Progress */}
+              {/* ===== Step 3: Extraction Progress ===== */}
               {(extractState === 'detecting' || extractState === 'extracting' || extractState === 'saving') && (
-                <div className="bg-white rounded-xl border p-5">
+                <Card padding="md" className="anim-pop-in">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    <span className="text-sm text-gray-600">{extractProgress.message}</span>
+                    <div
+                      className="animate-spin w-5 h-5"
+                      style={{
+                        borderRadius: '999px',
+                        border: '2px solid var(--color-border)',
+                        borderTopColor: 'var(--color-accent)',
+                      }}
+                      aria-hidden
+                    />
+                    <span className="text-sm font-medium text-ink-2">{extractProgress.message || '처리 중...'}</span>
                   </div>
                   {extractProgress.total > 0 && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(extractProgress.current / extractProgress.total) * 100}%` }}></div>
+                    <div className="w-full h-1.5 mt-2" style={{ background: 'var(--color-surface-2)', borderRadius: '999px', overflow: 'hidden' }}>
+                      <div
+                        className="h-full"
+                        style={{
+                          background: 'var(--color-accent)',
+                          borderRadius: '999px',
+                          width: `${(extractProgress.current / extractProgress.total) * 100}%`,
+                          transition: 'width 300ms var(--ease-apple-inout)',
+                        }}
+                      />
                     </div>
                   )}
-                </div>
+                </Card>
               )}
 
-              {/* Error */}
+              {/* ===== Error ===== */}
               {extractState === 'error' && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-red-700 text-sm">{extractError}</p>
-                  <button onClick={() => setExtractState('idle')} className="mt-2 text-sm text-red-600 underline">다시 시도</button>
-                </div>
+                <Card
+                  padding="md"
+                  className="anim-pop-in"
+                  style={{ background: 'var(--color-danger-bg)', borderColor: 'var(--color-danger)' }}>
+                  <div className="flex items-start gap-2">
+                    <Badge tone="danger" variant="solid" size="sm">오류</Badge>
+                    <p className="text-sm flex-1" style={{ color: 'var(--color-danger)' }}>{extractError}</p>
+                  </div>
+                  <Button variant="secondary" size="sm" className="mt-3" onClick={() => setExtractState('idle')}>
+                    다시 시도
+                  </Button>
+                </Card>
               )}
 
-              {/* Extracted Results */}
+              {/* ===== Extracted Results ===== */}
               {extractState === 'done' && extractedProblems.length > 0 && (
                 <>
-                  {/* Problem Gallery with Answers */}
-                  <div className="bg-white rounded-xl border p-5">
-                    <div className="mb-4">
-                      <h3 className="font-semibold text-gray-800 mb-2">추출된 문제 및 답: {extractedProblems.length}개</h3>
-                      <p className="text-xs text-gray-500">문제 번호, 문제 이미지, 매칭된 답 이미지를 확인하세요.</p>
-                    </div>
+                  {/* Problem Gallery */}
+                  <Card padding="md" className="anim-pop-in">
+                    <SectionHeader
+                      title={`추출된 문제 및 답: ${extractedProblems.length}개`}
+                      description="문제 번호, 문제 이미지, 매칭된 답 이미지를 확인하세요."
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {extractedProblems.map(p => (
-                        <div key={p.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-bold text-blue-600 text-lg">{p.number}번</span>
-                              <span className="text-xs text-gray-400">p.{p.pageNumber}</span>
-                            </div>
-                            {!p.answerPageNumber && (
-                              <div className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 rounded px-2 py-1">
-                                답 미매칭
-                              </div>
-                            )}
+                        <Card
+                          key={p.id}
+                          padding="sm"
+                          interactive
+                          onClick={() => setSelectedProblem(p)}
+                          className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-lg text-accent num-tabular">{p.number}번</span>
+                            <span className="text-[11px] text-mute num-tabular">p.{p.pageNumber}</span>
                           </div>
+                          {!p.answerPageNumber && (
+                            <Badge tone="warn" variant="soft" size="sm">답 미매칭</Badge>
+                          )}
 
-                          <div className="bg-gray-50 rounded overflow-hidden mb-2">
-                            <img src={p.imageDataUrl} alt={`문제 ${p.number}`} className="w-full object-contain max-h-40 cursor-pointer hover:opacity-75" onClick={() => setSelectedProblem(p)} />
+                          <div
+                            className="overflow-hidden"
+                            style={{ background: 'var(--color-surface-2)', borderRadius: 'var(--radius-btn)' }}>
+                            <img
+                              src={p.imageDataUrl}
+                              alt={`문제 ${p.number}`}
+                              className="w-full object-contain max-h-40"
+                            />
                           </div>
 
                           {p.answerImageDataUrl ? (
-                            <div className="bg-green-50 rounded overflow-hidden border border-green-200">
+                            <div
+                              style={{
+                                background: 'var(--color-success-bg)',
+                                border: '1px solid var(--color-success)',
+                                borderRadius: 'var(--radius-btn)',
+                                overflow: 'hidden',
+                              }}>
                               <img src={p.answerImageDataUrl} alt={`답 ${p.number}`} className="w-full object-contain max-h-24" />
-                              <div className="text-xs text-green-600 text-center py-0.5">정답 이미지</div>
+                              <div className="text-[10.5px] text-center py-0.5 font-medium" style={{ color: 'var(--color-success)' }}>
+                                정답 이미지
+                              </div>
                             </div>
                           ) : (
-                            <div className="bg-yellow-50 rounded border border-yellow-200 p-2 text-center">
-                              <span className="text-xs text-yellow-600">정답 이미지 없음</span>
+                            <div
+                              className="p-2 text-center"
+                              style={{
+                                background: 'var(--color-warn-bg)',
+                                border: '1px solid var(--color-warn)',
+                                borderRadius: 'var(--radius-btn)',
+                              }}>
+                              <span className="text-[11px] font-medium" style={{ color: 'var(--color-warn)' }}>정답 이미지 없음</span>
                             </div>
                           )}
-                        </div>
+                        </Card>
                       ))}
                     </div>
-                  </div>
+                  </Card>
 
-                  {/* Answer Page Fallback - shown when answer detection fails */}
+                  {/* Answer Page Fallback */}
                   {debugInfo?.answerDetectionFailed && debugInfo?.answerPageImages?.length > 0 && (
-                    <div className="bg-white rounded-xl border p-5">
-                      <h3 className="font-semibold text-orange-700 mb-2">⚠️ 답지 자동 감지 실패</h3>
-                      <p className="text-sm text-gray-600 mb-3">답지 페이지에서 답을 자동으로 감지하지 못했습니다. 아래 답지 이미지를 참고하여 확인해주세요.</p>
-                      <div className="space-y-4">
+                    <Card padding="md" style={{ background: 'var(--color-warn-bg)', borderColor: 'var(--color-warn)' }}>
+                      <div className="flex items-start gap-2 mb-3">
+                        <Badge tone="warn" variant="solid" size="sm">주의</Badge>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-[15px]" style={{ color: 'var(--color-warn)' }}>답지 자동 감지 실패</h3>
+                          <p className="text-sm text-ink-2 mt-0.5">답지 페이지에서 답을 자동으로 감지하지 못했습니다. 아래 답지 이미지를 참고하여 확인해주세요.</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
                         {debugInfo.answerPageImages.map((img: string, idx: number) => (
-                          <div key={idx} className="border rounded-lg overflow-hidden">
-                            <div className="bg-orange-50 px-3 py-1 text-sm font-medium text-orange-700">답지 페이지 {answerPageRange.start + idx}</div>
-                            <img src={img} alt={`답지 페이지 ${idx + 1}`} className="w-full object-contain" />
+                          <div
+                            key={idx}
+                            className="overflow-hidden"
+                            style={{ border: '1px solid var(--color-warn)', borderRadius: 'var(--radius-card)' }}>
+                            <div
+                              className="px-3 py-1 text-sm font-medium"
+                              style={{ background: 'var(--color-warn-bg)', color: 'var(--color-warn)' }}>
+                              답지 페이지 {answerPageRange.start + idx}
+                            </div>
+                            <img src={img} alt={`답지 페이지 ${idx + 1}`} className="w-full object-contain bg-surface" />
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </Card>
                   )}
 
-                  {/* Save Settings */}
-                  <div className={`rounded-xl border p-5 ${extractState === 'done' ? 'bg-yellow-50 border-yellow-400 ring-2 ring-yellow-300' : 'bg-white'}`}>
-                    <h3 className="font-semibold text-gray-800 mb-1">시험지 저장</h3>
-                    {extractState === 'done' && (
-                      <p className="text-sm text-yellow-700 mb-3 font-medium">⬇️ 아래에서 반을 선택하고 저장 버튼을 눌러주세요!</p>
-                    )}
+                  {/* ===== Step 4: Save Settings ===== */}
+                  <Card
+                    padding="md"
+                    className="anim-pop-in"
+                    style={
+                      extractState === 'done'
+                        ? { background: 'var(--color-gold-soft)', borderColor: 'var(--color-gold)' }
+                        : undefined
+                    }>
+                    <SectionHeader
+                      title="시험지 저장"
+                      description={extractState === 'done' ? '반을 선택하고 저장 버튼을 눌러주세요.' : undefined}
+                    />
+
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">반 선택</label>
+                        <label className="block text-sm font-medium text-ink-2 mb-1.5">반 선택</label>
                         <select value={regClassroom} onChange={e => {
                           const val = e.target.value;
                           setRegClassroom(val);
@@ -1004,7 +1132,8 @@ ${problems.map((p, idx) => `
                             if (isCustomClass(val)) fetchUploadStudents(val);
                           }
                         }}
-                          className="w-full max-w-md px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                          className="w-full max-w-md px-4 py-2.5 text-sm border bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
+                          style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-border)' }}>
                           <option value="">반을 선택하세요</option>
                           {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}{c.subjectName === '맞춤반' ? ' (맞춤)' : ''}</option>)}
                         </select>
@@ -1012,9 +1141,12 @@ ${problems.map((p, idx) => `
 
                       {regClassroom && isCustomClass(regClassroom) && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">학생 선택 <span className="text-xs text-purple-600">(맞춤반)</span></label>
+                          <label className="block text-sm font-medium text-ink-2 mb-1.5">
+                            학생 선택 <Badge tone="gold" variant="soft" size="sm" className="ml-1">맞춤반</Badge>
+                          </label>
                           <select value={uploadStudent} onChange={e => setUploadStudent(e.target.value)}
-                            className="w-full max-w-md px-4 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white">
+                            className="w-full max-w-md px-4 py-2.5 text-sm border bg-surface focus:outline-none focus:ring-2"
+                            style={{ borderRadius: 'var(--radius-btn)', borderColor: 'var(--color-gold)' }}>
                             <option value="">학생을 선택하세요</option>
                             {uploadStudents.map(s => <option key={s.id} value={s.id}>{s.name}{s.studentNumber ? ` (${s.studentNumber})` : ''}</option>)}
                           </select>
@@ -1022,27 +1154,40 @@ ${problems.map((p, idx) => `
                       )}
 
                       {extractState === 'saved' ? (
-                        <div className="w-full px-5 py-4 bg-green-50 border-2 border-green-500 rounded-lg text-center">
-                          <div className="text-green-700 font-bold text-lg mb-1">✅ 시험지 저장 완료!</div>
-                          <p className="text-green-600 text-sm">오답 등록 탭에서 이 시험지를 선택할 수 있습니다.</p>
-                          <button onClick={() => { setExtractState('idle'); setPdfFile(null); setExtractedProblems([]); setWorkbookName(''); }}
-                            className="mt-2 px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                        <div
+                          className="w-full px-5 py-4 text-center"
+                          style={{
+                            background: 'var(--color-success-bg)',
+                            border: '1.5px solid var(--color-success)',
+                            borderRadius: 'var(--radius-card)',
+                          }}>
+                          <div className="flex items-center justify-center gap-2 mb-1">
+                            <Badge tone="success" variant="solid" size="sm">완료</Badge>
+                            <span className="font-bold text-lg" style={{ color: 'var(--color-success)' }}>시험지 저장 완료</span>
+                          </div>
+                          <p className="text-sm mb-3" style={{ color: 'var(--color-success)' }}>
+                            오답 등록 탭에서 이 시험지를 선택할 수 있습니다.
+                          </p>
+                          <Button
+                            variant="accent"
+                            size="sm"
+                            onClick={() => { setExtractState('idle'); setPdfFile(null); setExtractedProblems([]); setWorkbookName(''); }}>
                             새 시험지 업로드
-                          </button>
+                          </Button>
                         </div>
                       ) : (
-                        <button onClick={handleSaveTestPaper}
+                        <Button
+                          variant="accent"
+                          size="lg"
+                          fullWidth
+                          loading={extractState === 'saving'}
                           disabled={extractState === 'saving'}
-                          className={`w-full px-5 py-2.5 rounded-lg font-medium transition-colors ${
-                            extractState === 'saving'
-                              ? 'bg-gray-400 text-white cursor-not-allowed'
-                              : 'bg-green-600 text-white hover:bg-green-700'
-                          }`}>
-                          {extractState === 'saving' ? '⏳ 저장 중...' : '💾 시험지 저장 (DB)'}
-                        </button>
+                          onClick={handleSaveTestPaper}>
+                          {extractState === 'saving' ? '저장 중...' : '시험지 저장'}
+                        </Button>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 </>
               )}
 
