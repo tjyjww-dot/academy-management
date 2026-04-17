@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PushNotificationManager from '@/components/PushNotificationManager';
 import { Card, Pill, Badge, Stat, SectionHeader, Button, Input, Divider } from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { hapticLight, hapticMedium, hapticSelection } from '@/lib/haptics';
 
 export default function ParentPage() {
@@ -400,9 +401,13 @@ export default function ParentPage() {
           <>
             <SectionHeader eyebrow="HOMEWORK" title="숙제" />
             {data.dailyReports.filter((r: any) => r.homework).length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <p className="text-caption">숙제가 없습니다.</p>
-              </Card>
+              <EmptyState
+                size="sm"
+                icon="📚"
+                title="숙제가 없습니다"
+                description="선생님이 숙제를 등록하면 이곳에 표시됩니다."
+                asCard
+              />
             ) : (
               <div className="space-y-3">
                 {data.dailyReports.filter((r: any) => r.homework).map((r: any) => (
@@ -452,9 +457,13 @@ export default function ParentPage() {
             <>
               <SectionHeader eyebrow="NOTICE" title="공지" />
               {items.length === 0 ? (
-                <Card padding="lg" className="text-center">
-                  <p className="text-caption">공지가 없습니다.</p>
-                </Card>
+                <EmptyState
+                  size="sm"
+                  icon="📢"
+                  title="공지가 없습니다"
+                  description="선생님이 공지를 올리면 이곳에서 바로 확인하실 수 있습니다."
+                  asCard
+                />
               ) : (
                 <div className="space-y-3">
                   {items.map((r: any) => {
@@ -492,9 +501,13 @@ export default function ParentPage() {
             <SectionHeader eyebrow="GRADES" title="성적" />
             {renderGradeChart()}
             {data.grades.length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <p className="text-caption">성적 기록이 없습니다.</p>
-              </Card>
+              <EmptyState
+                size="sm"
+                icon="📊"
+                title="성적 기록이 없습니다"
+                description="수업 리포트에 점수가 입력되면 자동으로 쌓입니다."
+                asCard
+              />
             ) : (
               <div className="space-y-2">
                 {data.grades.map((g: any) => {
@@ -544,9 +557,13 @@ export default function ParentPage() {
               const att = parseAttitude(r.attitude || '');
               return att.grade !== '';
             }).length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <p className="text-caption">과제 완성도 기록이 없습니다.</p>
-              </Card>
+              <EmptyState
+                size="sm"
+                icon="✅"
+                title="과제 완성도 기록이 없습니다"
+                description="선생님이 과제를 평가하면 이곳에 결과가 모입니다."
+                asCard
+              />
             ) : (
               <div className="space-y-3">
                 {data.dailyReports.filter((r: any) => {
@@ -607,9 +624,13 @@ export default function ParentPage() {
           <>
             <SectionHeader eyebrow="VIDEO" title="수업 영상" />
             {!data.videos || data.videos.length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <p className="text-caption">등록된 수업영상이 없습니다.</p>
-              </Card>
+              <EmptyState
+                size="sm"
+                icon="🎬"
+                title="등록된 수업영상이 없습니다"
+                description="선생님이 수업 영상을 등록하면 이곳에서 재생할 수 있습니다."
+                asCard
+              />
             ) : (
               <div className="space-y-3">
                 {data.videos.map((v: any) => {
@@ -803,9 +824,12 @@ export default function ParentPage() {
             </div>
             <Card padding="sm" className="max-h-96 overflow-y-auto space-y-3">
               {memos.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-caption">메모가 없습니다</p>
-                </div>
+                <EmptyState
+                  size="sm"
+                  icon="💬"
+                  title="메모가 없습니다"
+                  description="아래 입력창에 메시지를 남기면 선생님께 바로 전달됩니다."
+                />
               ) : (
                 memos.map((m: any) => (
                   <div
@@ -921,9 +945,13 @@ export default function ParentPage() {
             )}
 
             {wrongAnswers.length === 0 ? (
-              <Card padding="lg" className="text-center">
-                <p className="text-caption">등록된 오답이 없습니다.</p>
-              </Card>
+              <EmptyState
+                size="sm"
+                icon="📝"
+                title="등록된 오답이 없습니다"
+                description="시험지가 등록되면 틀린 문제를 모아 연습 시험을 만들 수 있어요."
+                asCard
+              />
             ) : (
               <div className="space-y-2">
                 {Object.entries(
