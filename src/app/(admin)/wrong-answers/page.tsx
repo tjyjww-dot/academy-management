@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { hapticSelection, hapticMedium, hapticLight, hapticHeavy } from '@/lib/haptics';
 
 /* ============================================================
    Types
@@ -1496,23 +1497,32 @@ ${problems.map((p, idx) => `
               <label className="block text-sm font-medium text-gray-700 mb-2">출제 문항수</label>
               <div className="flex flex-wrap gap-2">
                 {[5, 10, 15, 20].filter(n => n <= filteredTotal).map(n => (
-                  <button key={n} onClick={() => setTestCreateCount(n)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      testCreateCount === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  <button key={n}
+                    onPointerDown={() => hapticSelection()}
+                    onClick={() => setTestCreateCount(n)}
+                    className={`press press-strong px-4 py-2 rounded-lg text-sm font-medium min-h-[44px] ${
+                      testCreateCount === n ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}>{n}문항</button>
                 ))}
-                <button onClick={() => setTestCreateCount(filteredTotal)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    testCreateCount === filteredTotal ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                <button
+                  onPointerDown={() => hapticSelection()}
+                  onClick={() => setTestCreateCount(filteredTotal)}
+                  className={`press press-strong px-4 py-2 rounded-lg text-sm font-medium min-h-[44px] ${
+                    testCreateCount === filteredTotal ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}>전체 ({filteredTotal})</button>
               </div>
               <p className="text-xs text-gray-400 mt-2">문제 순서는 랜덤으로 섞입니다</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setTestCreateModal(null)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">취소</button>
-              <button onClick={handleCreateTest} disabled={effectiveCount === 0}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+              <button
+                onPointerDown={() => hapticLight()}
+                onClick={() => setTestCreateModal(null)}
+                className="press flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 min-h-[44px]">취소</button>
+              <button
+                onPointerDown={() => { if (effectiveCount > 0) hapticMedium(); }}
+                onClick={handleCreateTest}
+                disabled={effectiveCount === 0}
+                className="press press-strong flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 min-h-[44px]">
                 생성 및 출력{effectiveCount > 0 ? ` (${effectiveCount}문제)` : ''}
               </button>
             </div>

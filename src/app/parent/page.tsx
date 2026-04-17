@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PushNotificationManager from '@/components/PushNotificationManager';
 import { Card, Pill, Badge, Stat, SectionHeader, Button, Input, Divider } from '@/components/ui';
-import { hapticLight } from '@/lib/haptics';
+import { hapticLight, hapticMedium, hapticSelection } from '@/lib/haptics';
 
 export default function ParentPage() {
   const router = useRouter();
@@ -862,6 +862,7 @@ export default function ParentPage() {
                     {[5, 10, waStats.active].filter((n: number, i: number, arr: number[]) => n <= waStats.active && arr.indexOf(n) === i).map((cnt: number) => (
                       <button
                         key={cnt}
+                        onPointerDown={() => hapticMedium()}
                         onClick={async () => {
                           try {
                             const sid = data.students[0].id;
@@ -897,16 +898,18 @@ export default function ParentPage() {
                             await fetch(`/api/wrong-answers/tests/${test.id}`, { method: 'DELETE' }).catch(() => {});
                           } catch (e) { alert('테스트 생성에 실패했습니다'); }
                         }}
-                        className="transition-all"
+                        className="press press-strong"
                         style={{
                           background: 'var(--color-surface)',
                           color: 'var(--color-accent)',
                           border: '1px solid var(--color-border)',
                           borderRadius: 'var(--radius-chip)',
-                          padding: '4px 10px',
-                          fontSize: 11.5,
+                          padding: '6px 12px',
+                          minHeight: 32,
+                          fontSize: 12,
                           fontWeight: 600,
                           letterSpacing: '-0.01em',
+                          boxShadow: '0 1px 2px rgba(31,58,95,0.06)',
                         }}
                       >
                         {cnt === waStats.active ? `전체 ${cnt}` : `${cnt}문항`}
