@@ -24,3 +24,5 @@ export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
 export { ToastProvider, useToast } from './Toast';
 export type { ToastInput, ToastTone } from './Toast';
+export { CommandPaletteProvider, useCommandPalette } from './CommandPalette';
+export type { CommandItem } from './CommandPalette';

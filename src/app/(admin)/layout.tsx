@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
+import { CommandPaletteProvider, useCommandPalette, type CommandItem } from '@/components/ui/CommandPalette';
 import { hapticSelection, hapticLight } from '@/lib/haptics';
 
 interface User {
@@ -128,6 +129,55 @@ function roleTone(role: string): 'accent' | 'gold' | 'neutral' {
   return 'neutral';
 }
 
+/**
+ * Command Palette 트리거 버튼
+ * — 헤더에 표시되는 검색창 모양의 버튼, 클릭 시 팔레트를 연다.
+ * — 데스크탑에선 "이동·검색 ⌘K" 형태, 모바일에선 아이콘만.
+ */
+function CommandPaletteTrigger() {
+  const { open } = useCommandPalette();
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      setIsMac(/Mac|iPhone|iPad|iPod/.test(navigator.platform));
+    }
+  }, []);
+
+  return (
+    <button
+      type="button"
+      aria-label="빠른 이동 · 명령 팔레트 열기"
+      onPointerDown={() => hapticLight()}
+      onClick={() => open()}
+      className="press press-subtle h-9 rounded-lg flex items-center gap-2 transition-colors"
+      style={{
+        background: 'var(--color-surface-2)',
+        border: '1px solid var(--color-border)',
+        color: 'var(--color-mute)',
+        padding: '0 10px 0 12px',
+      }}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+      </svg>
+      <span className="hidden md:inline text-[13px]" style={{ letterSpacing: '-0.01em' }}>
+        이동 · 검색
+      </span>
+      <kbd
+        className="hidden md:inline-flex items-center h-5 px-1.5 rounded text-[10.5px] font-semibold"
+        style={{
+          background: 'var(--color-surface)',
+          color: 'var(--color-ink-2)',
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        {isMac ? '⌘K' : 'Ctrl K'}
+      </kbd>
+    </button>
+  );
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -168,6 +218,70 @@ export default function AdminLayout({
       console.error('Logout error:', err);
     }
   };
+
+  /* Command Palette 아이템 · navGroups + 빠른 액션 통합 */
+  const commandItems = useMemo<CommandItem[]>(() => {
+    const items: CommandItem[] = [];
+    // 네비게이션
+    for (const g of navGroups) {
+      for (const it of g.items) {
+        items.push({
+          id: `nav-${it.href}`,
+          label: it.label,
+          hint: g.title ? `${g.title} · 바로가기` : '바로가기',
+          section: '이동',
+          icon: getIcon(it.icon),
+          href: it.href,
+          keywords: [it.icon, it.href],
+        });
+      }
+    }
+    // 관리자 전용
+    if (user?.role === 'ADMIN') {
+      for (const it of adminOnlyGroup.items) {
+        items.push({
+          id: `nav-${it.href}`,
+          label: it.label,
+          hint: '시스템 · 바로가기',
+          section: '이동',
+          icon: getIcon(it.icon),
+          href: it.href,
+          keywords: [it.icon, it.href],
+        });
+      }
+    }
+    // 빠른 액션
+    items.push({
+      id: 'action-new-student',
+      label: '원생 추가',
+      hint: '원생관리 · 새 원생 등록',
+      section: '빠른 작업',
+      icon: '➕',
+      href: '/students?new=1',
+      keywords: ['add', 'student', '추가', '신규'],
+    });
+    items.push({
+      id: 'action-wrong-upload',
+      label: '시험지 업로드',
+      hint: '오답관리 · PDF 업로드',
+      section: '빠른 작업',
+      icon: '📄',
+      href: '/wrong-answers?tab=upload',
+      keywords: ['pdf', 'upload', '업로드'],
+    });
+    items.push({
+      id: 'action-logout',
+      label: '로그아웃',
+      hint: '세션을 종료합니다',
+      section: '계정',
+      icon: '🚪',
+      action: async () => {
+        await handleLogout();
+      },
+      keywords: ['logout', 'signout', '로그아웃'],
+    });
+    return items;
+  }, [user]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -237,6 +351,7 @@ export default function AdminLayout({
   );
 
   return (
+    <CommandPaletteProvider items={commandItems}>
     <div className="flex min-h-screen" style={{ background: 'var(--color-surface-2)' }}>
       {/* Skip to main content (키보드 접근성) */}
       <a href="#admin-main" className="skip-link">본문으로 건너뛰기</a>
@@ -385,7 +500,10 @@ export default function AdminLayout({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="flex-1 md:flex-none" />
+          <div className="flex-1" />
+
+          {/* Command Palette 트리거 */}
+          <CommandPaletteTrigger />
 
           {/* User Info */}
           {user && (
@@ -423,5 +541,6 @@ export default function AdminLayout({
         </main>
       </div>
     </div>
+    </CommandPaletteProvider>
   );
 }
