@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PushNotificationManager from '@/components/PushNotificationManager';
 import { Card, Pill, Badge, Stat, SectionHeader, Button, Input, Divider } from '@/components/ui';
+import { hapticLight } from '@/lib/haptics';
 
 export default function ParentPage() {
   const router = useRouter();
@@ -392,7 +393,7 @@ export default function ParentPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-5 py-4 pb-10 space-y-4 anim-fade-in">
+      <div key={tab} className="max-w-lg mx-auto px-5 py-4 pb-10 space-y-4 anim-tab-in">
 
         {/* 숙제 */}
         {tab === 'homework' && (
@@ -677,15 +678,15 @@ export default function ParentPage() {
             {!showCounselForm ? (
               <div className="space-y-3">
                 <button
+                  onPointerDown={() => hapticLight()}
                   onClick={() => { setCounselType('PHONE'); setShowCounselForm(true); }}
-                  className="w-full text-left transition-all hover:shadow-md"
+                  className="w-full text-left hover:shadow-md press press-subtle"
                   style={{
                     background: 'var(--color-surface)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-card)',
                     padding: '18px 20px',
                     boxShadow: 'var(--shadow-sh1)',
-                    WebkitTapHighlightColor: 'transparent',
                   }}
                 >
                   <div className="flex items-center gap-3">
@@ -708,15 +709,15 @@ export default function ParentPage() {
                   </div>
                 </button>
                 <button
+                  onPointerDown={() => hapticLight()}
                   onClick={() => { setCounselType('VISIT'); setShowCounselForm(true); }}
-                  className="w-full text-left transition-all hover:shadow-md"
+                  className="w-full text-left hover:shadow-md press press-subtle"
                   style={{
                     background: 'var(--color-surface)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-card)',
                     padding: '18px 20px',
                     boxShadow: 'var(--shadow-sh1)',
-                    WebkitTapHighlightColor: 'transparent',
                   }}
                 >
                   <div className="flex items-center gap-3">

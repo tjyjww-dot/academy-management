@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { cn } from './cn';
+import { triggerHaptic, type HapticKind } from '@/lib/haptics';
 
 type Padding = 'none' | 'sm' | 'md' | 'lg';
 type Elevation = 'flat' | 'sh1' | 'sh2' | 'sh3';
@@ -11,6 +12,10 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   elevation?: Elevation;
   borderless?: boolean;
   as?: keyof React.JSX.IntrinsicElements;
+  /** 터치 가능한 카드 — press 피드백 + 햅틱 활성화 */
+  interactive?: boolean;
+  /** 햅틱 강도 (interactive=true 일 때). 기본 'light' */
+  haptic?: HapticKind;
 }
 
 const paddings: Record<Padding, string> = {
@@ -22,7 +27,20 @@ const paddings: Record<Padding, string> = {
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   (
-    { padding = 'md', elevation = 'flat', borderless = false, as: Tag = 'div', className, style, children, ...rest },
+    {
+      padding = 'md',
+      elevation = 'flat',
+      borderless = false,
+      as: Tag = 'div',
+      className,
+      style,
+      children,
+      interactive,
+      haptic = 'light',
+      onPointerDown,
+      onClick,
+      ...rest
+    },
     ref
   ) => {
     const shadowVar =
@@ -30,6 +48,14 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
       elevation === 'sh2' ? 'var(--shadow-sh2)' :
       elevation === 'sh3' ? 'var(--shadow-sh3)' :
       undefined;
+
+    // onClick 있으면 자동으로 interactive 취급
+    const isInteractive = interactive ?? Boolean(onClick);
+
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isInteractive) triggerHaptic(haptic);
+      onPointerDown?.(e);
+    };
 
     return React.createElement(
       Tag as string,
@@ -39,6 +65,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
           'bg-surface',
           !borderless && 'border border-border',
           paddings[padding],
+          isInteractive && 'press press-subtle cursor-pointer',
           className
         ),
         style: {
@@ -46,6 +73,8 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
           boxShadow: shadowVar,
           ...style,
         },
+        onPointerDown: handlePointerDown,
+        onClick,
         ...rest,
       },
       children

@@ -59,6 +59,15 @@
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
                "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---------- Motion · 애플 감성 easing/duration 토큰 ---------- */
+  /* iOS UIKit 표준 커브(approx.): 빠르게 시작해서 부드럽게 착지 */
+  --ease-apple:         cubic-bezier(0.22, 1, 0.36, 1);          /* default ease-out "emphasized decelerate" */
+  --ease-apple-inout:   cubic-bezier(0.65, 0, 0.35, 1);          /* fade/slide in·out */
+  --ease-apple-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);       /* 살짝 오버슈트 */
+  --dur-fast:   120ms;
+  --dur-base:   200ms;
+  --dur-slow:   320ms;
 }
 
 /* ========================================================================
@@ -73,6 +82,17 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;  /* iOS/Android 회색 플래시 제거 → press 피드백은 우리가 직접 제공 */
+}
+
+/* iOS 바운스/스크롤 감각 + 부드러운 스크롤 */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
+}
+@media (hover: none) and (pointer: coarse) {
+  /* 터치 디바이스: 부드러운 관성 스크롤 */
+  html, body { -webkit-overflow-scrolling: touch; }
 }
 
 html {
@@ -181,7 +201,78 @@ a:focus-visible {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.anim-fade-in { animation: fade-in 240ms cubic-bezier(.2,.7,.2,1) both; }
+.anim-fade-in { animation: fade-in 240ms var(--ease-apple) both; }
+
+/* 탭 콘텐츠 전환 — 가볍게 아래→위로 페이드 인 */
+@keyframes tab-content-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.995); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.anim-tab-in { animation: tab-content-in var(--dur-base) var(--ease-apple) both; }
+
+/* 뷰/모달/시트 슬라이드 업 */
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-sheet-up { animation: sheet-up var(--dur-slow) var(--ease-apple) both; }
+
+/* 살짝 스케일 인 (스프링) */
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.94); }
+  60%  { opacity: 1; transform: scale(1.015); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.anim-pop-in { animation: pop-in 360ms var(--ease-apple-spring) both; }
+
+/* ========================================================================
+   Press 피드백 — 애플 UX 감성 (눌림 시 스케일 + 투명도)
+   class="press" 를 부여하면 모든 터치/클릭 엘리먼트에 적용 가능.
+   ======================================================================== */
+.press {
+  transition:
+    transform var(--dur-fast) var(--ease-apple),
+    opacity   var(--dur-fast) var(--ease-apple),
+    box-shadow var(--dur-base) var(--ease-apple),
+    background-color var(--dur-base) var(--ease-apple),
+    border-color var(--dur-base) var(--ease-apple);
+  touch-action: manipulation;       /* iOS 300ms 지연 제거, 더블탭 줌 방지 */
+  user-select: none;
+  -webkit-user-select: none;
+  will-change: transform;
+}
+.press:active {
+  transform: scale(0.97);
+  opacity: 0.88;
+}
+
+/* 조금 더 강한 프레스 (primary CTA 등) */
+.press-strong:active {
+  transform: scale(0.95);
+  opacity: 0.82;
+}
+
+/* 카드·행처럼 큰 서피스는 미세하게만 */
+.press-subtle:active {
+  transform: scale(0.985);
+  opacity: 0.94;
+}
+
+/* Reduced motion 존중 — 접근성 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .press:active,
+  .press-strong:active,
+  .press-subtle:active {
+    transform: none;
+    opacity: 1;
+  }
+}
 
 @keyframes skeleton-shimmer {
   0%   { background-position: -200% 0; }
