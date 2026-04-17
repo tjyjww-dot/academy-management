@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { Button, Card, Badge, Pill, Stat, SectionHeader, Divider } from '@/components/ui';
+import { hapticLight, hapticSelection, hapticMedium, hapticHeavy, hapticSuccess } from '@/lib/haptics';
+
+type TabKey = 'lesson' | 'students';
 
 export default function ClassDetailPage() {
   const router = useRouter();
@@ -13,6 +17,7 @@ export default function ClassDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [activeTab, setActiveTab] = useState<TabKey>('students');
   const [attendance, setAttendance] = useState<Record<string, { status: string; remarks: string }>>({});
   const [grades, setGrades] = useState<Record<string, { score: string; maxScore: string; testName: string }>>({});
   const [gradeHistory, setGradeHistory] = useState<Record<string, any[]>>({});
@@ -251,6 +256,7 @@ export default function ClassDetailPage() {
         body: JSON.stringify({ studentId }),
       });
       if (res.ok) {
+        hapticSuccess();
         alert('원생이 추가되었습니다!');
         setStudentSearch('');
         setShowSearchDropdown(false);
@@ -303,6 +309,7 @@ export default function ClassDetailPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed');
+      hapticSuccess();
       alert('저장되었습니다!');
       fetchDaily();
     } catch {
@@ -349,7 +356,7 @@ export default function ClassDetailPage() {
         '\uD83D\uDCE2 공지사항\n' +
         '- ' + (announcement || '-');
     }
-    
+
     // 정규반 리포트
     return '[수학탐구] ' + student.name + ' 학생 수업 리포트\n\n' +
       '\u2B50 오늘의 테스트\n' +
@@ -423,6 +430,7 @@ export default function ClassDetailPage() {
           counselingType: 'TEACHER_INITIATED'
         })
       });
+      hapticSuccess();
       alert('상담 메모가 저장되었습니다.');
       setCounselingStudent(null);
       setCounselingNote('');
@@ -451,9 +459,15 @@ export default function ClassDetailPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-700">로딩 중...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
-  if (!classroom) return <div className="p-8 text-center text-gray-700">데이터가 없습니다</div>;
+  if (loading) return (
+    <div className="p-8 text-center text-mute">로딩 중...</div>
+  );
+  if (error) return (
+    <div className="p-8 text-center" style={{ color: 'var(--color-danger)' }}>{error}</div>
+  );
+  if (!classroom) return (
+    <div className="p-8 text-center text-mute">데이터가 없습니다</div>
+  );
 
   const students = classroom.enrollments.map((e: any) => e.student).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'ko'));
   const isCustomClass = classroom.name?.includes('맞춤') || classroom.subject?.name?.includes('맞춤');
@@ -475,285 +489,618 @@ export default function ClassDetailPage() {
   const highScore = todayScores.length > 0 ? Math.max(...todayScores) : '-';
   const lowScore = todayScores.length > 0 ? Math.min(...todayScores) : '-';
 
+  const allReportsSent = students.length > 0 && students.every((s: any) => reportSent.has(s.id));
+  const presentCount = students.filter((s: any) => attendance[s.id]?.status === 'PRESENT').length;
+  const lateCount = students.filter((s: any) => attendance[s.id]?.status === 'LATE').length;
+  const absentCount = students.filter((s: any) => attendance[s.id]?.status === 'ABSENT').length;
+
+  const shiftDate = (delta: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      {/* 헤더 영역 */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-          <button onClick={() => router.push('/classes')} className="text-gray-500 hover:text-gray-900 font-medium">{'\u2190'} 목록</button>
-          <h1 className="text-xl sm:text-3xl font-black text-gray-900">{classroom.name}</h1>
-          <span className="text-gray-600 font-semibold text-lg">{classroom.subject?.name}</span>
-          <select
-            value={classroom.id}
-            onChange={(e) => {
-              const newId = e.target.value;
-              if (newId && newId !== classroom.id) router.push(`/classes/${newId}`);
-            }}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            {allClassrooms.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.name}{c.subject?.name ? ` (${c.subject.name})` : ''}
-              </option>
-            ))}
-            {!allClassrooms.find((c: any) => c.id === classroom.id) && (
-              <option value={classroom.id}>{classroom.name}</option>
-            )}
-          </select>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => {
-            const d = new Date(selectedDate);
-            d.setDate(d.getDate() - 1);
-            setSelectedDate(d.toISOString().split('T')[0]);
-          }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">{'\u25C0'}</button>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-white border border-gray-300 rounded px-3 py-1 text-gray-900"
-          />
-          <button onClick={() => {
-            const d = new Date(selectedDate);
-            d.setDate(d.getDate() + 1);
-            setSelectedDate(d.toISOString().split('T')[0]);
-          }} className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">{'\u25B6'}</button>
-          <button
-            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-          >오늘</button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-semibold text-sm ml-2"
-          >
-            {saving ? '저장 중...' : '\uD83D\uDCBE 저장'}
-          </button>
-        </div>
-      </div>
-
-      {/* 시험 정보 */}
-      {!isCustomClass && <div className="mb-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex items-center gap-4 flex-wrap">
-        <span className="text-gray-700 font-semibold">시험범위:</span>
-        <input type="text" placeholder="범위 입력" value={testName}
-          onChange={(e) => {
-            setTestName(e.target.value);
-            // 모든 학생의 시험범위를 동기화
-            const newGrades = { ...grades };
-            students.forEach((s: any) => {
-              if (newGrades[s.id]) {
-                newGrades[s.id] = { ...newGrades[s.id], testName: e.target.value };
-              }
-            });
-            setGrades(newGrades);
-          }}
-          className="bg-white border border-gray-300 rounded px-3 py-1.5 text-gray-800 w-48" />
-        <span className="text-gray-700 font-semibold">총점:</span>
-        <input type="number" placeholder="100" value={maxScore}
-          onChange={(e) => {
-            setMaxScore(e.target.value);
-            const newGrades = { ...grades };
-            students.forEach((s: any) => {
-              if (newGrades[s.id]) {
-                newGrades[s.id] = { ...newGrades[s.id], maxScore: e.target.value };
-              }
-            });
-            setGrades(newGrades);
-          }}
-          className="bg-white border border-gray-300 rounded px-3 py-1.5 text-gray-800 w-20" />
-        <span className="text-gray-600 text-sm">평균: {avgScore}</span>
-        <span className="text-gray-600 text-sm">최고: {highScore}</span>
-        <span className="text-gray-600 text-sm">최저: {lowScore}</span>
-      </div>}
-
-      {/* 이전 과제 (중복 제거됨) */}
-      {prevAssignments.length > 0 && (
-        <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h2 className="text-lg font-semibold mb-3 text-gray-800">{'\uD83D\uDCDA'} 이전 과제</h2>
-          <div className="space-y-2">
-            {prevAssignments.slice(0, 1).map((a: any, idx: number) => (
-              <div key={a.id || idx} className="flex justify-between items-center bg-gray-50 border border-gray-100 rounded p-2 text-sm text-gray-800">
-                <span>{a.assignmentDate} - {a.title}</span>
-                {a.description && <span className="text-gray-500">{a.description}</span>}
+      {/* 상단 헤더 카드 */}
+      <Card padding="md" className="mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          {/* 좌측: 반 정보 */}
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            <button
+              onClick={() => { hapticLight(); router.push('/classes'); }}
+              onPointerDown={() => hapticLight()}
+              className="press inline-flex items-center justify-center w-9 h-9 text-mute hover:text-ink"
+              style={{ borderRadius: 'var(--radius-btn)' }}
+              aria-label="목록으로"
+            >
+              {'\u2190'}
+            </button>
+            <div className="min-w-0">
+              <div className="text-eyebrow mb-0.5">CLASSROOM</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-[22px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>
+                  {classroom.name}
+                </h1>
+                {classroom.subject?.name && (
+                  <Badge tone={isCustomClass ? 'gold' : 'accent'} size="md">
+                    {classroom.subject.name}
+                  </Badge>
+                )}
               </div>
-            ))}
+            </div>
+            <div className="relative">
+              <select
+                value={classroom.id}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  if (newId && newId !== classroom.id) router.push(`/classes/${newId}`);
+                }}
+                className="appearance-none bg-surface-2 text-[13px] text-ink-2 font-medium pl-3 pr-8 h-9 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                style={{ borderRadius: 'var(--radius-btn)', border: '1px solid var(--color-border)' }}
+              >
+                {allClassrooms.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.subject?.name ? ` (${c.subject.name})` : ''}
+                  </option>
+                ))}
+                {!allClassrooms.find((c: any) => c.id === classroom.id) && (
+                  <option value={classroom.id}>{classroom.name}</option>
+                )}
+              </select>
+              <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-mute text-[10px]">▾</span>
+            </div>
           </div>
+
+          {/* 우측: 날짜 네비 + 저장 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => shiftDate(-1)}
+              onPointerDown={() => hapticSelection()}
+              className="press inline-flex items-center justify-center w-9 h-9 bg-surface-2 text-ink-2 hover:bg-border"
+              style={{ borderRadius: 'var(--radius-btn)' }}
+              aria-label="이전 날짜"
+            >
+              {'\u25C0'}
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-surface text-ink text-[13px] font-medium px-3 h-9 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent num-tabular"
+              style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+            />
+            <button
+              onClick={() => shiftDate(1)}
+              onPointerDown={() => hapticSelection()}
+              className="press inline-flex items-center justify-center w-9 h-9 bg-surface-2 text-ink-2 hover:bg-border"
+              style={{ borderRadius: 'var(--radius-btn)' }}
+              aria-label="다음 날짜"
+            >
+              {'\u25B6'}
+            </button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            >
+              오늘
+            </Button>
+            <Button
+              variant="accent"
+              size="md"
+              onClick={handleSave}
+              loading={saving}
+              leftIcon={<span aria-hidden>💾</span>}
+            >
+              {saving ? '저장 중' : '저장'}
+            </Button>
+          </div>
+        </div>
+
+        {/* 탭 네비 */}
+        <div className="mt-4 flex items-center gap-1 overflow-x-auto -mx-1 px-1 pb-1">
+          <Pill
+            active={activeTab === 'students'}
+            onClick={() => setActiveTab('students')}
+            count={students.length}
+          >
+            학생별
+          </Pill>
+          <Pill
+            active={activeTab === 'lesson'}
+            onClick={() => setActiveTab('lesson')}
+          >
+            오늘 수업
+          </Pill>
+          <div className="ml-auto flex items-center gap-2 pr-1">
+            <Badge tone="success" size="sm" dot>출석 {presentCount}</Badge>
+            {lateCount > 0 && <Badge tone="warn" size="sm" dot>지각 {lateCount}</Badge>}
+            {absentCount > 0 && <Badge tone="danger" size="sm" dot>결석 {absentCount}</Badge>}
+          </div>
+        </div>
+      </Card>
+
+      {/* ============= Tab: 학생별 ============= */}
+      {activeTab === 'students' && (
+        <div key="tab-students" className="anim-tab-in space-y-4">
+          {/* 원생 검색 카드 */}
+          <Card padding="sm" className="relative" ref={searchRef}>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex-1 min-w-[220px] relative">
+                <input
+                  type="text"
+                  placeholder="원생 이름 또는 전화번호로 검색하여 추가"
+                  value={studentSearch}
+                  onChange={(e) => { setStudentSearch(e.target.value); setShowSearchDropdown(true); }}
+                  onFocus={() => setShowSearchDropdown(true)}
+                  className="w-full bg-surface text-ink text-[13px] px-3 h-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                />
+                {showSearchDropdown && studentSearch.trim().length > 0 && filteredSearchStudents.length > 0 && (
+                  <div
+                    className="anim-pop-in absolute left-0 right-0 top-full mt-2 max-h-64 overflow-y-auto bg-surface z-40"
+                    style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-sh2)' }}
+                  >
+                    {filteredSearchStudents.slice(0, 8).map((s: any) => (
+                      <button
+                        key={s.id}
+                        onClick={() => addStudentToClass(s.id)}
+                        onPointerDown={() => hapticLight()}
+                        className="press w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-semibold text-ink truncate">{s.name}</div>
+                          <div className="text-[11px] text-mute truncate">{s.phone || '-'}{s.school ? ' · ' + s.school : ''}</div>
+                        </div>
+                        <span className="text-[11px] text-accent font-semibold shrink-0">+ 추가</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="text-[12px] text-mute">재적 {students.length}명</div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={async () => {
+                  const unsent = students.filter((s: any) => !reportSent.has(s.id));
+                  if (unsent.length === 0) return;
+                  if (!confirm(unsent.length + '명에게 알림을 전송하시겠습니까?')) return;
+                  for (const s of unsent) { await copyReport(s); }
+                }}
+                disabled={allReportsSent}
+                leftIcon={<span aria-hidden>{allReportsSent ? '✓' : '📢'}</span>}
+              >
+                {allReportsSent ? '전체 전송 완료' : '전체 리포트 전송'}
+              </Button>
+            </div>
+          </Card>
+
+          {/* 학생 테이블 */}
+          <Card padding="none" className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className={`w-full text-[13px] ${isCustomClass ? 'min-w-[1100px]' : 'min-w-[900px]'}`}>
+                <thead
+                  className="text-[12px] font-semibold tracking-wide"
+                  style={{ background: 'var(--color-surface-2)', color: 'var(--color-ink-2)', borderBottom: '1px solid var(--color-border)' }}
+                >
+                  <tr>
+                    <th className="p-3 text-left">학생</th>
+                    <th className="p-3 text-center">출결 · 메모</th>
+                    <th className="p-3 text-center">{isCustomClass ? '시험 · 점수' : '점수'}</th>
+                    <th className="p-3 text-center">과제 · 메모</th>
+                    {isCustomClass && <th className="p-3 text-center">숙제</th>}
+                    {isCustomClass && <th className="p-3 text-center">진도</th>}
+                    <th className="p-3 text-center">전달사항</th>
+                    <th className="p-3 text-center">리포트</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((s: any, rowIdx: number) => (
+                    <tr
+                      key={s.id}
+                      className="hover:bg-surface-2"
+                      style={{ borderTop: rowIdx === 0 ? undefined : '1px solid var(--color-border)' }}
+                    >
+                      {/* 학생 정보 */}
+                      <td className="p-3 align-top">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => { hapticLight(); setCounselingStudent(s); setCounselingNote(''); }}
+                            className="press text-[13.5px] font-semibold text-accent hover:text-accent-2"
+                          >
+                            {s.name}
+                          </button>
+                          {s.school && <span className="text-[11px] text-mute">({s.school})</span>}
+                          <button
+                            onClick={() => { hapticHeavy(); removeStudentFromClass(s.id, s.name); }}
+                            className="press text-[11px] ml-0.5"
+                            style={{ color: 'var(--color-danger)' }}
+                            title="반에서 제거"
+                            aria-label="반에서 제거"
+                          >
+                            {'\u2716'}
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-mute mt-0.5">{s.phone ? '학생 ' + s.phone : '학생 -'}</div>
+                        {classroom.enrollments.find((e: any) => e.student.id === s.id)?.student?.parentPhone && (
+                          <div className="text-[11px] text-mute">학부모 {classroom.enrollments.find((e: any) => e.student.id === s.id)?.student?.parentPhone}</div>
+                        )}
+                      </td>
+
+                      {/* 출결 */}
+                      <td className="p-3 align-top">
+                        <div className="flex gap-1 justify-center mb-1.5 flex-wrap">
+                          {([
+                            { value: 'PRESENT', label: '출석', tone: 'success' as const },
+                            { value: 'LATE',    label: '지각', tone: 'warn' as const },
+                            { value: 'ABSENT',  label: '결석', tone: 'danger' as const },
+                          ]).map(opt => {
+                            const active = attendance[s.id]?.status === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                onPointerDown={() => hapticSelection()}
+                                onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: active ? '' : opt.value } }))}
+                                className="press px-2.5 h-7 text-[11.5px] font-semibold"
+                                style={{
+                                  borderRadius: 'var(--radius-btn)',
+                                  border: active
+                                    ? `1px solid var(--color-${opt.tone})`
+                                    : '1px solid var(--color-border)',
+                                  background: active
+                                    ? `var(--color-${opt.tone})`
+                                    : 'var(--color-surface)',
+                                  color: active ? '#fff' : 'var(--color-ink-2)'
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="메모"
+                          value={attendance[s.id]?.remarks || ''}
+                          onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))}
+                          className="bg-surface text-[12px] text-ink px-2 h-8 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                        />
+                      </td>
+
+                      {/* 점수 */}
+                      {isCustomClass ? (
+                        <td className="p-3 align-top">
+                          <input
+                            type="text"
+                            placeholder="시험범위"
+                            value={grades[s.id]?.testName || ''}
+                            onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))}
+                            className="bg-surface text-[12px] text-ink px-2 h-8 w-full mb-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                          />
+                          <div className="flex gap-1 items-center">
+                            <input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))}
+                              className="bg-surface text-[12px] text-ink px-2 h-8 w-14 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent num-tabular"
+                              style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }} />
+                            <span className="text-mute text-[12px]">/</span>
+                            <input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))}
+                              className="bg-surface text-[12px] text-ink px-2 h-8 w-14 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent num-tabular"
+                              style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }} />
+                          </div>
+                        </td>
+                      ) : (
+                        <td className="p-3 align-top text-center">
+                          <input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))}
+                            className="bg-surface text-[13px] text-ink px-2 h-9 w-20 mx-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-accent num-tabular text-center"
+                            style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }} />
+                        </td>
+                      )}
+
+                      {/* 과제 */}
+                      <td className="p-3 align-top">
+                        <div className="flex gap-1 justify-center mb-1.5 flex-wrap">
+                          {['A','B','C','D','X'].map(g => {
+                            const active = assignmentGrades[s.id] === g;
+                            return (
+                              <button
+                                key={g}
+                                onPointerDown={() => hapticSelection()}
+                                onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: active ? '' : g }))}
+                                className="press w-7 h-7 text-[12px] font-bold"
+                                style={{
+                                  borderRadius: 'var(--radius-btn)',
+                                  border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                                  background: active ? 'var(--color-accent)' : 'var(--color-surface)',
+                                  color: active ? '#fff' : 'var(--color-ink-2)'
+                                }}
+                              >{g}</button>
+                            );
+                          })}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="과제 메모"
+                          value={assignmentMemos[s.id] || ''}
+                          onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))}
+                          className="bg-surface text-[12px] text-ink px-2 h-8 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                        />
+                      </td>
+
+                      {/* 맞춤반 숙제 · 진도 */}
+                      {isCustomClass && (
+                        <td className="p-3 align-top">
+                          <input type="text" placeholder="숙제 입력" value={perStudentHomeworkMap[s.id] || ''}
+                            onChange={(e) => setPerStudentHomeworkMap(prev => ({ ...prev, [s.id]: e.target.value }))}
+                            className="bg-surface text-[12px] text-ink px-2 h-8 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }} />
+                        </td>
+                      )}
+                      {isCustomClass && (
+                        <td className="p-3 align-top">
+                          <input type="text" placeholder="진도 입력" value={perStudentProgressMap[s.id] || ''}
+                            onChange={(e) => setPerStudentProgressMap(prev => ({ ...prev, [s.id]: e.target.value }))}
+                            className="bg-surface text-[12px] text-ink px-2 h-8 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }} />
+                        </td>
+                      )}
+
+                      {/* 전달사항 */}
+                      <td className="p-3 align-top">
+                        <input type="text" placeholder="전달사항"
+                          value={personalNotes[s.id] || ''}
+                          onChange={(e) => setPersonalNotes(prev => ({ ...prev, [s.id]: e.target.value }))}
+                          className="bg-surface text-[12px] text-ink px-2 h-8 w-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }} />
+                      </td>
+
+                      {/* 리포트 버튼 */}
+                      <td className="p-3 align-middle text-center">
+                        {reportSent.has(s.id) ? (
+                          <Badge tone="success" size="md" dot>전송됨</Badge>
+                        ) : (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => copyReport(s)}
+                            leftIcon={<span aria-hidden>🔔</span>}
+                          >
+                            알림
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {students.length === 0 && (
+                    <tr>
+                      <td colSpan={isCustomClass ? 8 : 6} className="p-8 text-center text-mute text-[13px]">
+                        아직 등록된 원생이 없습니다. 위 검색으로 원생을 추가해 주세요.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       )}
 
-      {/* 학생 테이블 */}
-      <div className="mb-6 bg-white border border-gray-200 rounded-lg overflow-x-auto shadow-sm -mx-4 sm:mx-0">
-        <table className={`w-full text-sm ${isCustomClass ? 'min-w-[1100px]' : 'min-w-[900px]'}`}>
-          <thead className="bg-blue-50 border-b border-blue-100">
-            <tr>
-              <th className="p-3 text-left text-gray-700 font-semibold">학생</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">출결/메모</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">{isCustomClass ? '시험범위/점수' : '점수'}</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">과제/메모</th>
-              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">숙제</th>}
-              {isCustomClass && <th className="p-3 text-center text-gray-700 font-semibold">진도</th>}
-              <th className="p-3 text-center text-gray-700 font-semibold">전달사항</th>
-              <th className="p-3 text-center text-gray-700 font-semibold">
-                <div className="flex flex-col items-center gap-1">
-                  <span>리포트</span>
-                  <button onClick={async () => {
-                    const unsent = students.filter((s: any) => !reportSent.has(s.id));
-                    if (unsent.length === 0) return;
-                    if (!confirm(unsent.length + '명에게 알림을 전송하시겠습니까?')) return;
-                    for (const s of unsent) { await copyReport(s); }
-                  }} className={'px-2 py-1 rounded text-xs font-medium ' + (students.length > 0 && students.every((s: any) => reportSent.has(s.id)) ? 'bg-green-500 text-white cursor-default' : 'bg-orange-500 hover:bg-orange-600 text-white')}>
-                    {students.length > 0 && students.every((s: any) => reportSent.has(s.id)) ? '✓ 전체전송완료' : '📢 전체전송'}
-                  </button>
+      {/* ============= Tab: 오늘 수업 ============= */}
+      {activeTab === 'lesson' && (
+        <div key="tab-lesson" className="anim-tab-in space-y-4">
+          {/* 시험 정보 + 통계 */}
+          {!isCustomClass && (
+            <Card padding="md">
+              <SectionHeader
+                eyebrow="TODAY TEST"
+                title="시험 정보"
+                description="입력한 시험 범위와 총점은 이 반 모든 학생에게 동일하게 적용됩니다."
+              />
+              <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-3 items-stretch">
+                <div>
+                  <div className="text-[11.5px] font-medium text-mute mb-1.5 tracking-wide">시험 범위</div>
+                  <input
+                    type="text"
+                    placeholder="예: 수학 상 · 도형의 이동"
+                    value={testName}
+                    onChange={(e) => {
+                      setTestName(e.target.value);
+                      const newGrades = { ...grades };
+                      students.forEach((s: any) => {
+                        if (newGrades[s.id]) {
+                          newGrades[s.id] = { ...newGrades[s.id], testName: e.target.value };
+                        }
+                      });
+                      setGrades(newGrades);
+                    }}
+                    className="bg-surface text-ink text-[13px] px-3 h-10 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                  />
                 </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((s: any) => {
-              const stats = getStats(s.id);
-              return (
-                <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="p-3">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => { setCounselingStudent(s); setCounselingNote(''); }} className="text-blue-600 hover:text-blue-800 font-semibold">{s.name}</button>
-                      {s.school && <span className="text-xs text-gray-400 ml-1">({s.school})</span>}
-                      <button onClick={() => removeStudentFromClass(s.id, s.name)} className="text-red-400 hover:text-red-600 text-xs ml-1" title="반에서 제거">{'\u2716'}</button>
+                <div>
+                  <div className="text-[11.5px] font-medium text-mute mb-1.5 tracking-wide">총점</div>
+                  <input
+                    type="number"
+                    placeholder="100"
+                    value={maxScore}
+                    onChange={(e) => {
+                      setMaxScore(e.target.value);
+                      const newGrades = { ...grades };
+                      students.forEach((s: any) => {
+                        if (newGrades[s.id]) {
+                          newGrades[s.id] = { ...newGrades[s.id], maxScore: e.target.value };
+                        }
+                      });
+                      setGrades(newGrades);
+                    }}
+                    className="bg-surface text-ink text-[13px] px-3 h-10 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent num-tabular"
+                    style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                  />
+                </div>
+                <Stat label="평균" value={avgScore} unit={avgScore !== '-' ? '점' : undefined} />
+                <Stat label="최고" value={highScore} unit={highScore !== '-' ? '점' : undefined} />
+                <Stat label="최저" value={lowScore} unit={lowScore !== '-' ? '점' : undefined} />
+              </div>
+            </Card>
+          )}
+
+          {/* 영상 · 숙제 · 진도 (정규반만) */}
+          {!isCustomClass && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card padding="md">
+                <SectionHeader eyebrow="VIDEO" title="수업 영상" />
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="영상 제목"
+                    value={videoTitle}
+                    onChange={(e) => setVideoTitle(e.target.value)}
+                    className="bg-surface text-ink text-[13px] px-3 h-10 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="YouTube 링크"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    className="bg-surface text-ink text-[13px] px-3 h-10 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                  />
+                </div>
+              </Card>
+              <Card padding="md">
+                <SectionHeader eyebrow="HOMEWORK" title="오늘의 숙제" />
+                <textarea
+                  value={homework}
+                  onChange={(e) => setHomework(e.target.value)}
+                  placeholder="오늘의 숙제 내용"
+                  rows={3}
+                  className="bg-surface text-ink text-[13px] px-3 py-2 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent resize-y"
+                  style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                />
+              </Card>
+              <Card padding="md">
+                <SectionHeader eyebrow="PROGRESS" title="수업 진도" />
+                <textarea
+                  value={progressNote}
+                  onChange={(e) => setProgressNote(e.target.value)}
+                  placeholder="오늘 수업 진도"
+                  rows={3}
+                  className="bg-surface text-ink text-[13px] px-3 py-2 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent resize-y"
+                  style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                />
+              </Card>
+              <Card padding="md">
+                <SectionHeader eyebrow="NOTICE" title="공지사항" description="저장 후에도 지울 때까지 계속 유지됩니다." />
+                <textarea
+                  value={announcement}
+                  onChange={(e) => setAnnouncement(e.target.value)}
+                  placeholder="반 공지"
+                  rows={3}
+                  className="bg-surface text-ink text-[13px] px-3 py-2 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent resize-y"
+                  style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+                />
+              </Card>
+            </div>
+          )}
+
+          {/* 맞춤반: 공지만 */}
+          {isCustomClass && (
+            <Card padding="md">
+              <SectionHeader eyebrow="NOTICE" title="공지사항" description="맞춤반은 숙제 · 진도 · 점수를 학생별로 '학생별' 탭에서 입력합니다." />
+              <textarea
+                value={announcement}
+                onChange={(e) => setAnnouncement(e.target.value)}
+                placeholder="반 공지"
+                rows={3}
+                className="bg-surface text-ink text-[13px] px-3 py-2 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent resize-y"
+                style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+              />
+            </Card>
+          )}
+
+          {/* 이전 과제 */}
+          {prevAssignments.length > 0 && (
+            <Card padding="md">
+              <SectionHeader eyebrow="PREVIOUS" title="이전 과제" />
+              <div className="space-y-2">
+                {prevAssignments.slice(0, 3).map((a: any, idx: number) => (
+                  <div
+                    key={a.id || idx}
+                    className="flex items-center justify-between gap-3 px-3 py-2 bg-surface-2"
+                    style={{ borderRadius: 'var(--radius-btn)', border: '1px solid var(--color-border)' }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge tone="gold" size="sm">{a.assignmentDate}</Badge>
+                      <span className="text-[13px] font-semibold text-ink truncate">{a.title}</span>
                     </div>
-                    <div className="text-xs text-gray-400">{s.phone ? '학생 ' + s.phone : '학생 -'}</div>
-                    {classroom.enrollments.find((e: any) => e.student.id === s.id)?.student?.parentPhone && (
-                      <div className="text-xs text-gray-400">학부모 {classroom.enrollments.find((e: any) => e.student.id === s.id)?.student?.parentPhone}</div>
+                    {a.description && (
+                      <span className="text-[11.5px] text-mute truncate max-w-[50%] text-right">{a.description}</span>
                     )}
-                  </td>
-                  {isCustomClass ? (
-                    <td className="p-3">
-                      <div className="flex gap-1 justify-center mb-1">
-                        {[
-                          { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
-                          { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
-                          { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
-                        ].map(opt => (
-                          <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
-                        ))}
-                      </div>
-                      <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
-                    </td>
-                  ) : (
-                    <td className="p-3">
-                      <div className="flex gap-1 justify-center mb-1">
-                        {[
-                          { value: 'PRESENT', label: '출석', color: 'bg-green-500 text-white' },
-                          { value: 'LATE', label: '지각', color: 'bg-yellow-500 text-white' },
-                          { value: 'ABSENT', label: '결석', color: 'bg-red-500 text-white' },
-                        ].map(opt => (
-                          <button key={opt.value} onClick={() => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], status: prev[s.id]?.status === opt.value ? '' : opt.value } }))} className={'px-2 py-1 rounded text-xs font-medium ' + (attendance[s.id]?.status === opt.value ? opt.color : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200')}>{opt.label}</button>
-                        ))}
-                      </div>
-                      <input type="text" placeholder="메모" value={attendance[s.id]?.remarks || ''} onChange={(e) => setAttendance(prev => ({ ...prev, [s.id]: { ...prev[s.id], remarks: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
-                    </td>
-                  )}
-                  {isCustomClass ? (
-                    <td className="p-3">
-                      <input type="text" placeholder="시험범위" value={grades[s.id]?.testName || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], testName: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full mb-1 text-gray-800" />
-                      <div className="flex gap-1 items-center">
-                        <input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-14 text-gray-800" />
-                        <span className="text-gray-400 text-xs">/</span>
-                        <input type="number" placeholder="100" value={grades[s.id]?.maxScore || '100'} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], maxScore: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-14 text-gray-800" />
-                      </div>
-                    </td>
-                  ) : (
-                    <td className="p-3">
-                      <input type="number" placeholder="점수" value={grades[s.id]?.score || ''} onChange={(e) => setGrades(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-16 text-gray-800" />
-                    </td>
-                  )}
-                  {isCustomClass ? (
-                    <td className="p-3">
-                      <div className="flex gap-1 justify-center mb-1">
-                        {['A','B','C','D','X'].map(g => (
-                          <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: prev[s.id] === g ? '' : g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
-                        ))}
-                      </div>
-                      <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
-                    </td>
-                  ) : (
-                    <td className="p-3">
-                      <div className="flex gap-1 justify-center mb-1">
-                        {['A','B','C','D','X'].map(g => (
-                          <button key={g} onClick={() => setAssignmentGrades(prev => ({ ...prev, [s.id]: prev[s.id] === g ? '' : g }))} className={'px-2 py-1 rounded text-xs ' + (assignmentGrades[s.id] === g ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200')}>{g}</button>
-                        ))}
-                      </div>
-                      <input type="text" placeholder="과제 메모" value={assignmentMemos[s.id] || ''} onChange={(e) => setAssignmentMemos(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
-                    </td>
-                  )}
-                  {isCustomClass && (
-                    <td className="p-3">
-                      <input type="text" placeholder="숙제 입력" value={perStudentHomeworkMap[s.id] || ''} onChange={(e) => setPerStudentHomeworkMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
-                    </td>
-                  )}
-                  {isCustomClass && (
-                    <td className="p-3">
-                      <input type="text" placeholder="진도 입력" value={perStudentProgressMap[s.id] || ''} onChange={(e) => setPerStudentProgressMap(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-full text-gray-800" />
-                    </td>
-                  )}
-                  <td className="p-3">
-                    <input type="text" placeholder="전달사항" value={personalNotes[s.id] || ''} onChange={(e) => setPersonalNotes(prev => ({ ...prev, [s.id]: e.target.value }))} className="bg-white border border-gray-300 rounded px-2 py-1 text-xs w-40 text-gray-800" />
-                  </td>
-                  <td className="p-3 text-center">
-                    <button onClick={() => !reportSent.has(s.id) && copyReport(s)} className={'px-3 py-1 rounded text-xs font-medium ' + (reportSent.has(s.id) ? 'bg-green-500 text-white cursor-default' : 'bg-purple-500 hover:bg-purple-600 text-white')}>{reportSent.has(s.id) ? '✓ 전송됨' : '🔔 알림'}</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* 영상/숙제 (맞춤반에서는 숨김) */}
-      {!isCustomClass && <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-3 text-gray-800">{'\uD83C\uDFA5'} 수업 영상</h3>
-          <input type="text" placeholder="영상 제목" value={videoTitle}
-            onChange={(e) => setVideoTitle(e.target.value)}
-            className="w-full bg-white border border-gray-300 rounded px-3 py-2 mb-2 text-gray-800" />
-          <input type="text" placeholder="YouTube 링크" value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
-            className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-2 text-gray-800">{'\uD83D\uDCDD'} 숙제</h3>
-          <textarea value={homework} onChange={(e) => setHomework(e.target.value)}
-            placeholder="오늘의 숙제" rows={3}
-            className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
-        </div>
-      </div>}
-
-      {/* 진도, 공지 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {!isCustomClass && <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-2 text-gray-800">{'\u25FC'} 수업 진도</h3>
-          <textarea value={progressNote} onChange={(e) => setProgressNote(e.target.value)}
-            placeholder="오늘 수업 진도 내용" rows={3}
-            className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
-        </div>}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold mb-2 text-gray-800">{'\uD83D\uDCE2'} 공지사항</h3>
-          <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)}
-            placeholder="공지사항" rows={3}
-            className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-800" />
-        </div>
-      </div>
+      )}
 
       {/* 상담 모달 */}
       {counselingStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900">{counselingStudent.name} - 상담 메모</h3>
-            <div className="text-sm text-gray-500 mb-2">학생 전화: {counselingStudent.phone || '-'} | 학번: {counselingStudent.studentNumber || '-'}</div>
-            <textarea value={counselingNote} onChange={(e) => setCounselingNote(e.target.value)}
-              placeholder="상담 내용을 입력하세요..." rows={5}
-              className="w-full bg-white border border-gray-300 rounded px-3 py-2 mb-4 text-gray-800" />
+        <div
+          className="fixed inset-0 flex items-end md:items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(14,14,12,0.4)' }}
+          onClick={() => setCounselingStudent(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="anim-sheet-up bg-surface w-full max-w-md p-5"
+            style={{ borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-sh3)' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-eyebrow mb-0.5">COUNSELING</div>
+                <h3 className="text-[18px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>
+                  {counselingStudent.name} 상담 메모
+                </h3>
+              </div>
+              <button
+                onClick={() => { hapticLight(); setCounselingStudent(null); }}
+                className="press w-8 h-8 inline-flex items-center justify-center text-mute hover:text-ink"
+                style={{ borderRadius: 'var(--radius-btn)' }}
+                aria-label="닫기"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-[12px] text-mute mb-3">
+              학생 전화 {counselingStudent.phone || '-'}
+              {counselingStudent.studentNumber ? ' · 학번 ' + counselingStudent.studentNumber : ''}
+            </div>
+            <Divider className="mb-3" />
+            <textarea
+              value={counselingNote}
+              onChange={(e) => setCounselingNote(e.target.value)}
+              placeholder="상담 내용을 입력하세요..."
+              rows={6}
+              className="bg-surface text-ink text-[13px] px-3 py-2 w-full mb-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent resize-y"
+              style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-btn)' }}
+            />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setCounselingStudent(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">취소</button>
-              <button onClick={handleSaveCounseling} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">저장</button>
+              <Button variant="secondary" size="md" onClick={() => setCounselingStudent(null)}>
+                취소
+              </Button>
+              <Button
+                variant="accent"
+                size="md"
+                onClick={handleSaveCounseling}
+                disabled={!counselingNote.trim()}
+              >
+                저장
+              </Button>
             </div>
           </div>
         </div>
