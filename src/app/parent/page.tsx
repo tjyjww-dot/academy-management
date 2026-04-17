@@ -235,13 +235,9 @@ export default function ParentPage() {
   const userRoleLabel = data.user.role === 'PARENT' ? '학부모' : '학생';
   const userDisplayName = data.user.name.replace(/\s*학부모\s*$/, '');
 
-  // 등급 원형 배지 (습득률)
-  const rate = waStats?.rate ?? 0;
-  const circleSize = 92;
-  const stroke = 8;
-  const radius = (circleSize - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (rate / 100) * circumference;
+  // 히어로 아바타 (학생 이니셜)
+  const avatarSize = 76;
+  const studentInitial = s?.name ? s.name.trim().charAt(0) : '';
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-bg)' }}>
@@ -309,35 +305,33 @@ export default function ParentPage() {
                 background: 'linear-gradient(180deg, rgba(169,139,104,0) 0%, rgba(169,139,104,0.85) 50%, rgba(169,139,104,0) 100%)',
               }}
             />
-            <div className="flex items-start gap-4">
-              {/* 원형 습득률 배지 */}
-              <div className="relative shrink-0" style={{ width: circleSize, height: circleSize }}>
-                <svg width={circleSize} height={circleSize} className="rotate-[-90deg]">
-                  <circle
-                    cx={circleSize / 2} cy={circleSize / 2} r={radius}
-                    stroke="rgba(255,255,255,0.18)" strokeWidth={stroke} fill="none"
-                  />
-                  <circle
-                    cx={circleSize / 2} cy={circleSize / 2} r={radius}
-                    stroke="var(--color-gold)" strokeWidth={stroke} fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={offset}
-                    style={{ transition: 'stroke-dashoffset 600ms cubic-bezier(.2,.7,.2,1)' }}
-                  />
-                </svg>
-                <div
-                  className="absolute inset-0 flex flex-col items-center justify-center"
-                  style={{ letterSpacing: '-0.02em' }}
+            <div className="flex items-center gap-4">
+              {/* 학생 이니셜 아바타 */}
+              <div
+                className="relative shrink-0 flex items-center justify-center"
+                style={{
+                  width: avatarSize,
+                  height: avatarSize,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 100%)',
+                  border: '1.5px solid rgba(169,139,104,0.75)',
+                  boxShadow: 'inset 0 0 0 4px rgba(255,255,255,0.05)',
+                }}
+              >
+                <span
+                  className="num-tabular"
+                  style={{
+                    fontSize: 30,
+                    fontWeight: 700,
+                    color: 'var(--color-gold-soft)',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                  }}
                 >
-                  <span className="num-tabular" style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>
-                    {rate}
-                    <span style={{ fontSize: 12, fontWeight: 500, marginLeft: 1 }}>%</span>
-                  </span>
-                  <span style={{ fontSize: 10, opacity: 0.8, marginTop: 2, letterSpacing: '0.02em' }}>습득률</span>
-                </div>
+                  {studentInitial}
+                </span>
               </div>
-              <div className="flex-1 min-w-0 pt-1">
+              <div className="flex-1 min-w-0">
                 <p
                   className="text-eyebrow"
                   style={{ color: 'rgba(243,234,217,0.85)', marginBottom: 4 }}
@@ -849,10 +843,9 @@ export default function ParentPage() {
           <>
             <SectionHeader eyebrow="WRONG ANSWERS" title="오답 목록" />
             {waStats && (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Stat label="미해결" value={waStats.active} unit="문항" />
                 <Stat label="해결" value={waStats.mastered} unit="문항" />
-                <Stat label="습득률" value={waStats.rate} unit="%" />
               </div>
             )}
 
