@@ -1,7 +1,7 @@
 'use client';
 // @ts-nocheck
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { hapticSelection, hapticMedium, hapticLight, hapticHeavy } from '@/lib/haptics';
 import { Button, Card, Badge, Stepper, SectionHeader } from '@/components/ui';
@@ -46,6 +46,35 @@ interface ExtractedProblem {
   id: string; number: number; pageNumber: number;
   imageDataUrl: string; bbox: any;
   answerPageNumber?: number; answerImageDataUrl?: string;
+}
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+/**
+ * 시드 기반 셔플 — 같은 seed → 같은 결과 순서.
+ * 이것으로 PDF 출력과 채점 화면의 문제 순서를 동일하게 맞춘다.
+ */
+function seededShuffle<T>(array: T[], seed: string): T[] {
+  const arr = [...array];
+  // FNV-1a hash → 32bit 초기 상태
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let state = (h >>> 0) || 1;
+  const rand = () => {
+    state = (state + 0x6D2B79F5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 /* ============================================================
@@ -109,6 +138,11 @@ export default function WrongAnswersPage() {
   const [gradingTest, setGradingTest] = useState<WrongAnswerTestRecord | null>(null);
   const [gradeResults, setGradeResults] = useState<Record<string, boolean>>({});
   const [showGradeAnswer, setShowGradeAnswer] = useState<Set<string>>(new Set());
+  // 채점 화면의 문제 순서 — PDF 출력과 동일한 순서를 보장하기 위해 seededShuffle 사용
+  const gradingItemsOrdered = useMemo(() => {
+    if (!gradingTest) return [];
+    return seededShuffle(gradingTest.items, gradingTest.id);
+  }, [gradingTest]);
 
   // Filter classroom for answers/tests tabs
   const [filterClassroom, setFilterClassroom] = useState('');
@@ -651,13 +685,12 @@ export default function WrongAnswersPage() {
   };
 
   const generateTestPDF = (test: WrongAnswerTestRecord) => {
-    // Shuffle items randomly
-    const shuffled = [...test.items].sort(() => Math.random() - 0.5);
+    // 시드 기반 셔플 — test.id 로 고정. 채점 모달과 동일한 순서 보장.
+    const shuffled = seededShuffle(test.items, test.id);
 
     // Build problem entries with image URLs
     const problems = shuffled.map((item, idx) => {
       const wa = item.wrongAnswer as any;
-      // Find problem image from testPaper pages (pageNumber = problemNumber)
       let imgUrl = '';
       if (wa.testPaper?.pages) {
         const page = wa.testPaper.pages.find((p: any) => p.pageNumber === wa.problemNumber);
@@ -667,69 +700,288 @@ export default function WrongAnswersPage() {
       return { num: idx + 1, originalNum: wa.problemNumber, testName: wa.testName, imgUrl };
     });
 
+    // 4문제씩 페이지로 나눔
+    const PROBLEMS_PER_PAGE = 4;
+    const pages: typeof problems[] = [];
+    for (let i = 0; i < problems.length; i += PROBLEMS_PER_PAGE) {
+      pages.push(problems.slice(i, i + PROBLEMS_PER_PAGE));
+    }
+    // 빈 슬롯을 채우는 플레이스홀더 (마지막 페이지가 4개 미만일 경우)
+    const fillEmptySlots = (arr: typeof problems) => {
+      const filled = [...arr];
+      while (filled.length < PROBLEMS_PER_PAGE) {
+        filled.push({ num: -1, originalNum: 0, testName: '', imgUrl: '' });
+      }
+      return filled;
+    };
+
     const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    const totalPages = pages.length;
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <title>오답 테스트 - ${test.student.name}</title>
 <style>
-  @page { size: A4; margin: 12mm 10mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 10px; }
-  .header { text-align: center; border-bottom: 2px solid #222; padding-bottom: 8px; margin-bottom: 12px; }
-  .header h1 { font-size: 20px; margin-bottom: 4px; }
-  .info-row { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: #555; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .row-gap { margin-top: 20px; }
-  .problem { border: 1px solid #bbb; border-radius: 6px; overflow: hidden; page-break-inside: avoid; display: flex; flex-direction: column; min-height: 280px; }
-  .problem-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #f3f4f6; border-bottom: 1px solid #ddd; font-size: 12px; }
-  .problem-header .num { font-weight: bold; font-size: 16px; color: #2563eb; }
-  .problem-header .source { color: #999; font-size: 10px; }
-  .problem-body { padding: 8px; text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; }
-  .problem-body img { max-width: 100%; max-height: 220px; object-fit: contain; }
-  .problem-body .no-img { color: #ccc; padding: 20px; font-size: 11px; }
-  .answer-area { border-top: 1px dashed #ccc; padding: 6px 10px; min-height: 55px; }
-  .answer-area span { font-size: 11px; color: #aaa; }
-  .page-break { page-break-after: always; }
-  .score-box { margin-top: 16px; text-align: right; font-size: 15px; font-weight: bold; }
-  .score-box span { border: 2px solid #222; padding: 4px 16px; border-radius: 6px; }
-  .footer { margin-top: 16px; text-align: center; font-size: 10px; color: #bbb; }
-  .btn-bar { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
-  .btn-bar button { padding: 10px 28px; font-size: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
-  .btn-pdf { background: #2563eb; color: #fff; }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    color: #1a1a1a;
+    background: #e5e7eb;
+  }
+
+  /* 상단 컨트롤 바 (화면에서만 표시) */
+  .no-print.btn-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(229,231,235,0.94);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid #d1d5db;
+  }
+  .btn-bar button {
+    padding: 10px 24px;
+    font-size: 14px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+  }
+  .btn-pdf { background: #1f3a5f; color: #fff; }
   .btn-back { background: #6b7280; color: #fff; }
-  @media print { .no-print { display: none !important; } body { padding: 0; } }
+
+  /* 페이지 — A4 정확한 크기 */
+  .test-page {
+    width: 210mm;
+    height: 297mm;
+    padding: 12mm 10mm;
+    background: #fff;
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    margin: 14px auto;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+    border-radius: 4px;
+  }
+  .test-page:last-of-type { page-break-after: auto; }
+
+  /* 페이지 헤더 */
+  .page-header {
+    flex: 0 0 auto;
+    border-bottom: 1.5px solid #222;
+    padding-bottom: 7px;
+    margin-bottom: 9px;
+  }
+  .page-header .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .page-header h1 {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #111;
+  }
+  .page-header .meta {
+    font-size: 11px;
+    color: #666;
+    font-weight: 600;
+  }
+  .page-header .info-row {
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 11.5px;
+    color: #333;
+  }
+  .page-header .info-row b { color: #111; font-weight: 700; }
+
+  /* 2 × 2 문제 그리드 */
+  .grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4mm;
+  }
+
+  .problem {
+    display: flex;
+    flex-direction: column;
+    border: 1.5px solid #333;
+    border-radius: 5px;
+    overflow: hidden;
+    min-height: 0;
+    background: #fff;
+  }
+  .problem.empty {
+    border: 1.5px dashed #d1d5db;
+    background: #fafafa;
+  }
+  .problem-header {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    background: #f3f4f6;
+    border-bottom: 1px solid #c9c9c9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .problem-header .num {
+    font-size: 15px;
+    font-weight: 800;
+    color: #1f3a5f;
+  }
+  .problem-header .source {
+    color: #888;
+    font-size: 10px;
+    font-weight: 500;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .problem-body {
+    flex: 0 0 50mm;
+    padding: 4px;
+    border-bottom: 1.5px dashed #bbb;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .problem-body img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .problem-body .no-img {
+    color: #bbb;
+    font-size: 11px;
+  }
+
+  /* 풀이 공간 — 페이지 남은 공간을 모두 차지 */
+  .answer-area {
+    flex: 1;
+    min-height: 0;
+    padding: 7px 11px 6px;
+    position: relative;
+    font-size: 11px;
+    color: #999;
+  }
+  .answer-label {
+    font-size: 10.5px;
+    color: #666;
+    font-weight: 600;
+    margin-bottom: 3px;
+    letter-spacing: 0.02em;
+  }
+  .answer-label .ans-box {
+    display: inline-block;
+    border: 1px solid #aaa;
+    border-radius: 4px;
+    padding: 1px 30px;
+    margin-left: 6px;
+    min-width: 60px;
+    color: transparent;
+  }
+
+  /* 마지막 페이지 점수 박스 */
+  .last-footer {
+    flex: 0 0 auto;
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .score-box { font-size: 13px; font-weight: 700; color: #222; }
+  .score-box .box {
+    border: 2px solid #222;
+    padding: 3px 16px;
+    border-radius: 6px;
+    margin-left: 6px;
+    display: inline-block;
+    min-width: 60px;
+    text-align: center;
+    color: transparent;
+  }
+  .foot-text { font-size: 10px; color: #bbb; }
+
+  @media print {
+    html, body { background: #fff; }
+    .no-print { display: none !important; }
+    .test-page {
+      margin: 0;
+      box-shadow: none;
+      border-radius: 0;
+      width: 210mm;
+      height: 297mm;
+    }
+  }
 </style>
 </head><body>
 <div class="no-print btn-bar">
   <button class="btn-back" onclick="window.close()">← 뒤로가기</button>
   <button class="btn-pdf" onclick="window.print()">PDF 저장</button>
 </div>
-<div class="header">
-  <h1>오답 테스트</h1>
-  <div class="info-row">
-    <span><b>이름:</b> ${test.student.name}</span>
-    <span><b>반:</b> ${test.classroom.name}</span>
-    <span><b>회차:</b> ${test.round}회</span>
-    <span><b>날짜:</b> ${today}</span>
-    <span><b>총 ${problems.length}문항</b></span>
+
+${pages.map((pageProblems, pageIdx) => {
+  const isLastPage = pageIdx === totalPages - 1;
+  const slots = fillEmptySlots(pageProblems);
+  return `
+<section class="test-page">
+  <div class="page-header">
+    <div class="title-row">
+      <h1>오답 테스트 · ${test.student.name}</h1>
+      <span class="meta">${pageIdx + 1} / ${totalPages} 페이지</span>
+    </div>
+    <div class="info-row">
+      <span><b>반</b> ${test.classroom.name}</span>
+      <span><b>회차</b> ${test.round}회</span>
+      <span><b>날짜</b> ${today}</span>
+      <span><b>총 ${problems.length}문항</b></span>
+    </div>
   </div>
-</div>
-<div class="grid">
-${problems.map((p, idx) => `
-<div class="problem">
-  <div class="problem-header">
-    <span class="num">${p.num}</span>
-    <span class="source">${p.testName} #${p.originalNum}</span>
+  <div class="grid">
+    ${slots.map(p => {
+      if (p.num < 0) {
+        return `<div class="problem empty"></div>`;
+      }
+      return `
+    <div class="problem">
+      <div class="problem-header">
+        <span class="num">${p.num}</span>
+        <span class="source">${p.testName} #${p.originalNum}</span>
+      </div>
+      <div class="problem-body">
+        ${p.imgUrl ? `<img src="${p.imgUrl}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
+      </div>
+      <div class="answer-area">
+        <div class="answer-label">답<span class="ans-box">·</span></div>
+      </div>
+    </div>`;
+    }).join('')}
   </div>
-  <div class="problem-body">
-    ${p.imgUrl ? `<img src="${p.imgUrl}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
-  </div>
-  <div class="answer-area"><span>답:</span></div>
-</div>${(idx + 1) % 2 === 0 && idx < problems.length - 1 ? '</div><div class="row-gap"></div><div class="grid">' : ''}`).join('')}
-</div>
-<div class="score-box">점수: <span>&nbsp;&nbsp;&nbsp;&nbsp;/ ${problems.length}</span></div>
-<div class="footer">수학탐구 오답관리 시스템</div>
+  ${isLastPage ? `
+  <div class="last-footer">
+    <div class="foot-text">수학탐구 오답관리 시스템</div>
+    <div class="score-box">점수 <span class="box">/ ${problems.length}</span></div>
+  </div>` : ''}
+</section>`;
+}).join('')}
+
 </body></html>`;
 
     const w = window.open('', '_blank');
@@ -2216,7 +2468,7 @@ ${problems.map((p, idx) => `
               {gradingTest.student.name} <span style={{ color: 'var(--color-mute)' }}>·</span> {gradingTest.round}회차
             </p>
             <div className="space-y-3">
-              {gradingTest.items.map(item => {
+              {gradingItemsOrdered.map((item, idx) => {
                 const val = gradeResults[item.wrongAnswerId];
                 const wa = item.wrongAnswer;
                 const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
@@ -2233,7 +2485,7 @@ ${problems.map((p, idx) => `
                       background: 'var(--color-surface)',
                     }}
                   >
-                    {/* Header */}
+                    {/* Header — PDF 출력과 동일한 순번(1,2,3...) 표시, 원본 문제번호는 부가정보로 */}
                     <div
                       className="px-3 py-2 flex items-center justify-between gap-2"
                       style={{
@@ -2246,10 +2498,10 @@ ${problems.map((p, idx) => `
                           className="inline-flex items-center justify-center w-7 h-7 rounded-full font-semibold text-xs num-tabular shrink-0"
                           style={{ background: 'var(--color-accent)', color: '#fff' }}
                         >
-                          {wa.problemNumber}
+                          {idx + 1}
                         </span>
                         <span className="text-xs truncate" style={{ color: 'var(--color-ink-2)', fontWeight: 500 }}>
-                          {wa.testName}
+                          {wa.testName} <span style={{ color: 'var(--color-mute)' }}>#{wa.problemNumber}</span>
                         </span>
                       </div>
                     </div>
