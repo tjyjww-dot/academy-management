@@ -79,6 +79,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // 0문항 테스트 자동 삭제 (의미 없는 빈 테스트 정리)
+    const emptyTests = tests.filter(t => t.items.length === 0);
+    if (emptyTests.length > 0) {
+      const emptyIds = emptyTests.map(t => t.id);
+      await prisma.wrongAnswerTestItem.deleteMany({ where: { testId: { in: emptyIds } } });
+      await prisma.wrongAnswerTest.deleteMany({ where: { id: { in: emptyIds } } });
+      tests = tests.filter(t => t.items.length > 0);
+      console.log(`[tests GET] Auto-deleted ${emptyIds.length} empty tests`);
+    }
+
     return NextResponse.json(tests);
   } catch (error) {
     console.error('오답 테스트 조회 오류:', error);

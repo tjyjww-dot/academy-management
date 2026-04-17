@@ -712,15 +712,17 @@ ${problems.map((p, idx) => `
 
   const handleDeleteTest = async (testId: string) => {
     if (!confirm('이 테스트를 삭제하시겠습니까?')) return;
+    // 즉시 UI에서 제거 (서버 응답 전)
+    setTests(prev => prev.filter(t => t.id !== testId));
     try {
       const res = await fetch(`/api/wrong-answers/tests/${testId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('삭제 실패');
-      // 즉시 UI에서 제거
-      setTests(prev => prev.filter(t => t.id !== testId));
       showMsg('테스트가 삭제되었습니다');
-      // 서버에서 최신 데이터 다시 불러오기 (filterClassroom 유무와 관계없이)
+    } catch {
+      showMsg('테스트 삭제 실패', 'error');
+      // 실패 시 데이터 다시 불러오기
       await fetchDataForClassroom(filterClassroom);
-    } catch { showMsg('테스트 삭제 실패', 'error'); }
+    }
   };
 
   const handleStartGrading = (test: WrongAnswerTestRecord) => {
