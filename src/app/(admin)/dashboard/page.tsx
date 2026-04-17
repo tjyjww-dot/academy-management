@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Stat } from '@/components/ui/Stat';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { hapticLight, hapticMedium, hapticSelection } from '@/lib/haptics';
 
 interface DashboardStats {
@@ -322,7 +323,12 @@ export default function DashboardPage() {
             </button>
           </div>
           {announcements.length === 0 ? (
-            <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>등록된 공지가 없습니다.</p>
+            <EmptyState
+              size="sm"
+              icon="📢"
+              title="등록된 공지가 없습니다"
+              description="오른쪽 위 + 버튼으로 새 공지를 작성하세요."
+            />
           ) : (
             <div className="space-y-2">
               {announcements.map((a) => (
@@ -481,7 +487,12 @@ export default function DashboardPage() {
               </div>
             )}
             {recentCounseling.length === 0 ? (
-              <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>최근 1주일간 신규 상담이 없습니다.</p>
+              <EmptyState
+                size="sm"
+                icon="💬"
+                title="최근 상담이 없습니다"
+                description="최근 1주일간 접수된 신규 상담이 없습니다."
+              />
             ) : (
               <div className="space-y-1.5">
                 {recentCounseling.map((c) => {
@@ -558,7 +569,12 @@ export default function DashboardPage() {
               </Link>
             </div>
             {upcomingTests.length === 0 ? (
-              <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>예정된 입학테스트가 없습니다.</p>
+              <EmptyState
+                size="sm"
+                icon="🎯"
+                title="예정된 입학테스트가 없습니다"
+                description="새 입학테스트는 '입학테스트' 메뉴에서 추가할 수 있어요."
+              />
             ) : (
               <div className="space-y-2">
                 {upcomingTests.map((test) => (
@@ -733,7 +749,13 @@ export default function DashboardPage() {
             )}
 
             {taskRequests.length === 0 && parentMemos.length === 0 && pendingCounselingRequests.length === 0 && absentWithoutMemo.length === 0 ? (
-              <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>받은 요청이 없습니다.</p>
+              <EmptyState
+                size="sm"
+                icon="📥"
+                tone="success"
+                title="받은 요청이 없습니다"
+                description="학부모 메모 · 상담 요청 · 결석 메모 · 업무 요청이 모두 처리되었습니다."
+              />
             ) : taskRequests.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
