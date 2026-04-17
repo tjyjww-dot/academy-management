@@ -1,32 +1,200 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+/* ========================================================================
+   수학탐구 학원 · Design System v1 (W1)
+   Pretendard Variable + Tailwind v4 @theme 토큰
+   ======================================================================== */
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Pretendard Variable — 한글 최적화 웹폰트 */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css');
+
+/* ========================================================================
+   Design Tokens — Tailwind v4 @theme
+   사용법: bg-ink, text-accent, rounded-md(14), shadow-sh1 등 자동 생성
+   ======================================================================== */
+@theme {
+  /* ---------- Color · Neutral (warm off-white) ---------- */
+  --color-bg:          #FAFAF7;
+  --color-surface:     #FFFFFF;
+  --color-surface-2:   #F4F3EE;
+  --color-border:      #E8E6DF;
+  --color-border-2:    #D8D5CB;
+
+  --color-ink:         #0E0E0C;
+  --color-ink-2:       #2A2A27;
+  --color-mute:        #6B6A63;
+  --color-mute-2:      #9A998F;
+
+  /* ---------- Color · Accent (deep navy + warm gold) ---------- */
+  --color-accent:      #1F3A5F;
+  --color-accent-2:    #2D5480;
+  --color-accent-ink:  #0E1D30;
+  --color-gold:        #A98B68;
+  --color-gold-soft:   #F3EAD9;
+
+  /* ---------- Color · State ---------- */
+  --color-success:     #1F7A4D;
+  --color-success-bg:  #E6F2EA;
+  --color-warn:        #A8660B;
+  --color-warn-bg:     #FAF1DE;
+  --color-danger:      #B42318;
+  --color-danger-bg:   #FCE7E4;
+  --color-info:        #1E4FAE;
+  --color-info-bg:     #E5ECFA;
+
+  /* ---------- Radius (custom names to avoid Tailwind default collision) ---------- */
+  --radius-chip:    6px;
+  --radius-btn:    10px;
+  --radius-card:   14px;
+  --radius-section:20px;
+  --radius-hero:   28px;
+
+  /* ---------- Shadows (아주 미묘하게) ---------- */
+  --shadow-sh1: 0 1px 2px rgba(14,14,12,0.04), 0 1px 1px rgba(14,14,12,0.02);
+  --shadow-sh2: 0 6px 20px rgba(14,14,12,0.05), 0 2px 4px rgba(14,14,12,0.03);
+  --shadow-sh3: 0 18px 40px rgba(14,14,12,0.08), 0 4px 10px rgba(14,14,12,0.04);
+  --shadow-focus: 0 0 0 3px rgba(14,14,12,0.08);
+
+  /* ---------- Font ---------- */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+               "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Dark mode disabled - always use light theme */
-/*
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ========================================================================
+   Base styles
+   ======================================================================== */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
 }
-*/
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  font-family: var(--font-sans);
+}
 
 body {
-  background: #f9fafb;
-  color: #171717;
-  font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  font-feature-settings: "ss01", "ss02", "cv11", "tnum" off;
 }
 
+/* ========================================================================
+   Typography scale — Display / H1 / H2 / H3 / Body / Caption
+   ======================================================================== */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.text-display {
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+.text-h1 {
+  font-size: 28px; line-height: 1.15;
+  letter-spacing: -0.02em; font-weight: 700;
+}
+.text-h2 {
+  font-size: 20px; line-height: 1.3;
+  letter-spacing: -0.015em; font-weight: 600;
+}
+.text-h3 {
+  font-size: 17px; line-height: 1.4;
+  letter-spacing: -0.01em; font-weight: 600;
+}
+.text-body { font-size: 15px; line-height: 1.55; }
+.text-caption { font-size: 12.5px; color: var(--color-mute); letter-spacing: 0; }
+.text-eyebrow {
+  font-size: 11.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--color-mute);
+  font-weight: 600;
+}
+
+/* 숫자 조판 (성적·금액·시간용) */
+.num-tabular { font-variant-numeric: tabular-nums; }
+
+/* ========================================================================
+   Form inputs — 공용 스타일
+   ======================================================================== */
 input, textarea, select {
-  color: #000000 !important;
+  color: var(--color-ink) !important;
+  font-family: inherit;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #9ca3af !important;
+  color: var(--color-mute-2) !important;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-focus);
+}
+
+/* ========================================================================
+   Scrollbar — 얇고 조용하게
+   ======================================================================== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-2) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-2);
+  border-radius: 999px;
+  border: 2px solid var(--color-bg);
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--color-mute-2); }
+
+/* ========================================================================
+   Selection
+   ======================================================================== */
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* ========================================================================
+   Utility · Animations
+   ======================================================================== */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-in { animation: fade-in 240ms cubic-bezier(.2,.7,.2,1) both; }
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 0%,
+    var(--color-border) 50%,
+    var(--color-surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
 }
