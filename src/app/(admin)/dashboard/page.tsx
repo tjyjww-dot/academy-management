@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 
 import Link from 'next/link';
+import { Card } from '@/components/ui/Card';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { Stat } from '@/components/ui/Stat';
+import { Badge } from '@/components/ui/Badge';
+import { hapticLight, hapticMedium, hapticSelection } from '@/lib/haptics';
 
 interface DashboardStats {
   totalStudents: number;
@@ -255,71 +260,95 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">로딩 중...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
+        <p className="text-[13px]" style={{ color: 'var(--color-mute)' }}>로딩 중...</p>
       </div>
     );
   }
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: 'var(--color-surface-2)' }}>
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">대시보드</h1>
+        <SectionHeader
+          eyebrow="DASHBOARD"
+          title="운영 현황"
+          description={`${new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}`}
+        />
 
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow p-4 border-t-4 border-blue-500">
-              <p className="text-sm text-gray-600">총 원생수</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-t-4 border-green-500">
-              <p className="text-sm text-gray-600">총 반수</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalClassrooms}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-t-4 border-purple-500">
-              <p className="text-sm text-gray-600">오늘 출석</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.todayAttendance}</p>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-t-4 border-red-500">
-              <p className="text-sm text-gray-600">오늘 테스트</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.todayTests}</p>
-            </div>
+            <Stat
+              label="재적 원생"
+              value={stats.totalStudents}
+              unit="명"
+            />
+            <Stat
+              label="운영 반"
+              value={stats.totalClassrooms}
+              unit="개"
+            />
+            <Stat
+              label="오늘 출석"
+              value={stats.todayAttendance}
+              unit="명"
+              hint={stats.totalStudents > 0 ? `${Math.round((stats.todayAttendance / stats.totalStudents) * 100)}%` : undefined}
+            />
+            <Stat
+              label="오늘 테스트"
+              value={stats.todayTests}
+              unit="건"
+            />
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+        <Card padding="md" className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">📢 공지사항</h2>
+            <div>
+              <div className="text-eyebrow mb-1">NOTICE</div>
+              <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>공지사항</h2>
+            </div>
             <button
+              type="button"
+              onPointerDown={() => hapticMedium()}
               onClick={openNewAnn}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-700 text-xl leading-none"
+              className="press press-strong w-9 h-9 flex items-center justify-center rounded-full text-[18px] leading-none"
+              style={{
+                background: 'var(--color-accent)',
+                color: '#fff',
+                boxShadow: '0 0 0 2px var(--color-gold-soft)',
+              }}
               title="새 공지 작성"
             >
               +
             </button>
           </div>
           {announcements.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">공지사항이 없습니다.</p>
+            <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>등록된 공지가 없습니다.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {announcements.map((a) => (
                 <button
                   key={a.id}
                   type="button"
+                  onPointerDown={() => hapticLight()}
                   onClick={() => openEditAnn(a)}
-                  className="w-full text-left border-b pb-3 last:border-b-0 hover:bg-gray-50 rounded px-2 py-1 transition-colors"
+                  className="press press-subtle w-full text-left rounded-lg px-3 py-2.5"
+                  style={{
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border)',
+                  }}
                 >
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-medium text-gray-900">{a.title}</h3>
-                    <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                  <div className="flex justify-between items-start gap-3">
+                    <h3 className="text-[14px] font-semibold text-ink truncate" style={{ letterSpacing: '-0.01em' }}>{a.title}</h3>
+                    <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--color-mute)' }}>
                       {new Date(a.createdAt).toLocaleDateString('ko-KR')}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1 line-clamp-2">{a.content}</p>
+                  <p className="text-[12.5px] mt-1 line-clamp-2" style={{ color: 'var(--color-mute)' }}>{a.content}</p>
                 </button>
               ))}
             </div>
           )}
-        </div>
+        </Card>
 
         {showAnnModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -375,8 +404,11 @@ export default function DashboardPage() {
                 <div>
                   {editingAnn && (
                     <button
+                      type="button"
+                      onPointerDown={() => hapticMedium()}
                       onClick={deleteAnn}
-                      className="px-4 py-2 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                      className="press press-strong min-h-[44px] px-4 py-2 rounded-lg text-[13px] font-semibold"
+                      style={{ background: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}
                     >
                       삭제
                     </button>
@@ -384,14 +416,20 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex gap-2">
                   <button
+                    type="button"
+                    onPointerDown={() => hapticLight()}
                     onClick={() => setShowAnnModal(false)}
-                    className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    className="press min-h-[44px] px-4 py-2 rounded-lg text-[13px] font-semibold"
+                    style={{ background: 'var(--color-surface-2)', color: 'var(--color-ink-2)', border: '1px solid var(--color-border)' }}
                   >
                     취소
                   </button>
                   <button
+                    type="button"
+                    onPointerDown={() => hapticMedium()}
                     onClick={saveAnn}
-                    className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    className="press press-strong min-h-[44px] px-4 py-2 rounded-lg text-[13px] font-semibold"
+                    style={{ background: 'var(--color-accent)', color: '#fff' }}
                   >
                     저장
                   </button>
@@ -402,120 +440,194 @@ export default function DashboardPage() {
         )}
         <div className="flex flex-col">
         {/* 최근 1주일 상담 내용 (관리자/데스크만) */}
-        {(userRole === 'ADMIN' || userRole === 'DESK') && <div data-recent-counseling-block className="order-3 bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">💬 최근 상담 내용 <span className="text-sm font-normal text-gray-500">(최근 7일)</span></h2>
-            <Link href="/counseling" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
-          </div>
-          {recentAbsentWithMemo.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-orange-600 mb-2">📝 결석 메모 ({recentAbsentWithMemo.length})</h3>
-              <div className="space-y-2">
-                {recentAbsentWithMemo.map((ar) => (
-                  <div key={ar.id} className="border border-orange-200 bg-orange-50 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-medium text-orange-700 bg-orange-200 px-2 py-0.5 rounded-full">{ar.student?.name}</span>
-                      <span className="text-xs text-gray-600">{ar.classroom?.name}</span>
-                      <span className="text-xs text-gray-500">{ar.date}</span>
-                    </div>
-                    <p className="text-sm text-gray-800">{ar.remarks}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {recentCounseling.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">최근 1주일간 신규 상담이 없습니다.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentCounseling.map((c) => (
-                <Link key={c.id} href={`/counseling`} className="block border rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          c.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
-                          c.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-700' :
-                          c.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {c.status === 'PENDING' ? '대기' : c.status === 'CONFIRMED' ? '확정' : c.status === 'COMPLETED' ? '완료' : '취소'}
-                        </span>
-                        <span className="text-xs font-medium text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">{c.student.name}</span>
-                        <span className="text-xs text-gray-500">{c.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
-                        {(() => { const t = (c.student as any)?.enrollments?.[0]?.classroom?.teacher?.name; return t ? <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{t} 선생님</span> : null; })()}
-                      </div>
-                      <p className="font-medium text-gray-900 truncate">{c.title}</p>
-                      {c.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-1">{c.description}</p>}
-                      {c.sessionNotes && (
-                        <p className="text-sm text-green-700 bg-green-50 rounded px-2 py-1 mt-1 line-clamp-2">📝 {c.sessionNotes}</p>
-                      )}
-                    </div>
-                    <div className="text-right ml-3 flex-shrink-0">
-                      <p className="text-xs text-gray-500">{new Date(c.createdAt).toLocaleDateString('ko-KR')}</p>
-                      {c.parent ? (
-                        <p className="text-xs text-gray-500 mt-0.5">학부모: {c.parent.name}</p>
-                      ) : c.createdByName ? (
-                        <p className="text-xs text-gray-500 mt-0.5">입력: {c.createdByName}</p>
-                      ) : null}
-                      {c.preferredDate && <p className="text-xs text-blue-500 mt-0.5">희망: {c.preferredDate}</p>}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>}
-
-        <div className="order-1 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        {(userRole === 'ADMIN' || userRole === 'DESK') && (
+          <Card padding="md" className="order-3 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">📋 임박한 입학테스트</h2>
-              <Link href="/entrance-test" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
+              <div>
+                <div className="text-eyebrow mb-1">COUNSELING · 7 DAYS</div>
+                <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>최근 상담 내용</h2>
+              </div>
+              <Link
+                href="/counseling"
+                onPointerDown={() => hapticSelection()}
+                className="press text-[12px] font-semibold"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                전체 보기 →
+              </Link>
+            </div>
+            {recentAbsentWithMemo.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge tone="warn" variant="soft" size="sm" dot>결석 메모</Badge>
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{recentAbsentWithMemo.length}건</span>
+                </div>
+                <div className="space-y-1.5">
+                  {recentAbsentWithMemo.map((ar) => (
+                    <div
+                      key={ar.id}
+                      className="rounded-lg p-3"
+                      style={{ background: 'var(--color-warn-bg)', border: '1px solid var(--color-warn-bg)' }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <Badge tone="warn" variant="solid" size="sm">{ar.student?.name}</Badge>
+                        <span className="text-[11px]" style={{ color: 'var(--color-mute)' }}>{ar.classroom?.name}</span>
+                        <span className="text-[11px]" style={{ color: 'var(--color-mute-2)' }}>{ar.date}</span>
+                      </div>
+                      <p className="text-[13px] text-ink">{ar.remarks}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {recentCounseling.length === 0 ? (
+              <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>최근 1주일간 신규 상담이 없습니다.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {recentCounseling.map((c) => {
+                  const statusTone: 'warn' | 'accent' | 'success' | 'neutral' =
+                    c.status === 'PENDING' ? 'warn' :
+                    c.status === 'CONFIRMED' ? 'accent' :
+                    c.status === 'COMPLETED' ? 'success' : 'neutral';
+                  const statusLabel =
+                    c.status === 'PENDING' ? '대기' :
+                    c.status === 'CONFIRMED' ? '확정' :
+                    c.status === 'COMPLETED' ? '완료' : '취소';
+                  const teacher = (c.student as any)?.enrollments?.[0]?.classroom?.teacher?.name;
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/counseling`}
+                      onPointerDown={() => hapticLight()}
+                      className="press press-subtle block rounded-lg p-3"
+                      style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <Badge tone={statusTone} variant="soft" size="sm">{statusLabel}</Badge>
+                            <Badge tone="accent" variant="soft" size="sm">{c.student.name}</Badge>
+                            <span className="text-[11px]" style={{ color: 'var(--color-mute)' }}>
+                              {c.counselingType === 'VISIT' ? '방문상담' : '전화상담'}
+                            </span>
+                            {teacher && <Badge tone="gold" variant="soft" size="sm">{teacher} 선생님</Badge>}
+                          </div>
+                          <p className="text-[13.5px] font-semibold text-ink truncate" style={{ letterSpacing: '-0.01em' }}>{c.title}</p>
+                          {c.description && <p className="text-[12.5px] mt-0.5 line-clamp-1" style={{ color: 'var(--color-mute)' }}>{c.description}</p>}
+                          {c.sessionNotes && (
+                            <p
+                              className="text-[12.5px] rounded-md px-2 py-1 mt-1 line-clamp-2"
+                              style={{ background: 'var(--color-success-bg)', color: 'var(--color-success)' }}
+                            >
+                              {c.sessionNotes}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right ml-2 shrink-0">
+                          <p className="text-[11px]" style={{ color: 'var(--color-mute-2)' }}>{new Date(c.createdAt).toLocaleDateString('ko-KR')}</p>
+                          {c.parent ? (
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-mute-2)' }}>학부모: {c.parent.name}</p>
+                          ) : c.createdByName ? (
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-mute-2)' }}>입력: {c.createdByName}</p>
+                          ) : null}
+                          {c.preferredDate && <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-accent)' }}>희망: {c.preferredDate}</p>}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
+
+        <div className="order-1 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 mb-6">
+          <Card padding="md">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-eyebrow mb-1">UPCOMING</div>
+                <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>임박한 입학테스트</h2>
+              </div>
+              <Link
+                href="/entrance-test"
+                onPointerDown={() => hapticSelection()}
+                className="press text-[12px] font-semibold"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                전체 보기 →
+              </Link>
             </div>
             {upcomingTests.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">예정된 입학테스트가 없습니다.</p>
+              <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>예정된 입학테스트가 없습니다.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {upcomingTests.map((test) => (
-                  <div key={test.id} className="border rounded-lg p-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-gray-900">{test.name}</p>
-                        <p className="text-sm text-gray-600">{test.school || ''} {test.grade || ''}</p>
+                  <div
+                    key={test.id}
+                    className="rounded-lg p-3"
+                    style={{
+                      background: 'var(--color-surface-2)',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-ink" style={{ letterSpacing: '-0.01em' }}>{test.name}</p>
+                        <p className="text-[12px] mt-0.5" style={{ color: 'var(--color-mute)' }}>
+                          {test.school || ''} {test.grade || ''}
+                        </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-blue-600">{test.testDate}</p>
-                        {test.testTime && <p className="text-xs text-gray-500">{test.testTime}</p>}
+                      <div className="text-right shrink-0">
+                        <p className="text-[13px] font-semibold" style={{ color: 'var(--color-accent)' }}>{test.testDate}</p>
+                        {test.testTime && <p className="text-[11px]" style={{ color: 'var(--color-mute)' }}>{test.testTime}</p>}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <Card padding="md">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">📨 받은 요청사항</h2>
-              <Link href="/requests" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
+              <div>
+                <div className="text-eyebrow mb-1">INBOX</div>
+                <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>받은 요청사항</h2>
+              </div>
+              <Link
+                href="/requests"
+                onPointerDown={() => hapticSelection()}
+                className="press text-[12px] font-semibold"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                전체 보기 →
+              </Link>
             </div>
 
             {parentMemos.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-orange-600 mb-2">💌 학부모/학생 메모 ({parentMemos.length})</h3>
-                <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge tone="warn" variant="soft" size="sm" dot>학부모/학생 메모</Badge>
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{parentMemos.length}건</span>
+                </div>
+                <div className="space-y-1.5">
                   {parentMemos.map((memo) => (
-                    <div key={memo.id} className="border border-orange-200 bg-orange-50 rounded-lg p-3 cursor-pointer hover:bg-orange-100 transition-colors" onClick={() => setSelectedMemo(memo)}>
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-orange-700 bg-orange-200 px-2 py-0.5 rounded-full">{memo.student.name}</span>
-                            <span className="text-xs text-gray-500">{memo.author.name}</span>
+                    <div
+                      key={memo.id}
+                      className="press press-subtle rounded-lg p-3 cursor-pointer"
+                      style={{ background: 'var(--color-warn-bg)', border: '1px solid var(--color-warn-bg)' }}
+                      onPointerDown={() => hapticLight()}
+                      onClick={() => setSelectedMemo(memo)}
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge tone="warn" variant="solid" size="sm">{memo.student.name}</Badge>
+                            <span className="text-[11px]" style={{ color: 'var(--color-mute)' }}>{memo.author.name}</span>
                           </div>
-                          <p className="text-sm text-gray-800 mt-1 line-clamp-2">{memo.content}</p>
+                          <p className="text-[13px] mt-1 line-clamp-2 text-ink">{memo.content}</p>
                         </div>
-                        <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">{formatTime(memo.createdAt)}</span>
+                        <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--color-mute-2)' }}>{formatTime(memo.createdAt)}</span>
                       </div>
                     </div>
                   ))}
@@ -525,22 +637,31 @@ export default function DashboardPage() {
 
             {pendingCounselingRequests.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-purple-700 mb-2">💬 상담 요청 ({pendingCounselingRequests.length})</h3>
-                <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge tone="accent" variant="soft" size="sm" dot>상담 요청</Badge>
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{pendingCounselingRequests.length}건</span>
+                </div>
+                <div className="space-y-1.5">
                   {pendingCounselingRequests.map((cr) => (
-                    <Link key={cr.id} href="/counseling" className="block border border-purple-200 bg-purple-50 rounded-lg p-3 hover:bg-purple-100 transition-colors">
-                      <div className="flex justify-between items-start">
+                    <Link
+                      key={cr.id}
+                      href="/counseling"
+                      onPointerDown={() => hapticLight()}
+                      className="press press-subtle block rounded-lg p-3"
+                      style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-bg)' }}
+                    >
+                      <div className="flex justify-between items-start gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">대기중</span>
-                            <span className="text-xs font-medium text-purple-700 bg-purple-200 px-2 py-0.5 rounded-full">{cr.student?.name}</span>
-                            <span className="text-xs text-gray-500">{cr.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <Badge tone="warn" variant="soft" size="sm">대기중</Badge>
+                            <Badge tone="accent" variant="soft" size="sm">{cr.student?.name}</Badge>
+                            <span className="text-[11px]" style={{ color: 'var(--color-mute)' }}>{cr.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
                           </div>
-                          <p className="font-medium text-gray-900 truncate">{cr.title}</p>
-                          {cr.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">{cr.description}</p>}
-                          {cr.parent?.name && <p className="text-xs text-gray-500 mt-1">학부모: {cr.parent.name}</p>}
+                          <p className="text-[13.5px] font-semibold text-ink truncate" style={{ letterSpacing: '-0.01em' }}>{cr.title}</p>
+                          {cr.description && <p className="text-[12.5px] mt-0.5 line-clamp-2" style={{ color: 'var(--color-mute)' }}>{cr.description}</p>}
+                          {cr.parent?.name && <p className="text-[11px] mt-1" style={{ color: 'var(--color-mute-2)' }}>학부모: {cr.parent.name}</p>}
                         </div>
-                        <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">{new Date(cr.createdAt).toLocaleDateString('ko-KR')}</span>
+                        <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--color-mute-2)' }}>{new Date(cr.createdAt).toLocaleDateString('ko-KR')}</span>
                       </div>
                     </Link>
                   ))}
@@ -550,24 +671,38 @@ export default function DashboardPage() {
 
             {absentWithoutMemo.length > 0 && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-red-600 mb-2">🚨 결석 메모 미작성 ({absentWithoutMemo.length})</h3>
-                <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge tone="danger" variant="soft" size="sm" dot>결석 메모 미작성</Badge>
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{absentWithoutMemo.length}건</span>
+                </div>
+                <div className="space-y-1.5">
                   {absentWithoutMemo.map((ar) => (
-                    <div key={ar.id} className="border border-red-200 bg-red-50 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span className="text-xs font-medium text-red-700 bg-red-200 px-2 py-0.5 rounded-full">{ar.student?.name}</span>
-                        <span className="text-xs text-gray-600">{ar.classroom?.name}</span>
-                        <span className="text-xs text-gray-500">{ar.date}</span>
+                    <div
+                      key={ar.id}
+                      className="rounded-lg p-3"
+                      style={{ background: 'var(--color-danger-bg)', border: '1px solid var(--color-danger-bg)' }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                        <Badge tone="danger" variant="solid" size="sm">{ar.student?.name}</Badge>
+                        <span className="text-[11px]" style={{ color: 'var(--color-mute)' }}>{ar.classroom?.name}</span>
+                        <span className="text-[11px]" style={{ color: 'var(--color-mute-2)' }}>{ar.date}</span>
                       </div>
                       <div className="flex gap-2">
                         <input
                           type="text"
                           value={absentMemoDraft[ar.id] ?? ''}
                           onChange={(e) => setAbsentMemoDraft((prev) => ({ ...prev, [ar.id]: e.target.value }))}
-                          placeholder="결석 사유/메모를 입력하세요"
-                          className="flex-1 border border-red-200 rounded px-2 py-1 text-sm text-gray-900"
+                          placeholder="결석 사유를 입력하세요"
+                          className="flex-1 rounded-lg px-2.5 py-1.5 text-[13px]"
+                          style={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--color-ink)',
+                          }}
                         />
                         <button
+                          type="button"
+                          onPointerDown={() => hapticMedium()}
                           onClick={async () => {
                             const memo = absentMemoDraft[ar.id];
                             if (!memo || !memo.trim()) { alert('메모를 입력해주세요.'); return; }
@@ -585,7 +720,8 @@ export default function DashboardPage() {
                               alert('저장 실패');
                             }
                           }}
-                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                          className="press press-strong px-3 py-1.5 text-[12px] font-semibold rounded-lg"
+                          style={{ background: 'var(--color-danger)', color: '#fff' }}
                         >
                           저장
                         </button>
@@ -597,38 +733,53 @@ export default function DashboardPage() {
             )}
 
             {taskRequests.length === 0 && parentMemos.length === 0 && pendingCounselingRequests.length === 0 && absentWithoutMemo.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">요청사항이 없습니다.</p>
+              <p className="text-center py-6 text-[13px]" style={{ color: 'var(--color-mute)' }}>받은 요청이 없습니다.</p>
             ) : taskRequests.length > 0 && (
               <div>
-                {parentMemos.length > 0 && <h3 className="text-sm font-semibold text-blue-600 mb-2">📋 업무 요청</h3>}
-                <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge tone="info" variant="soft" size="sm" dot>업무 요청</Badge>
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{taskRequests.length}건</span>
+                </div>
+                <div className="space-y-1.5">
                   {taskRequests.map((tr) => (
-                    <Link key={tr.id} href="/requests" className="flex items-start gap-3 border border-yellow-200 bg-yellow-50 rounded-lg p-3 hover:shadow-md transition">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">대기중</span>
-                          <p className="font-medium text-gray-900">{tr.title}</p>
-                        </div>
-                        {tr.description && <p className="text-sm text-gray-500 mt-1 line-clamp-1">{tr.description}</p>}
-                        <p className="text-xs text-gray-400 mt-1">{tr.createdByName} · {new Date(tr.createdAt).toLocaleDateString('ko-KR')}</p>
+                    <Link
+                      key={tr.id}
+                      href="/requests"
+                      onPointerDown={() => hapticLight()}
+                      className="press press-subtle block rounded-lg p-3"
+                      style={{ background: 'var(--color-gold-soft)', border: '1px solid #E8DBC2' }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge tone="warn" variant="soft" size="sm">대기중</Badge>
+                        <p className="text-[13.5px] font-semibold text-ink" style={{ letterSpacing: '-0.01em' }}>{tr.title}</p>
                       </div>
+                      {tr.description && <p className="text-[12.5px] mt-1 line-clamp-1" style={{ color: 'var(--color-mute)' }}>{tr.description}</p>}
+                      <p className="text-[11px] mt-1" style={{ color: 'var(--color-mute-2)' }}>{tr.createdByName} · {new Date(tr.createdAt).toLocaleDateString('ko-KR')}</p>
                     </Link>
                   ))}
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         </div>
-        <div className="order-2 bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 mt-6">
-          <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">Google Calendar</h2>
-          {/* 모바일: iframe을 800px 고정 폭으로 렌더링 후 화면에 맞게 축소 / 데스크톱: 100% */}
-          <div className="w-full overflow-hidden rounded-lg hidden md:block" style={{ height: "700px" }}>
-            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: "100%", height: "100%" }} frameBorder="0" scrolling="no" />
+        <Card padding="md" className="order-2 mb-6">
+          <div className="mb-4">
+            <div className="text-eyebrow mb-1">CALENDAR</div>
+            <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>학원 캘린더</h2>
           </div>
-          <div className="md:hidden w-full overflow-hidden rounded-lg" style={{ position: 'relative', paddingBottom: '85%' }}>
+          <div
+            className="w-full overflow-hidden hidden md:block"
+            style={{ height: '700px', borderRadius: 'var(--radius-card)', border: '1px solid var(--color-border)' }}
+          >
+            <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, width: '100%', height: '100%' }} frameBorder="0" scrolling="no" />
+          </div>
+          <div
+            className="md:hidden w-full overflow-hidden"
+            style={{ position: 'relative', paddingBottom: '85%', borderRadius: 'var(--radius-card)', border: '1px solid var(--color-border)' }}
+          >
             <iframe src="https://calendar.google.com/calendar/embed?src=7d275bd3aedc88033443bbd1624a0524bdb06083eb0fdfe0cabf5804e6d2b148%40group.calendar.google.com&ctz=Asia%2FSeoul&mode=MONTH&showTitle=0&showNav=1&showPrint=0&showTabs=0" style={{ border: 0, position: 'absolute', top: 0, left: 0, width: '250%', height: '250%', transform: 'scale(0.4)', transformOrigin: 'top left' }} frameBorder="0" scrolling="no" />
           </div>
-        </div>
+        </Card>
         </div>
       </div>
 
@@ -653,10 +804,23 @@ export default function DashboardPage() {
                 <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} placeholder="답장 내용을 입력하세요..." className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" rows={4} />
               </div>
               <div className="flex gap-2 mt-4">
-                <button onClick={handleReply} disabled={replying || !replyContent.trim()} className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors">
+                <button
+                  type="button"
+                  onPointerDown={() => hapticMedium()}
+                  onClick={handleReply}
+                  disabled={replying || !replyContent.trim()}
+                  className="press press-strong flex-1 min-h-[44px] py-2.5 rounded-lg text-[13.5px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: 'var(--color-accent)', color: '#fff' }}
+                >
                   {replying ? '전송 중...' : '답장 보내기'}
                 </button>
-                <button onClick={() => handleMarkAsRead(selectedMemo.id).then(() => { setSelectedMemo(null); setReplyContent(''); })} className="px-4 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+                <button
+                  type="button"
+                  onPointerDown={() => hapticLight()}
+                  onClick={() => handleMarkAsRead(selectedMemo.id).then(() => { setSelectedMemo(null); setReplyContent(''); })}
+                  className="press min-h-[44px] px-4 py-2.5 rounded-lg text-[13px] font-semibold"
+                  style={{ background: 'var(--color-surface-2)', color: 'var(--color-ink-2)', border: '1px solid var(--color-border)' }}
+                >
                   읽음 처리
                 </button>
               </div>
