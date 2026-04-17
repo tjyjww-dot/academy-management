@@ -377,15 +377,16 @@ export default function ParentPage() {
         </div>
       )}
 
-      {/* Pill Tabs — 가로 스크롤 */}
+      {/* Pill Tabs — 2행 × 4열 그리드 (전체 한눈에) */}
       <div className="max-w-lg mx-auto px-5 pt-5 pb-1">
-        <div
-          className="flex gap-1.5 overflow-x-auto pb-1"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' as any }}
-        >
-          <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
+        <div className="grid grid-cols-4 gap-1.5">
           {tabs.map(t => (
-            <Pill key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>
+            <Pill
+              key={t.id}
+              active={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className="w-full justify-center px-2"
+            >
               {t.label}
             </Pill>
           ))}
