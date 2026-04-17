@@ -238,17 +238,23 @@ export default function AdminLayout({
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--color-surface-2)' }}>
+      {/* Skip to main content (키보드 접근성) */}
+      <a href="#admin-main" className="skip-link">본문으로 건너뛰기</a>
+
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 md:hidden"
           style={{ background: 'rgba(14,14,12,0.4)' }}
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar */}
       <aside
+        id="admin-sidebar"
+        aria-label="주요 메뉴"
         className={`fixed inset-y-0 left-0 z-50 w-64 transition-transform ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0 md:relative`}
@@ -367,12 +373,15 @@ export default function AdminLayout({
           {/* Hamburger Menu for Mobile */}
           <button
             type="button"
+            aria-label={sidebarOpen ? '메뉴 닫기' : '메뉴 열기'}
+            aria-expanded={sidebarOpen}
+            aria-controls="admin-sidebar"
             onPointerDown={() => hapticLight()}
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="press md:hidden p-2 h-10 w-10 rounded-lg flex items-center justify-center"
+            className="press md:hidden p-2 h-11 w-11 rounded-lg flex items-center justify-center"
             style={{ color: 'var(--color-ink-2)' }}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
@@ -409,7 +418,7 @@ export default function AdminLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
+        <main id="admin-main" tabIndex={-1} className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
           {children}
         </main>
       </div>

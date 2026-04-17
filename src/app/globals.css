@@ -22,8 +22,8 @@
 
   --color-ink:         #0E0E0C;
   --color-ink-2:       #2A2A27;
-  --color-mute:        #6B6A63;
-  --color-mute-2:      #9A998F;
+  --color-mute:        #5F5E57;   /* WCAG AA · 4.5:1 대비 on --color-bg */
+  --color-mute-2:      #767569;   /* placeholder 등 보조 텍스트 · 4.5:1 */
 
   /* ---------- Color · Accent (deep navy + warm gold) ---------- */
   --color-accent:      #1F3A5F;
@@ -53,7 +53,8 @@
   --shadow-sh1: 0 1px 2px rgba(14,14,12,0.04), 0 1px 1px rgba(14,14,12,0.02);
   --shadow-sh2: 0 6px 20px rgba(14,14,12,0.05), 0 2px 4px rgba(14,14,12,0.03);
   --shadow-sh3: 0 18px 40px rgba(14,14,12,0.08), 0 4px 10px rgba(14,14,12,0.04);
-  --shadow-focus: 0 0 0 3px rgba(14,14,12,0.08);
+  /* focus ring — 키보드 접근성 · accent 링 + 밝은 배경 오프셋 */
+  --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* ---------- Font ---------- */
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
@@ -288,4 +289,53 @@ a:focus-visible {
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
   border-radius: var(--radius-sm);
+}
+
+/* ========================================================================
+   Accessibility utilities — WCAG 2.1 AA
+   ======================================================================== */
+
+/* Screen-reader only text — 보조기기에는 읽히고 시각적으로는 숨김 */
+/* 아이콘 전용 버튼(✕, 🔍 등)에 의미를 부여할 때 사용 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link — 키보드 사용자가 반복 탐색 영역을 건너뛰고 본문으로 */
+/* 평소엔 화면 밖에 숨겨져 있다가 Tab으로 포커스되면 좌상단에 등장 */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: var(--radius-btn);
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 100;
+  box-shadow: var(--shadow-sh2);
+  transition: top var(--dur-base) var(--ease-apple);
+  text-decoration: none;
+}
+.skip-link:focus-visible {
+  top: 8px;
+  outline: 0;
+  box-shadow: var(--shadow-focus), var(--shadow-sh2);
+}
+
+/* 포커스된 인터랙티브 요소에 press 스케일이 방해되지 않도록 */
+/* 키보드 포커스 시엔 스케일 억제 (시각적 포커스 링 우선) */
+.press:focus-visible,
+.press-strong:focus-visible,
+.press-subtle:focus-visible {
+  transform: none;
 }

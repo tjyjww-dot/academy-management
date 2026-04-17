@@ -811,7 +811,14 @@ export default function DashboardPage() {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-lg font-bold text-gray-900">메모 상세</h3>
-                <button onClick={() => { setSelectedMemo(null); setReplyContent(''); }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                <button
+                  type="button"
+                  aria-label="메모 상세 닫기"
+                  onClick={() => { setSelectedMemo(null); setReplyContent(''); }}
+                  className="press text-gray-400 hover:text-gray-600 text-xl w-11 h-11 flex items-center justify-center rounded-full -mr-2 -mt-2"
+                >
+                  <span aria-hidden="true">✕</span>
+                </button>
               </div>
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-2 mb-2">

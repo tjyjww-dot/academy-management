@@ -648,8 +648,14 @@ export default function EntranceTestPage() {
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">입학테스트 예약 등록</h2>
-              <button onClick={() => { setShowModal(false); setForm(emptyForm); }}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              <button
+                type="button"
+                aria-label="예약 등록 모달 닫기"
+                onClick={() => { setShowModal(false); setForm(emptyForm); }}
+                className="press text-gray-400 hover:text-gray-600 text-2xl leading-none w-11 h-11 flex items-center justify-center rounded-full -mr-2 -mt-2"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               {renderFormFields(form, handleFormChange)}
@@ -683,8 +689,14 @@ export default function EntranceTestPage() {
                 <h2 className="text-2xl font-bold text-gray-900">예약 수정</h2>
                 <p className="text-sm text-gray-500 mt-1">{editingTest.name} 님의 예약을 수정합니다</p>
               </div>
-              <button onClick={() => setEditingTest(null)}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              <button
+                type="button"
+                aria-label="예약 수정 모달 닫기"
+                onClick={() => setEditingTest(null)}
+                className="press text-gray-400 hover:text-gray-600 text-2xl leading-none w-11 h-11 flex items-center justify-center rounded-full -mr-2 -mt-2"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
             </div>
             <form onSubmit={handleEditSubmit}>
               {renderFormFields(editForm, handleEditFormChange, true)}
