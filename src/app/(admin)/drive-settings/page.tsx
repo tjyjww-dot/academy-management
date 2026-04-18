@@ -44,6 +44,18 @@ type AutoProgress = {
   stopRequested: boolean;
 };
 
+type AutoRunSummary = {
+  ranAt: string;
+  rounds: number;
+  totalProcessed: number;
+  totalSuccessful: number;
+  totalFailed: number;
+  totalMB: number;
+  lastRemaining: { paper: number; wa: number };
+  elapsedMs: number;
+  lastError: string | null;
+};
+
 export default function DriveSettingsPage() {
   const [status, setStatus] = useState<Status>(null);
   const [loading, setLoading] = useState(true);
@@ -55,6 +67,21 @@ export default function DriveSettingsPage() {
   const [remaining, setRemaining] = useState<{ paper: number; wa: number } | null>(null);
   const [autoProgress, setAutoProgress] = useState<AutoProgress | null>(null);
   const stopRequestedRef = useRef(false);
+
+  // 크론 자동 정리 마지막 실행 정보
+  const [autoRunSummary, setAutoRunSummary] = useState<AutoRunSummary | null>(null);
+
+  async function fetchAutoRunStatus() {
+    try {
+      const res = await fetch('/api/admin/auto-migrate-status', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setAutoRunSummary(data.lastRun ?? null);
+      }
+    } catch {
+      /* 무시 */
+    }
+  }
 
   async function fetchRemaining() {
     try {
@@ -212,9 +239,12 @@ export default function DriveSettingsPage() {
 
   useEffect(() => { fetchStatus(); }, []);
 
-  // 연결되면 남은 base64 건수 자동 조회
+  // 연결되면 남은 base64 건수 + 자동 정리 마지막 실행 정보 조회
   useEffect(() => {
-    if (status?.connected) fetchRemaining();
+    if (status?.connected) {
+      fetchRemaining();
+      fetchAutoRunStatus();
+    }
   }, [status?.connected]);
 
   async function handleDisconnect() {
@@ -435,6 +465,61 @@ export default function DriveSettingsPage() {
             </section>
           )}
 
+          {/* Auto-cleanup card (only when connected) */}
+          {connected && (
+            <section className="bg-white border border-gray-200 rounded-xl p-5 sm:p-6 mb-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h3 className="text-sm font-semibold text-gray-900">자동 정리 (매일 새벽 3시)</h3>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full ring-1 ring-green-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  작동 중
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 leading-6 mb-4">
+                매일 새벽 3시(KST)에 Vercel 서버가 자동으로 남은 base64 이미지를 Drive 로 옮깁니다.
+                원장님이 버튼을 누를 필요가 없어요. 다음 실행은 <strong className="text-gray-900">{formatNextRun()}</strong> 입니다.
+              </p>
+
+              {autoRunSummary ? (
+                <div className={`p-3 rounded-lg border text-sm ${autoRunSummary.lastError ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="font-medium mb-2 text-gray-900">
+                    마지막 자동 실행 · {new Date(autoRunSummary.ranAt).toLocaleString('ko-KR')}
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-700">
+                    <dt className="text-gray-500">반복</dt><dd>{autoRunSummary.rounds}회</dd>
+                    <dt className="text-gray-500">처리</dt><dd>{autoRunSummary.totalProcessed}건</dd>
+                    <dt className="text-gray-500">성공</dt><dd>{autoRunSummary.totalSuccessful}건</dd>
+                    <dt className="text-gray-500">실패</dt><dd>{autoRunSummary.totalFailed}건</dd>
+                    <dt className="text-gray-500">이관 용량</dt><dd>{autoRunSummary.totalMB} MB</dd>
+                    <dt className="text-gray-500">소요</dt><dd>{(autoRunSummary.elapsedMs / 1000).toFixed(1)} 초</dd>
+                    <dt className="text-gray-500">시험지 남음</dt><dd>{autoRunSummary.lastRemaining.paper}건</dd>
+                    <dt className="text-gray-500">오답 남음</dt><dd>{autoRunSummary.lastRemaining.wa}건</dd>
+                  </dl>
+                  {autoRunSummary.lastError && (
+                    <div className="mt-2 text-xs text-amber-900 bg-amber-100/60 rounded p-2 break-all">
+                      오류: {autoRunSummary.lastError}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg border bg-gray-50 border-gray-200 text-sm text-gray-600">
+                  아직 실행 이력이 없습니다. 배포 후 다음 새벽 3시에 첫 자동 정리가 실행됩니다.
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchAutoRunStatus}
+                  onPointerDown={() => hapticLight()}
+                  className="press inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
+                >
+                  새로고침
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* Help card */}
           <section className="bg-blue-50 border border-blue-100 rounded-xl p-5 sm:p-6">
             <h3 className="text-sm font-semibold text-blue-900 mb-2">ℹ️ 참고</h3>
@@ -471,4 +556,31 @@ function sourceLabel(source: 'oauth' | 'service' | 'none'): string {
     case 'service': return '서비스 계정 (쿼터 0 — 업로드 실패 예상)';
     case 'none':    return '미설정 (base64 폴백만 사용)';
   }
+}
+
+/**
+ * 다음 크론 실행 시각을 KST 기준으로 포맷해 반환.
+ * 크론은 매일 03:00 KST (= 18:00 UTC 전날).
+ */
+function formatNextRun(): string {
+  const now = new Date();
+  const nowKstMs = now.getTime() + 9 * 60 * 60 * 1000;
+  const nowKst = new Date(nowKstMs);
+  const nextKst = new Date(Date.UTC(
+    nowKst.getUTCFullYear(),
+    nowKst.getUTCMonth(),
+    nowKst.getUTCDate(),
+    3, 0, 0, 0
+  ));
+  if (nextKst.getTime() <= nowKstMs) {
+    nextKst.setUTCDate(nextKst.getUTCDate() + 1);
+  }
+  const realUtc = new Date(nextKst.getTime() - 9 * 60 * 60 * 1000);
+  return realUtc.toLocaleString('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
