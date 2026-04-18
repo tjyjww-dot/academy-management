@@ -797,6 +797,15 @@ export default function WrongAnswersPage() {
       if (!imgUrl && wa.problemImage) imgUrl = wa.problemImage;
       return { num: idx + 1, originalNum: wa.problemNumber, testName: wa.testName, imgUrl };
     });
+    // 디버그: 빈 URL / Drive URL / base64 개수를 콘솔에 남긴다 (인쇄 창 열기 전 원본 창에서 확인 가능)
+    try {
+      const empty = problems.filter(p => !p.imgUrl).length;
+      const drives = problems.filter(p => p.imgUrl && /drive\.google\.com/.test(p.imgUrl)).length;
+      const base64 = problems.filter(p => p.imgUrl && p.imgUrl.startsWith('data:')).length;
+      const other = problems.length - empty - drives - base64;
+      console.log(`[generateTestPDF] total=${problems.length} drive=${drives} base64=${base64} other=${other} empty=${empty}`);
+      if (problems[0]) console.log('[generateTestPDF] sample url:', String(problems[0].imgUrl).slice(0, 120));
+    } catch {}
 
     // 4문제씩 페이지로 나눔
     const PROBLEMS_PER_PAGE = 4;
@@ -815,9 +824,12 @@ export default function WrongAnswersPage() {
 
     const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
     const totalPages = pages.length;
+    // about:blank 창에서도 /api/drive-image 같은 상대 URL이 해석되도록 base href 를 명시한다.
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
+<base href="${origin}/">
 <title>오답 테스트 - ${test.student.name}</title>
 <style>
   @page { size: A4; margin: 0; }
@@ -1064,7 +1076,7 @@ ${pages.map((pageProblems, pageIdx) => {
         <span class="source">${p.testName} #${p.originalNum}</span>
       </div>
       <div class="problem-body">
-        ${p.imgUrl ? `<img src="${toRenderableImageSrc(p.imgUrl)}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
+        ${p.imgUrl ? `<img src="${toRenderableImageSrc(p.imgUrl)}" alt="문제 ${p.num}" referrerpolicy="no-referrer" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'no-img\\'>이미지 로드 실패</div>')" />` : '<div class="no-img">문제 이미지 없음</div>'}
       </div>
       <div class="answer-area">
         <div class="answer-label">답<span class="ans-box">·</span></div>

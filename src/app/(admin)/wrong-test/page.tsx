@@ -108,8 +108,10 @@ export default function WrongTestPage() {
     const win = window.open('', '_blank');
     if (!win) return;
 
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
+<base href="${origin}/">
 <title>오답테스트 - ${test.student.name}</title>
 <style>
   @media print { @page { size: A4 portrait; margin: 15mm; } }

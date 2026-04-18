@@ -75,6 +75,8 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': cached.contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
         'X-Drive-Image-Cache': 'HIT',
       },
     });
@@ -117,6 +119,8 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
         'X-Drive-Image-Cache': 'MISS',
       },
     });
