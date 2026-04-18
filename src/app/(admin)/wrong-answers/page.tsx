@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { hapticSelection, hapticMedium, hapticLight, hapticHeavy } from '@/lib/haptics';
 import { Button, Card, Badge, Stepper, SectionHeader } from '@/components/ui';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { toRenderableImageSrc } from '@/lib/imageUrl';
 
 /* ============================================================
    Types
@@ -518,38 +519,32 @@ export default function WrongAnswersPage() {
       formData.append('answers', JSON.stringify(answersObj));
 
       // Upload problem images with actual problem numbers
+      // NOTE: 과거에는 Drive 업로드 실패 시 대비용 base64(dataUrls/answerDataUrls)를 함께 전송했으나,
+      // 이 폴백이 Neon DB에 수 MB base64를 누적 저장해 네트워크 egress를 고갈시키는 원인이었다.
+      // 2026-04-17 이후 서버는 Drive 업로드 실패 시 500을 반환하므로 base64 전송을 전면 제거한다.
       const problemNumbers: number[] = [];
-      const dataUrls: string[] = [];
-      const answerDataUrls: string[] = [];
       for (let i = 0; i < extractedProblems.length; i++) {
         const p = extractedProblems[i];
         const blob = dataURLtoBlob(p.imageDataUrl);
         const file = new File([blob], `problem-${p.number}.png`, { type: 'image/png' });
         formData.append('images', file);
         problemNumbers.push(p.number);
-        dataUrls.push(p.imageDataUrl);
 
-        // 정답 이미지도 함께 전송
+        // 정답 이미지도 함께 전송 (blob만, base64 전송 없음)
         if (p.answerImageDataUrl) {
           const ansBlob = dataURLtoBlob(p.answerImageDataUrl);
           const ansFile = new File([ansBlob], `answer-${p.number}.png`, { type: 'image/png' });
           formData.append('answerImages', ansFile);
-          answerDataUrls.push(p.answerImageDataUrl);
         } else {
           // 정답 이미지가 없는 문제는 빈 파일로 순서 유지
           const emptyBlob = new Blob([], { type: 'image/png' });
           formData.append('answerImages', new File([emptyBlob], `answer-${p.number}-empty.png`, { type: 'image/png' }));
-          answerDataUrls.push('');
         }
 
         setExtractProgress({ current: i + 1, total: extractedProblems.length, message: `이미지 업로드 중 (${i + 1}/${extractedProblems.length})` });
       }
       // Send actual problem numbers so pages get correct pageNumber
       formData.append('problemNumbers', JSON.stringify(problemNumbers));
-      // Send base64 data URLs as fallback when Google Drive upload fails
-      formData.append('dataUrls', JSON.stringify(dataUrls));
-      // 정답 이미지 base64 폴백 (빈 문자열 유지하여 인덱스 매핑 보존)
-      formData.append('answerDataUrls', JSON.stringify(answerDataUrls));
 
       const res = await fetch('/api/test-papers', { method: 'POST', body: formData });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed');
@@ -966,7 +961,7 @@ ${pages.map((pageProblems, pageIdx) => {
         <span class="source">${p.testName} #${p.originalNum}</span>
       </div>
       <div class="problem-body">
-        ${p.imgUrl ? `<img src="${p.imgUrl}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
+        ${p.imgUrl ? `<img src="${toRenderableImageSrc(p.imgUrl)}" alt="문제 ${p.num}" crossorigin="anonymous" />` : '<div class="no-img">문제 이미지 없음</div>'}
       </div>
       <div class="answer-area">
         <div class="answer-label">답<span class="ans-box">·</span></div>
@@ -2510,7 +2505,7 @@ ${pages.map((pageProblems, pageIdx) => {
                     {problemImg ? (
                       <div className="p-2">
                         <img
-                          src={problemImg}
+                          src={toRenderableImageSrc(problemImg)}
                           alt={`문제 ${wa.problemNumber}`}
                           className="w-full object-contain max-h-80"
                           style={{ borderRadius: 'var(--radius-chip)' }}
@@ -2609,7 +2604,7 @@ ${pages.map((pageProblems, pageIdx) => {
                         style={{ background: 'var(--color-success-bg)', borderTop: '1px solid var(--color-success-bg)' }}
                       >
                         <img
-                          src={answerImg}
+                          src={toRenderableImageSrc(answerImg)}
                           alt={`정답 ${wa.problemNumber}`}
                           className="w-full object-contain max-h-96"
                           style={{ borderRadius: 'var(--radius-chip)' }}

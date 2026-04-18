@@ -6,6 +6,7 @@ import PushNotificationManager from '@/components/PushNotificationManager';
 import { Card, Pill, Badge, Stat, SectionHeader, Button, Input, Divider } from '@/components/ui';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { hapticLight, hapticMedium, hapticSelection } from '@/lib/haptics';
+import { toRenderableImageSrc } from '@/lib/imageUrl';
 
 export default function ParentPage() {
   const router = useRouter();
@@ -927,7 +928,7 @@ export default function ParentPage() {
 <style>@page{size:A4;margin:12mm 10mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Pretendard Variable','Malgun Gothic',sans-serif;color:#0E0E0C;background:#fff;padding:10px}.header{text-align:center;border-bottom:1.5px solid #1F3A5F;padding-bottom:10px;margin-bottom:14px}.header h1{font-size:20px;margin-bottom:4px;letter-spacing:-0.02em}.info-row{display:flex;justify-content:center;gap:16px;font-size:12px;color:#6B6A63}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row-gap{margin-top:20px}.problem{border:1px solid #E8E6DF;border-radius:10px;overflow:hidden;page-break-inside:avoid;display:flex;flex-direction:column;min-height:280px}.problem-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#F4F3EE;border-bottom:1px solid #E8E6DF;font-size:12px}.problem-header .num{font-weight:700;font-size:16px;color:#1F3A5F}.problem-header .source{color:#9A998F;font-size:10px}.problem-body{padding:8px;text-align:center;flex:1;display:flex;align-items:center;justify-content:center}.problem-body img{max-width:100%;max-height:220px;object-fit:contain}.problem-body .no-img{color:#D8D5CB;padding:20px;font-size:11px}.answer-area{border-top:1px dashed #D8D5CB;padding:6px 10px;min-height:55px}.answer-area span{font-size:11px;color:#9A998F}.page-break{page-break-after:always}.footer{margin-top:16px;text-align:center;font-size:10px;color:#9A998F}.btn-bar{display:flex;gap:10px;justify-content:center;margin-bottom:12px}.btn-bar button{padding:10px 28px;font-size:14px;border:none;border-radius:10px;cursor:pointer;font-weight:600;letter-spacing:-0.01em}.btn-pdf{background:#1F3A5F;color:#fff}.btn-back{background:#6B6A63;color:#fff}@media print{.no-print{display:none!important}body{padding:0}}</style></head><body>
 <div class="no-print btn-bar"><button class="btn-back" onclick="window.close()">← 뒤로가기</button><button class="btn-pdf" onclick="window.print()">PDF 저장</button></div>
 <div class="header"><h1>연습 테스트</h1><div class="info-row"><span><b>이름:</b> ${s?.name}</span><span><b>날짜:</b> ${today}</span><span><b>총 ${problems.length}문항</b></span></div></div>
-<div class="grid">${problems.map((p: any, idx: number) => `<div class="problem"><div class="problem-header"><span class="num">${p.num}</span><span class="source">${p.testName} #${p.originalNum}</span></div><div class="problem-body">${p.imgUrl ? `<img src="${p.imgUrl}" />` : '<div class="no-img">문제 이미지 없음</div>'}</div><div class="answer-area"><span>답:</span></div></div>${(idx + 1) % 2 === 0 && idx < problems.length - 1 ? '</div><div class="row-gap"></div><div class="grid">' : ''}`).join('')}</div>
+<div class="grid">${problems.map((p: any, idx: number) => `<div class="problem"><div class="problem-header"><span class="num">${p.num}</span><span class="source">${p.testName} #${p.originalNum}</span></div><div class="problem-body">${p.imgUrl ? `<img src="${toRenderableImageSrc(p.imgUrl)}" />` : '<div class="no-img">문제 이미지 없음</div>'}</div><div class="answer-area"><span>답:</span></div></div>${(idx + 1) % 2 === 0 && idx < problems.length - 1 ? '</div><div class="row-gap"></div><div class="grid">' : ''}`).join('')}</div>
 <div class="footer">수학탐구 오답관리 시스템 — 연습용</div></body></html>`;
                             const w = window.open('', '_blank');
                             if (w) { w.document.write(html); w.document.close(); }
@@ -1059,7 +1060,7 @@ export default function ParentPage() {
                                       {imgUrl && (
                                         <div className="p-2" style={{ background: 'var(--color-surface)' }}>
                                           <img
-                                            src={imgUrl}
+                                            src={toRenderableImageSrc(imgUrl)}
                                             alt={`문제 ${wa.problemNumber}`}
                                             className="w-full object-contain max-h-72"
                                             style={{ borderRadius: 'var(--radius-chip)' }}
@@ -1108,7 +1109,7 @@ export default function ParentPage() {
                                       {isAnswerShown && answerImgUrl && (
                                         <div className="p-2 anim-pop-in" style={{ background: 'var(--color-success-bg)', borderTop: '1px solid var(--color-success-bg)' }}>
                                           <img
-                                            src={answerImgUrl}
+                                            src={toRenderableImageSrc(answerImgUrl)}
                                             alt={`정답 ${wa.problemNumber}`}
                                             className="w-full object-contain max-h-96"
                                             style={{ borderRadius: 'var(--radius-chip)' }}

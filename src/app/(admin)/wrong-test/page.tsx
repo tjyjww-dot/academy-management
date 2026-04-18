@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toRenderableImageSrc } from '@/lib/imageUrl';
 
 interface Classroom { id: string; name: string; }
 interface Student { id: string; name: string; }
@@ -141,7 +142,7 @@ export default function WrongTestPage() {
     const imgUrl = matchedPage?.imageUrl || wa.problemImage || '';
     return `<div class="problem">
       <div class="problem-header">${idx + 1}번 (원본: ${wa.testName} ${wa.problemNumber}번)</div>
-      ${imgUrl ? `<img src="${imgUrl}" alt="문제 이미지" />` : '<p style="color:#999">이미지 없음</p>'}
+      ${imgUrl ? `<img src="${toRenderableImageSrc(imgUrl)}" alt="문제 이미지" />` : '<p style="color:#999">이미지 없음</p>'}
       <div class="source">${wa.testName}</div>
     </div>`;
   }).join('')}
