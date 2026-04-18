@@ -89,6 +89,37 @@ export async function GET(request: NextRequest) {
       console.log(`[tests GET] Auto-deleted ${emptyIds.length} empty tests`);
     }
 
+    // 디버그: 각 테스트의 문제 이미지 URL 포맷 분포를 로그로 남긴다.
+    // 프로덕션 이슈(기존 오답 이미지 누락) 디버깅용 — 해결 후 제거.
+    try {
+      for (const t of tests) {
+        const urlBuckets = { empty: 0, dataUrl: 0, driveGoogle: 0, http: 0, other: 0 };
+        const samples: string[] = [];
+        for (const it of t.items) {
+          const wa: any = it.wrongAnswer;
+          let url: string | null = null;
+          if (wa.testPaper?.pages) {
+            const page = wa.testPaper.pages.find((p: any) => p.pageNumber === wa.problemNumber);
+            if (page) url = page.imageUrl || null;
+          }
+          if (!url && wa.problemImage) url = wa.problemImage;
+          if (!url) urlBuckets.empty += 1;
+          else if (url.startsWith('data:')) urlBuckets.dataUrl += 1;
+          else if (/drive\.google\.com|docs\.google\.com/.test(url)) urlBuckets.driveGoogle += 1;
+          else if (/^https?:\/\//.test(url)) urlBuckets.http += 1;
+          else urlBuckets.other += 1;
+          if (samples.length < 3 && url) samples.push(String(url).slice(0, 80));
+        }
+        console.log(
+          `[tests GET] id=${t.id} student=${t.student?.name || '?'} items=${t.items.length} ` +
+          `empty=${urlBuckets.empty} data=${urlBuckets.dataUrl} drive=${urlBuckets.driveGoogle} ` +
+          `http=${urlBuckets.http} other=${urlBuckets.other} samples=${JSON.stringify(samples)}`
+        );
+      }
+    } catch (e) {
+      console.warn('[tests GET] url-format diagnostic failed:', e);
+    }
+
     return NextResponse.json(tests);
   } catch (error) {
     console.error('오답 테스트 조회 오류:', error);
