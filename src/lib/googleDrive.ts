@@ -7,6 +7,44 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 /**
+ * Retry a fetch-returning function with exponential backoff.
+ * Only retries on transient errors (network failures, 5xx, 429, 408).
+ * Does NOT retry on 4xx auth/validation errors (they are permanent).
+ */
+async function fetchWithRetry(
+  fn: () => Promise<Response>,
+  label: string,
+  maxRetries = 3
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fn();
+      // 2xx/3xx → 성공
+      if (res.ok) return res;
+      // 4xx (401/403/400 등) → 영구 오류, 재시도하지 않음
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        return res;
+      }
+      // 5xx, 429, 408 → 재시도 대상
+      if (attempt === maxRetries) return res;
+      const body = await res.text().catch(() => '');
+      lastErr = new Error(`[${label}] HTTP ${res.status}: ${body.slice(0, 200)}`);
+    } catch (e) {
+      lastErr = e;
+      // 네트워크 실패도 재시도
+      if (attempt === maxRetries) throw e;
+    }
+    // Exponential backoff: 500ms, 1s, 2s + jitter
+    const delay = 500 * Math.pow(2, attempt) + Math.random() * 200;
+    console.warn(`[googleDrive:${label}] 재시도 ${attempt + 1}/${maxRetries} (${delay.toFixed(0)}ms 대기)`, lastErr);
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  // Should be unreachable
+  throw lastErr instanceof Error ? lastErr : new Error(`[${label}] retry exhausted`);
+}
+
+/**
  * Get Google Drive access token using service account
  */
 export async function getAccessToken(): Promise<string> {
@@ -174,16 +212,20 @@ export async function uploadFile(
     offset += part.length;
   }
 
-  const uploadRes = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,webContentLink,thumbnailLink',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body: body,
-    }
+  const uploadRes = await fetchWithRetry(
+    () =>
+      fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,webContentLink,thumbnailLink',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+          },
+          body: body,
+        }
+      ),
+    'upload-file'
   );
 
   const uploaded = await uploadRes.json();
@@ -191,20 +233,24 @@ export async function uploadFile(
     throw new Error('Failed to upload file: ' + JSON.stringify(uploaded));
   }
 
-  // Make the file publicly readable
-  await fetch(
-    `https://www.googleapis.com/drive/v3/files/${uploaded.id}/permissions`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        role: 'reader',
-        type: 'anyone',
-      }),
-    }
+  // Make the file publicly readable (재시도 포함 — 429/5xx 대응)
+  await fetchWithRetry(
+    () =>
+      fetch(
+        `https://www.googleapis.com/drive/v3/files/${uploaded.id}/permissions`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            role: 'reader',
+            type: 'anyone',
+          }),
+        }
+      ),
+    'set-permissions'
   );
 
   // Return direct image URL (works without auth)
@@ -221,64 +267,3 @@ export async function uploadFile(
 /**
  * Upload a file from a File/Blob object (convenience for API routes)
  */
-export async function uploadFileFromBlob(
-  fileName: string,
-  file: File | Blob,
-  mimeType: string,
-  folderPath?: string[]
-): Promise<{ id: string; url: string; thumbnailUrl: string }> {
-  const accessToken = await getAccessToken();
-
-  // Ensure folder structure exists
-  const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
-  let folderId: string | undefined;
-
-  if (folderPath && folderPath.length > 0) {
-    folderId = await ensureFolderPath(accessToken, folderPath, rootFolderId);
-  } else {
-    folderId = rootFolderId;
-  }
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  return uploadFile(accessToken, fileName, buffer, mimeType, folderId);
-}
-
-/**
- * Delete a file from Google Drive
- */
-export async function deleteFile(fileId: string): Promise<void> {
-  const accessToken = await getAccessToken();
-
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}`,
-    {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  );
-
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Failed to delete file: ${res.status}`);
-  }
-}
-
-/**
- * Extract Google Drive file ID from a URL
- */
-export function extractFileId(url: string): string | null {
-  // https://drive.google.com/uc?export=view&id=FILE_ID
-  const match1 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (match1) return match1[1];
-
-  // https://drive.google.com/file/d/FILE_ID/view
-  const match2 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (match2) return match2[1];
-
-  // https://drive.google.com/thumbnail?id=FILE_ID
-  const match3 = url.match(/thumbnail\?id=([a-zA-Z0-9_-]+)/);
-  if (match3) return match3[1];
-
-  return null;
-}
