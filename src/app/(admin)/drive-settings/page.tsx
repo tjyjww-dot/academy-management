@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { hapticLight, hapticMedium, hapticSuccess, hapticWarn } from '@/lib/haptics';
 
 type Status = {
@@ -28,8 +28,21 @@ type MigrationResult = {
   totalMB: number;
   remainingPaperPages: number;
   remainingWrongAnswers: number;
+  timeBudgetExceeded?: boolean;
+  elapsedMs?: number;
   log: MigrationLog[];
 } | null;
+
+type AutoProgress = {
+  rounds: number;
+  totalProcessed: number;
+  totalSuccessful: number;
+  totalFailed: number;
+  totalMB: number;
+  lastRemaining: { paper: number; wa: number };
+  running: boolean;
+  stopRequested: boolean;
+};
 
 export default function DriveSettingsPage() {
   const [status, setStatus] = useState<Status>(null);
@@ -40,6 +53,8 @@ export default function DriveSettingsPage() {
   const [migrating, setMigrating] = useState(false);
   const [migResult, setMigResult] = useState<MigrationResult>(null);
   const [remaining, setRemaining] = useState<{ paper: number; wa: number } | null>(null);
+  const [autoProgress, setAutoProgress] = useState<AutoProgress | null>(null);
+  const stopRequestedRef = useRef(false);
 
   async function fetchRemaining() {
     try {
@@ -60,6 +75,20 @@ export default function DriveSettingsPage() {
     }
   }
 
+  // 단일 배치 실행 (내부 공용 — auto/manual 에서 호출)
+  async function runOneBatch(limit: number): Promise<MigrationResult | null> {
+    const res = await fetch('/api/admin/migrate-base64', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    return data as MigrationResult;
+  }
+
   async function runMigration(limit: number) {
     if (!confirm(`base64 이미지 ${limit}건을 Google Drive 로 이관할게요. 진행할까요?\n(실패해도 원본 DB 는 보존됩니다.)`)) {
       return;
@@ -68,13 +97,8 @@ export default function DriveSettingsPage() {
     setMigrating(true);
     setMigResult(null);
     try {
-      const res = await fetch('/api/admin/migrate-base64', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit }),
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const data = await runOneBatch(limit);
+      if (data) {
         setMigResult(data);
         setRemaining({
           paper: data.remainingPaperPages ?? 0,
@@ -82,14 +106,92 @@ export default function DriveSettingsPage() {
         });
         if (data.failed === 0 && data.successful > 0) hapticSuccess();
         else if (data.failed > 0) hapticWarn();
-      } else {
-        alert('마이그레이션 실패: ' + (data.error || '알 수 없는 오류'));
       }
     } catch (e: any) {
       alert('마이그레이션 요청 오류: ' + (e?.message || e));
     } finally {
       setMigrating(false);
     }
+  }
+
+  // 남은 건수가 0이 될 때까지 자동 반복 이관
+  async function runAutoMigration(batchSize: number) {
+    if (!confirm(`남은 base64 이미지를 전부 Drive로 자동 이관합니다.\n한 번에 ${batchSize}건씩 반복 실행하며, 중간에 "중지" 버튼으로 멈출 수 있어요.\n시작할까요?`)) {
+      return;
+    }
+    hapticMedium();
+    stopRequestedRef.current = false;
+    setMigrating(true);
+    setMigResult(null);
+    setAutoProgress({
+      rounds: 0,
+      totalProcessed: 0,
+      totalSuccessful: 0,
+      totalFailed: 0,
+      totalMB: 0,
+      lastRemaining: remaining ?? { paper: 0, wa: 0 },
+      running: true,
+      stopRequested: false,
+    });
+
+    let rounds = 0;
+    let totalProcessed = 0;
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+    let totalMB = 0;
+    let lastRemaining = remaining ?? { paper: 0, wa: 0 };
+    let lastBatch: MigrationResult | null = null;
+
+    try {
+      // 안전장치: 최대 200 라운드 (= 최대 10,000건)
+      for (let i = 0; i < 200; i++) {
+        if (stopRequestedRef.current) break;
+        const data = await runOneBatch(batchSize);
+        rounds++;
+        if (data) {
+          totalProcessed += data.processed;
+          totalSuccessful += data.successful;
+          totalFailed += data.failed;
+          totalMB = +(totalMB + data.totalMB).toFixed(2);
+          lastRemaining = {
+            paper: data.remainingPaperPages ?? 0,
+            wa: data.remainingWrongAnswers ?? 0,
+          };
+          lastBatch = data;
+          setMigResult(data);
+          setRemaining(lastRemaining);
+          setAutoProgress({
+            rounds,
+            totalProcessed,
+            totalSuccessful,
+            totalFailed,
+            totalMB,
+            lastRemaining,
+            running: true,
+            stopRequested: stopRequestedRef.current,
+          });
+          // 전부 끝났으면 종료
+          if (lastRemaining.paper === 0 && lastRemaining.wa === 0) break;
+          // 처리 0건이면 무한 루프 방지
+          if (data.processed === 0) break;
+        }
+        // 서버 부담 줄이려 살짝 대기
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (totalFailed === 0 && totalSuccessful > 0) hapticSuccess();
+      else if (totalFailed > 0) hapticWarn();
+    } catch (e: any) {
+      alert('자동 이관 중 오류: ' + (e?.message || e));
+    } finally {
+      setAutoProgress((prev) => prev ? { ...prev, running: false, stopRequested: stopRequestedRef.current } : prev);
+      setMigrating(false);
+    }
+  }
+
+  function requestStopAuto() {
+    stopRequestedRef.current = true;
+    hapticWarn();
+    setAutoProgress((prev) => prev ? { ...prev, stopRequested: true } : prev);
   }
 
   async function fetchStatus() {
@@ -251,32 +353,60 @@ export default function DriveSettingsPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => runMigration(20)}
+                  onClick={() => runAutoMigration(20)}
                   onPointerDown={() => hapticMedium()}
                   disabled={migrating}
                   className="press press-strong inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
                 >
-                  {migrating ? '이관 중…' : '20건 이관 시작'}
+                  {migrating ? (autoProgress?.running ? `자동 이관 중… (${autoProgress.rounds}회)` : '이관 중…') : '전체 자동 이관'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => runMigration(50)}
-                  onPointerDown={() => hapticMedium()}
+                  onClick={() => runMigration(20)}
+                  onPointerDown={() => hapticLight()}
                   disabled={migrating}
                   className="press inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors"
                 >
-                  50건 이관
+                  20건만 이관
                 </button>
-                <button
-                  type="button"
-                  onClick={fetchRemaining}
-                  onPointerDown={() => hapticLight()}
-                  disabled={migrating}
-                  className="press inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  남은 건수 새로고침
-                </button>
+                {autoProgress?.running ? (
+                  <button
+                    type="button"
+                    onClick={requestStopAuto}
+                    onPointerDown={() => hapticWarn()}
+                    className="press inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-700 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+                  >
+                    {autoProgress.stopRequested ? '중지 중…' : '중지'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={fetchRemaining}
+                    onPointerDown={() => hapticLight()}
+                    disabled={migrating}
+                    className="press inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    남은 건수 새로고침
+                  </button>
+                )}
               </div>
+
+              {autoProgress && (
+                <div className="mt-4 p-3 rounded-lg border bg-blue-50 border-blue-100 text-sm">
+                  <div className="font-medium text-blue-900 mb-2">
+                    {autoProgress.running ? '🔄 자동 이관 진행 중' : autoProgress.stopRequested ? '⏹ 자동 이관 중지됨' : '✓ 자동 이관 완료'}
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-900/85">
+                    <dt className="text-blue-900/60">반복 횟수</dt><dd>{autoProgress.rounds}회</dd>
+                    <dt className="text-blue-900/60">총 처리</dt><dd>{autoProgress.totalProcessed}건</dd>
+                    <dt className="text-blue-900/60">성공</dt><dd>{autoProgress.totalSuccessful}건</dd>
+                    <dt className="text-blue-900/60">실패</dt><dd>{autoProgress.totalFailed}건</dd>
+                    <dt className="text-blue-900/60">누적 이관</dt><dd>{autoProgress.totalMB} MB</dd>
+                    <dt className="text-blue-900/60">남은 시험지</dt><dd>{autoProgress.lastRemaining.paper}건</dd>
+                    <dt className="text-blue-900/60">남은 오답</dt><dd>{autoProgress.lastRemaining.wa}건</dd>
+                  </dl>
+                </div>
+              )}
 
               {migResult && (
                 <div className={`mt-4 p-3 rounded-lg border text-sm ${migResult.failed > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>

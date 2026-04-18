@@ -86,6 +86,12 @@ export async function POST(request: NextRequest) {
   const log: LogEntry[] = [];
   let totalBytes = 0;
   let processed = 0;
+  let timeBudgetExceeded = false;
+
+  // Vercel maxDuration 60초 — 안전 마진 45초에서 조기 종료
+  const startedAt = Date.now();
+  const TIME_BUDGET_MS = 45_000;
+  const overBudget = () => Date.now() - startedAt > TIME_BUDGET_MS;
 
   // ── Drive auth (skip if dry-run) ────────────────────────────────
   let accessToken = '';
@@ -112,7 +118,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const shouldStop = () => processed >= limit;
+  const shouldStop = () => {
+    if (processed >= limit) return true;
+    if (overBudget()) {
+      timeBudgetExceeded = true;
+      return true;
+    }
+    return false;
+  };
 
   // ── 1) TestPaperPage (imageUrl, answerImageUrl) ─────────────────
   if (!skipPaperPages) {
@@ -293,6 +306,8 @@ export async function POST(request: NextRequest) {
     totalMB: +(totalBytes / 1024 / 1024).toFixed(2),
     remainingPaperPages,
     remainingWrongAnswers,
+    timeBudgetExceeded,
+    elapsedMs: Date.now() - startedAt,
     log,
   });
 }
