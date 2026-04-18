@@ -797,16 +797,6 @@ export default function WrongAnswersPage() {
       if (!imgUrl && wa.problemImage) imgUrl = wa.problemImage;
       return { num: idx + 1, originalNum: wa.problemNumber, testName: wa.testName, imgUrl };
     });
-    // 디버그: 빈 URL / Drive URL / base64 개수를 콘솔에 남긴다 (인쇄 창 열기 전 원본 창에서 확인 가능)
-    try {
-      const empty = problems.filter(p => !p.imgUrl).length;
-      const drives = problems.filter(p => p.imgUrl && /drive\.google\.com/.test(p.imgUrl)).length;
-      const base64 = problems.filter(p => p.imgUrl && p.imgUrl.startsWith('data:')).length;
-      const other = problems.length - empty - drives - base64;
-      console.log(`[generateTestPDF] total=${problems.length} drive=${drives} base64=${base64} other=${other} empty=${empty}`);
-      if (problems[0]) console.log('[generateTestPDF] sample url:', String(problems[0].imgUrl).slice(0, 120));
-    } catch {}
-
     // 4문제씩 페이지로 나눔
     const PROBLEMS_PER_PAGE = 4;
     const pages: typeof problems[] = [];
