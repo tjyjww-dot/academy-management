@@ -52,6 +52,7 @@ const adminOnlyGroup: NavGroup = {
   title: '시스템',
   items: [
     { href: '/signup-requests', label: '가입신청 관리', icon: 'signup' },
+    { href: '/drive-settings', label: 'Drive 연결', icon: 'drive' },
     { href: '/backup', label: '데이터 백업', icon: 'backup' },
   ],
 };
@@ -106,6 +107,11 @@ function getIcon(name: string) {
     backup: (
       <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+      </svg>
+    ),
+    drive: (
+      <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 4L4 14l4 6h8l4-6-4-10H8zm0 0l4 10m-4-10l4 10m4 6l-4-10M4 14h16" />
       </svg>
     ),
   };

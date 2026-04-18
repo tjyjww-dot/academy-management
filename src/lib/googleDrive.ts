@@ -1,13 +1,115 @@
 import { SignJWT, importPKCS8 } from 'jose';
+import { prisma } from '@/lib/prisma';
 
 // Google Drive scope: drive.file allows managing files created by this app
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
-// Cache token to avoid re-generating JWT for every request
-let cachedToken: { token: string; expiresAt: number } | null = null;
+// AppSetting keys for OAuth refresh-token based auth (preferred over service account)
+export const DRIVE_REFRESH_TOKEN_KEY = 'google_drive_refresh_token';
+export const DRIVE_OWNER_EMAIL_KEY = 'google_drive_owner_email';
+
+type DriveAuthSource = 'oauth' | 'service' | 'none';
+
+// Cache token to avoid re-generating for every request
+let cachedToken: { token: string; expiresAt: number; source: DriveAuthSource } | null = null;
 
 /**
- * Get Google Drive access token using service account
+ * Force the in-memory access-token cache to be cleared.
+ * Call this after connect/disconnect in the OAuth admin UI so the next
+ * upload re-authenticates with the new credential.
+ */
+export function clearDriveTokenCache(): void {
+  cachedToken = null;
+}
+
+/**
+ * Report which credential source Drive is using right now.
+ * Used by the admin "Drive 연결" settings page.
+ */
+export async function getDriveAuthSource(): Promise<DriveAuthSource> {
+  try {
+    const row = await prisma.appSetting.findUnique({
+      where: { key: DRIVE_REFRESH_TOKEN_KEY },
+    });
+    if (row?.value) return 'oauth';
+  } catch {
+    // DB not reachable — fall through and report by env presence
+  }
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (key && key.length > 10) return 'service';
+  return 'none';
+}
+
+/**
+ * Load the admin's personal-account refresh token from AppSetting.
+ * Returns null if no token has been stored yet.
+ */
+async function loadRefreshToken(): Promise<string | null> {
+  try {
+    const row = await prisma.appSetting.findUnique({
+      where: { key: DRIVE_REFRESH_TOKEN_KEY },
+    });
+    return row?.value || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Exchange a stored refresh_token for a short-lived access_token.
+ * Throws on failure so the caller can fall back to the service account.
+ */
+async function exchangeRefreshToken(
+  refreshToken: string
+): Promise<{ accessToken: string; expiresIn: number }> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not configured');
+  }
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.access_token) {
+    // If Google reports invalid_grant, the refresh token was revoked
+    // (admin visited myaccount.google.com/permissions and removed our app).
+    // Clear it from DB so the UI shows "disconnected" and we fall back.
+    if (data.error === 'invalid_grant') {
+      try {
+        await prisma.appSetting.deleteMany({
+          where: { key: { in: [DRIVE_REFRESH_TOKEN_KEY, DRIVE_OWNER_EMAIL_KEY] } },
+        });
+      } catch {}
+    }
+    throw new Error(
+      'refresh_token 교환 실패: ' + (data.error_description || data.error || 'unknown')
+    );
+  }
+
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in || 3600,
+  };
+}
+
+/**
+ * Get Google Drive access token.
+ *
+ * Priority:
+ *   1. OAuth refresh_token stored in AppSetting (admin's personal 15GB account)
+ *   2. Service account JWT (legacy — 0 byte personal quota, usually fails)
+ *
+ * Callers don't need to know which path was used; they just get a Bearer token.
  */
 export async function getAccessToken(): Promise<string> {
   // Return cached token if still valid (with 5 min buffer)
@@ -15,10 +117,34 @@ export async function getAccessToken(): Promise<string> {
     return cachedToken.token;
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Path 1 · OAuth refresh token (preferred)
+  // ─────────────────────────────────────────────────────────────
+  const refreshToken = await loadRefreshToken();
+  if (refreshToken) {
+    try {
+      const { accessToken, expiresIn } = await exchangeRefreshToken(refreshToken);
+      cachedToken = {
+        token: accessToken,
+        expiresAt: Date.now() + expiresIn * 1000,
+        source: 'oauth',
+      };
+      return accessToken;
+    } catch (err) {
+      // Log and fall through to service account
+      console.warn('[googleDrive] OAuth refresh failed, falling back to service account:', err);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Path 2 · Service account JWT (legacy fallback)
+  // ─────────────────────────────────────────────────────────────
   const serviceAccountKey = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '{}');
 
   if (!serviceAccountKey.private_key || !serviceAccountKey.client_email) {
-    throw new Error('Google Service Account Key not configured');
+    throw new Error(
+      'Google Drive 인증이 설정되지 않았습니다. 관리자 설정 → Drive 연결에서 Google 계정을 연결해 주세요.'
+    );
   }
 
   const privateKey = await importPKCS8(serviceAccountKey.private_key, 'RS256');
@@ -51,6 +177,7 @@ export async function getAccessToken(): Promise<string> {
   cachedToken = {
     token: tokenData.access_token,
     expiresAt: Date.now() + (tokenData.expires_in || 3600) * 1000,
+    source: 'service',
   };
 
   return tokenData.access_token;
