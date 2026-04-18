@@ -70,10 +70,11 @@ export async function POST(request: NextRequest) {
       if (pnStr) problemNumbers = JSON.parse(pnStr);
     } catch {}
 
-    // NOTE: dataUrls/answerDataUrls 필드는 구버전 프론트엔드 호환용으로만 수신·로깅하고 DB에는 저장하지 않는다.
-    // 이전에는 Google Drive 업로드 실패 시 base64 data URL을 imageUrl 컬럼에 그대로 저장했는데,
-    // 이 방식이 Neon DB의 월 네트워크 전송량을 빠르게 소진시켜 프로덕션 다운으로 이어졌다.
-    // 이제부터 Drive 업로드가 실패하면 명확히 500 에러를 반환하고 DB에는 URL만 저장한다.
+    // NOTE (2026-04-18): 서비스 계정의 Google Drive 저장 용량 문제(storageQuotaExceeded)로
+    // 업로드가 전부 실패하는 상태가 확인되었다 → Drive 업로드 실패 시 일시적으로
+    // base64 data URL 폴백을 복원한다. 학부모 API(/api/parent/data)에는 이미 base64 차단
+    // 가드가 있어 이집소트(egress) 폭증은 막혀있다. 근본 해결(OAuth or Blob)은 추후 작업.
+    // dataUrls/answerDataUrls 는 구 프론트엔드 호환용으로 계속 수신하되 DB에는 저장하지 않는다.
     let legacyDataUrlCount = 0;
     try {
       const duStr = formData.get('dataUrls') as string;
@@ -100,56 +101,68 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '시험명, 반, 총 문항수를 모두 입력해주세요' }, { status: 400 });
     }
 
-    // Upload files to Google Drive (no base64 fallback — 실패 시 500 에러)
+    // Upload files to Google Drive — Drive 실패 시 base64 폴백(응급 복구).
     const pageData: { pageNumber: number; imageUrl: string; answerImageUrl?: string }[] = [];
+    let fallbackCount = 0; // Drive 실패로 base64 로 떨어진 횟수 (모니터링용)
 
     if (files.length > 0 && files[0].size > 0) {
-      try {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          if (!file || file.size === 0) continue;
-          const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-          const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
-          // Use actual problem number as pageNumber for correct image mapping
-          const pNum = problemNumbers[i] || (i + 1);
-          const fileName = `${Date.now()}-problem${pNum}.${ext}`;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file || file.size === 0) continue;
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+        const contentType = file.type || (ext === 'pdf' ? 'application/pdf' : 'image/png');
+        // Use actual problem number as pageNumber for correct image mapping
+        const pNum = problemNumbers[i] || (i + 1);
+        const fileName = `${Date.now()}-problem${pNum}.${ext}`;
+        let imageUrl: string;
+        try {
           const result = await uploadFileFromBlob(
             fileName,
             file,
             contentType,
             ['수탐학원', '시험지', name]
           );
-          pageData.push({ pageNumber: pNum, imageUrl: result.url });
+          imageUrl = result.url;
+        } catch (uploadError: any) {
+          console.warn(
+            `[test-papers] Drive 업로드 실패 → base64 폴백 (${fileName}): ${uploadError?.message || uploadError}`
+          );
+          const buf = Buffer.from(await file.arrayBuffer());
+          imageUrl = `data:${contentType};base64,${buf.toString('base64')}`;
+          fallbackCount++;
         }
-      } catch (uploadError: any) {
-        console.error('[test-papers] Google Drive upload failed:', uploadError?.message || uploadError);
-        return NextResponse.json({
-          error: `시험지 이미지 업로드 실패: ${uploadError?.message || '구글 드라이브 오류'}`,
-          hint: '잠시 후 다시 시도해주세요. 문제가 반복되면 관리자에게 문의하세요.'
-        }, { status: 500 });
+        pageData.push({ pageNumber: pNum, imageUrl });
       }
     }
 
-    // 정답 이미지 업로드 (no base64 fallback)
+    // 정답 이미지 업로드 — Drive 실패 시 base64 폴백
     const answerImageMap: Record<number, string> = {};
     if (answerFiles.length > 0) {
-      try {
-        for (let i = 0; i < answerFiles.length; i++) {
-          const file = answerFiles[i];
-          const pNum = problemNumbers[i] || (i + 1);
-          // 빈 파일(정답 이미지 없는 문제)은 건너뛰되 인덱스는 유지
-          if (!file || file.size === 0) continue;
-          const fileName = `${Date.now()}-answer${pNum}.png`;
+      for (let i = 0; i < answerFiles.length; i++) {
+        const file = answerFiles[i];
+        const pNum = problemNumbers[i] || (i + 1);
+        // 빈 파일(정답 이미지 없는 문제)은 건너뛰되 인덱스는 유지
+        if (!file || file.size === 0) continue;
+        const fileName = `${Date.now()}-answer${pNum}.png`;
+        let answerUrl: string;
+        try {
           const result = await uploadFileFromBlob(fileName, file, 'image/png', ['수탐학원', '시험지', name, '정답']);
-          answerImageMap[pNum] = result.url;
+          answerUrl = result.url;
+        } catch (e: any) {
+          console.warn(
+            `[test-papers] 정답 Drive 업로드 실패 → base64 폴백 (${fileName}): ${e?.message || e}`
+          );
+          const buf = Buffer.from(await file.arrayBuffer());
+          answerUrl = `data:image/png;base64,${buf.toString('base64')}`;
+          fallbackCount++;
         }
-      } catch (e: any) {
-        console.error('[test-papers] Answer image upload failed:', e?.message);
-        return NextResponse.json({
-          error: `정답 이미지 업로드 실패: ${e?.message || '구글 드라이브 오류'}`,
-          hint: '잠시 후 다시 시도해주세요.'
-        }, { status: 500 });
+        answerImageMap[pNum] = answerUrl;
       }
+    }
+    if (fallbackCount > 0) {
+      console.warn(
+        `[test-papers] 총 ${fallbackCount}건이 base64 폴백으로 저장됨. Drive 쿼터/권한 확인 필요.`
+      );
     }
     // pageData에 정답 이미지 URL 매핑
     for (const pd of pageData) {
