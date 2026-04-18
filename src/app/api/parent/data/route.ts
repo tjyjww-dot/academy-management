@@ -158,6 +158,43 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // 안전장치: DB에 남아있는 레거시 base64 data URL을 응답에서 제거한다.
+    // 학부모앱이 이 데이터를 매번 불러오면서 수백 MB egress를 발생시키던 원인.
+    // 마이그레이션 스크립트 실행 이전에도 즉시 효과를 내기 위한 일시 가드.
+    const isDataUrl = (v: unknown): v is string =>
+      typeof v === 'string' && v.startsWith('data:');
+    let strippedCount = 0;
+    const sanitizedWrongAnswers = wrongAnswers.map((wa: any) => {
+      const clone: any = { ...wa };
+      if (isDataUrl(clone.problemImage)) {
+        clone.problemImage = null;
+        strippedCount++;
+      }
+      if (clone.testPaper?.pages?.length) {
+        clone.testPaper = {
+          ...clone.testPaper,
+          pages: clone.testPaper.pages.map((pg: any) => {
+            const p = { ...pg };
+            if (isDataUrl(p.imageUrl)) {
+              p.imageUrl = null;
+              strippedCount++;
+            }
+            if (isDataUrl(p.answerImageUrl)) {
+              p.answerImageUrl = null;
+              strippedCount++;
+            }
+            return p;
+          }),
+        };
+      }
+      return clone;
+    });
+    if (strippedCount > 0) {
+      console.warn(
+        `[parent/data] Stripped ${strippedCount} legacy base64 data URL(s) from response for user ${user.id}`
+      );
+    }
+
     return NextResponse.json({
       user: { id: user.id, name: user.name, role: user.role },
       students,
@@ -166,7 +203,7 @@ export async function GET(req: NextRequest) {
       attendance,
       announcements,
       videos,
-      wrongAnswers
+      wrongAnswers: sanitizedWrongAnswers
     });
 
   } catch (error) {

@@ -29,6 +29,7 @@ interface WrongAnswerRecord {
   testPaper?: {
     id?: string;
     name?: string;
+    answers?: string | null;
     pages?: { id?: string; pageNumber: number; imageUrl: string; answerImageUrl?: string | null }[];
   } | null;
 }
@@ -119,6 +120,9 @@ export default function WrongAnswersPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [showDebug, setShowDebug] = useState(false);
+  // 서버에서 추출한 텍스트 정답 맵 (problemNumber → "①", "1", "A" 등)
+  // - 이미지 정답 추출 실패 시에도 채점 시 텍스트 정답을 표시하기 위해 저장
+  const [serverTextAnswers, setServerTextAnswers] = useState<Record<string, string>>({});
 
   // Register wrong answers state
   const [regClassroom, setRegClassroom] = useState('');
@@ -152,6 +156,11 @@ export default function WrongAnswersPage() {
   const [wrongSelectMode, setWrongSelectMode] = useState(false);
   const [selectedWrongIds, setSelectedWrongIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // 시험지 정답 직접 입력 모달 — 기존 시험지에 정답이 없을 때 수동 입력용
+  const [answerEditModal, setAnswerEditModal] = useState<{
+    id: string; name: string; totalProblems: number; text: string; saving: boolean;
+  } | null>(null);
 
   useEffect(() => { fetchClassrooms(); fetchAllTestPapers(); }, []);
 
@@ -435,6 +444,14 @@ export default function WrongAnswersPage() {
                 serverRawText: serverData.rawText,
               }));
             }
+            // 서버에서 추출한 텍스트 정답을 전역 상태로 저장 (채점 화면 폴백용)
+            if (serverData.answers && Object.keys(serverData.answers).length > 0) {
+              const mapped: Record<string, string> = {};
+              Object.entries(serverData.answers as Record<string, any>).forEach(([k, v]) => {
+                if (v != null && typeof v === 'string') mapped[String(k)] = v;
+              });
+              setServerTextAnswers(mapped);
+            }
           }
         } catch (e) {
           console.error('Server answer extraction failed:', e);
@@ -511,10 +528,17 @@ export default function WrongAnswersPage() {
       if (uploadStudent) formData.append('studentId', uploadStudent);
       formData.append('totalProblems', String(extractedProblems.length));
 
-      // Build answers JSON from matching
+      // Build answers JSON — prefer server-extracted TEXT answers (e.g. "①", "1", "A")
+      // so the grading modal can fall back to showing text even if image extraction failed.
+      // Fallback to page reference "p.X" only when no text answer was extracted for that problem.
       const answersObj: Record<string, string> = {};
+      Object.entries(serverTextAnswers).forEach(([num, ans]) => {
+        if (ans && typeof ans === 'string') answersObj[String(num)] = ans;
+      });
       extractedProblems.forEach(p => {
-        if (p.answerPageNumber) answersObj[String(p.number)] = `p.${p.answerPageNumber}`;
+        if (!answersObj[String(p.number)] && p.answerPageNumber) {
+          answersObj[String(p.number)] = `p.${p.answerPageNumber}`;
+        }
       });
       formData.append('answers', JSON.stringify(answersObj));
 
@@ -575,6 +599,85 @@ export default function WrongAnswersPage() {
       ]);
     } catch (err: any) {
       showMsg('삭제 실패: ' + err.message, 'error');
+    }
+  };
+
+  /**
+   * 정답 직접 입력 모달 열기 — 기존 시험지의 testPaper.answers (JSON) 를
+   * 사용자가 편집할 수 있는 텍스트 형태로 변환해 모달을 연다.
+   * "p.X" 형태의 페이지 참조는 빈 칸으로 보여 수동으로 덮어쓸 수 있게 한다.
+   */
+  const openAnswerEditor = async (tp: TestPaperRecord) => {
+    let existing: Record<string, string> = {};
+    try {
+      const res = await fetch(`/api/test-papers/${tp.id}`);
+      if (res.ok) {
+        const full = await res.json();
+        if (full?.answers) {
+          try { existing = JSON.parse(full.answers); } catch {}
+        }
+      }
+    } catch {}
+    const total = tp.totalProblems || tp.pages?.length || 0;
+    const lines: string[] = [];
+    for (let n = 1; n <= total; n++) {
+      const raw = existing[String(n)];
+      // "p.X" 는 유효한 텍스트 정답이 아니므로 빈 칸으로
+      const display = raw && !raw.startsWith('p.') ? raw : '';
+      lines.push(`${n}. ${display}`);
+    }
+    setAnswerEditModal({
+      id: tp.id,
+      name: tp.name,
+      totalProblems: total,
+      text: lines.join('\n'),
+      saving: false,
+    });
+  };
+
+  /**
+   * 정답 입력 모달 저장 — textarea 내용을 파싱해서 answers JSON 으로 PATCH 한다.
+   * 지원 포맷:
+   *   "1. ①"
+   *   "1: ①"
+   *   "1) ①"
+   *   "1 ①"  (공백 구분)
+   * 각 라인에서 "번호" + "구분자" + "답" 형태를 추출한다.
+   * 원형 숫자(①-⑩) 는 그대로 저장한다 (숫자도 그대로 저장).
+   */
+  const saveAnswerEditor = async () => {
+    if (!answerEditModal) return;
+    setAnswerEditModal(prev => prev ? { ...prev, saving: true } : prev);
+    try {
+      const map: Record<string, string> = {};
+      const lines = answerEditModal.text.split('\n');
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        // "1. 답" / "1: 답" / "1) 답" / "1 답"
+        const m = line.match(/^(\d{1,3})\s*[.:)]?\s+(.+)$/);
+        if (m) {
+          const num = m[1];
+          const ans = m[2].trim();
+          if (ans) map[num] = ans;
+        }
+      }
+      const res = await fetch(`/api/test-papers/${answerEditModal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: JSON.stringify(map) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showMsg(`정답 저장 완료 (${Object.keys(map).length}개)`);
+      setAnswerEditModal(null);
+      // 오답 데이터도 새로 고침 — 채점 모달이 바로 반영되도록
+      await Promise.all([
+        fetchAllTestPapers(),
+        filterClassroom ? fetchDataForClassroom(filterClassroom) : Promise.resolve(),
+      ]);
+    } catch (err: any) {
+      showMsg('정답 저장 실패: ' + err.message, 'error');
+      setAnswerEditModal(prev => prev ? { ...prev, saving: false } : prev);
     }
   };
 
@@ -1569,7 +1672,7 @@ ${pages.map((pageProblems, pageIdx) => {
                           <th className="pb-2 pr-3">학생</th>
                           <th className="pb-2 pr-3">업로드 날짜</th>
                           <th className="pb-2 pr-3 text-center">오답</th>
-                          <th className="pb-2 text-center">삭제</th>
+                          <th className="pb-2 text-center">관리</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1599,12 +1702,20 @@ ${pages.map((pageProblems, pageIdx) => {
                               )}
                             </td>
                             <td className="py-2.5 text-center">
-                              <button
-                                onClick={() => handleDeleteTestPaper(tp.id)}
-                                className="px-2.5 py-1 text-xs text-red-500 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 rounded-lg transition-all"
-                                title="시험지 삭제">
-                                삭제
-                              </button>
+                              <div className="flex items-center gap-1 justify-center">
+                                <button
+                                  onClick={() => openAnswerEditor(tp)}
+                                  className="press press-subtle px-2.5 py-1 text-xs text-blue-600 hover:text-white hover:bg-blue-600 border border-blue-200 hover:border-blue-600 rounded-lg transition-all"
+                                  title="정답 직접 입력 / 수정">
+                                  답 입력
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTestPaper(tp.id)}
+                                  className="press press-subtle px-2.5 py-1 text-xs text-red-500 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 rounded-lg transition-all"
+                                  title="시험지 삭제">
+                                  삭제
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2469,6 +2580,19 @@ ${pages.map((pageProblems, pageIdx) => {
                 const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
                 const problemImg = page?.imageUrl || wa.problemImage || null;
                 const answerImg = page?.answerImageUrl || null;
+                // 텍스트 정답 폴백: 이미지 정답이 없을 때 testPaper.answers JSON 에서 텍스트 정답 읽기
+                // "p.X" (페이지 참조) 는 표시하지 않고, "①", "1", "A" 등 실제 답만 표시한다.
+                let answerText: string | null = null;
+                if (!answerImg && wa.testPaper?.answers) {
+                  try {
+                    const ansMap = JSON.parse(wa.testPaper.answers) as Record<string, string>;
+                    const raw = ansMap[String(wa.problemNumber)];
+                    if (raw && typeof raw === 'string' && !raw.startsWith('p.')) {
+                      answerText = raw;
+                    }
+                  } catch {}
+                }
+                const hasAnswer = !!(answerImg || answerText);
                 const isAnswerShown = showGradeAnswer.has(wa.id);
                 return (
                   <div
@@ -2555,7 +2679,7 @@ ${pages.map((pageProblems, pageIdx) => {
                     </div>
 
                     {/* Answer Reveal Toggle */}
-                    {answerImg ? (
+                    {hasAnswer ? (
                       <button
                         type="button"
                         onPointerDown={() => hapticSelection()}
@@ -2573,7 +2697,7 @@ ${pages.map((pageProblems, pageIdx) => {
                           borderTop: `1px solid ${isAnswerShown ? 'var(--color-border)' : 'var(--color-success-bg)'}`,
                           transition: 'background-color var(--dur-base) var(--ease-apple-inout), border-color var(--dur-base) var(--ease-apple-inout)',
                         }}
-                        aria-label={isAnswerShown ? '정답 이미지 숨기기' : '정답 이미지 보기'}
+                        aria-label={isAnswerShown ? '정답 숨기기' : '정답 보기'}
                         aria-expanded={isAnswerShown}
                       >
                         <span
@@ -2593,11 +2717,11 @@ ${pages.map((pageProblems, pageIdx) => {
                         className="w-full text-center py-2"
                         style={{ borderTop: '1px solid var(--color-border)', color: 'var(--color-mute)', fontSize: 12 }}
                       >
-                        정답 이미지가 등록되지 않았습니다
+                        정답이 등록되지 않았습니다
                       </div>
                     )}
 
-                    {/* Answer Image (revealed) */}
+                    {/* Answer Image (revealed) — 이미지 우선, 없으면 텍스트 폴백 */}
                     {isAnswerShown && answerImg && (
                       <div
                         className="p-2 anim-pop-in"
@@ -2611,6 +2735,27 @@ ${pages.map((pageProblems, pageIdx) => {
                         />
                       </div>
                     )}
+                    {isAnswerShown && !answerImg && answerText && (
+                      <div
+                        className="px-4 py-5 anim-pop-in text-center"
+                        style={{ background: 'var(--color-success-bg)', borderTop: '1px solid var(--color-success-bg)' }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)', marginBottom: 6, letterSpacing: '0.02em' }}>
+                          정답
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 28,
+                            fontWeight: 800,
+                            color: 'var(--color-success)',
+                            letterSpacing: '-0.01em',
+                            wordBreak: 'break-all',
+                          }}
+                        >
+                          {answerText}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -2621,6 +2766,92 @@ ${pages.map((pageProblems, pageIdx) => {
               </Button>
               <Button variant="accent" size="md" fullWidth onClick={handleSubmitGrade}>
                 채점 완료
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 정답 직접 입력 모달 ===== */}
+      {answerEditModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+        >
+          <div
+            className="anim-sheet-up max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto rounded-[16px]"
+            style={{ background: 'var(--color-surface)', boxShadow: 'var(--shadow-sh3)' }}
+          >
+            <h3 className="text-lg font-bold text-ink mb-1" style={{ letterSpacing: '-0.01em' }}>
+              정답 입력
+            </h3>
+            <p className="text-sm mb-3" style={{ color: 'var(--color-ink-2)' }}>
+              <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>{answerEditModal.name}</span>
+              <span style={{ color: 'var(--color-mute)' }}> · 총 {answerEditModal.totalProblems}문제</span>
+            </p>
+            <div
+              className="mb-3 px-3 py-2.5 rounded-[10px] text-xs"
+              style={{
+                background: 'var(--color-accent-bg, rgba(59,130,246,0.08))',
+                color: 'var(--color-ink-2)',
+                lineHeight: 1.5,
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <strong>입력 예시:</strong>
+              <br />
+              <span style={{ fontFamily: 'monospace' }}>1. ①</span>
+              <br />
+              <span style={{ fontFamily: 'monospace' }}>2. 3</span>
+              <br />
+              <span style={{ fontFamily: 'monospace' }}>3: A</span>
+              <br />
+              <span style={{ color: 'var(--color-mute)' }}>
+                &bull; 각 줄에 "문제번호 + 구분자(. : ) 공백) + 답" 을 입력하세요.
+                <br />
+                &bull; 답은 ①~⑤, 1~5, A~E 등 자유롭게 가능합니다.
+                <br />
+                &bull; 빈 칸은 건너뛰어 저장되지 않습니다.
+              </span>
+            </div>
+            <textarea
+              value={answerEditModal.text}
+              onChange={e =>
+                setAnswerEditModal(prev => prev ? { ...prev, text: e.target.value } : prev)
+              }
+              className="w-full font-mono text-sm"
+              style={{
+                minHeight: 320,
+                padding: 12,
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-btn)',
+                background: 'var(--color-surface-2)',
+                color: 'var(--color-ink)',
+                resize: 'vertical',
+                lineHeight: 1.7,
+              }}
+              placeholder={'1. ①\n2. ③\n...'}
+              disabled={answerEditModal.saving}
+              autoFocus
+            />
+            <div className="flex gap-3 mt-5">
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
+                onClick={() => setAnswerEditModal(null)}
+                disabled={answerEditModal.saving}
+              >
+                취소
+              </Button>
+              <Button
+                variant="accent"
+                size="md"
+                fullWidth
+                onClick={saveAnswerEditor}
+                disabled={answerEditModal.saving}
+              >
+                {answerEditModal.saving ? '저장 중…' : '저장'}
               </Button>
             </div>
           </div>
