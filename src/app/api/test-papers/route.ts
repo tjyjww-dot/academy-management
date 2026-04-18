@@ -170,3 +170,14 @@ export async function POST(request: NextRequest) {
         ...(pageData.length > 0 ? { pages: { create: pageData } } : {}),
       },
       include: {
+        pages: { orderBy: { pageNumber: 'asc' } },
+        classroom: true
+      }
+    });
+
+    return NextResponse.json(testPaper);
+  } catch (error: any) {
+    console.error('Failed to create test paper:', error?.message || error, error?.stack);
+    return NextResponse.json({ error: `시험지 등록 실패: ${error?.message || '서버 오류'}` }, { status: 500 });
+  }
+}

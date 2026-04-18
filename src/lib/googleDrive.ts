@@ -267,3 +267,64 @@ export async function uploadFile(
 /**
  * Upload a file from a File/Blob object (convenience for API routes)
  */
+export async function uploadFileFromBlob(
+  fileName: string,
+  file: File | Blob,
+  mimeType: string,
+  folderPath?: string[]
+): Promise<{ id: string; url: string; thumbnailUrl: string }> {
+  const accessToken = await getAccessToken();
+
+  // Ensure folder structure exists
+  const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  let folderId: string | undefined;
+
+  if (folderPath && folderPath.length > 0) {
+    folderId = await ensureFolderPath(accessToken, folderPath, rootFolderId);
+  } else {
+    folderId = rootFolderId;
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  return uploadFile(accessToken, fileName, buffer, mimeType, folderId);
+}
+
+/**
+ * Delete a file from Google Drive
+ */
+export async function deleteFile(fileId: string): Promise<void> {
+  const accessToken = await getAccessToken();
+
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Failed to delete file: ${res.status}`);
+  }
+}
+
+/**
+ * Extract Google Drive file ID from a URL
+ */
+export function extractFileId(url: string): string | null {
+  // https://drive.google.com/uc?export=view&id=FILE_ID
+  const match1 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match1) return match1[1];
+
+  // https://drive.google.com/file/d/FILE_ID/view
+  const match2 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match2) return match2[1];
+
+  // https://drive.google.com/thumbnail?id=FILE_ID
+  const match3 = url.match(/thumbnail\?id=([a-zA-Z0-9_-]+)/);
+  if (match3) return match3[1];
+
+  return null;
+}
