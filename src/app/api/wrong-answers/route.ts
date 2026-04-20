@@ -19,6 +19,25 @@ export async function GET(request: NextRequest) {
     if (classroomId) where.classroomId = classroomId;
     if (status) where.status = status;
 
+    // 마스터 처리된 오답은 masteredAt 이후 60일만 노출. 그 이후는 숨긴다 (cron이 영구 삭제 예정).
+    // 레거시 데이터(masteredAt 이 null)는 updatedAt 을 대체 기준으로 사용.
+    const MASTERED_RETENTION_DAYS = 60;
+    const cutoff = new Date(Date.now() - MASTERED_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    if (status !== 'MASTERED') {
+      // 특정 status 필터가 없거나 ACTIVE 인 경우: 오래된 마스터 항목은 제외
+      where.OR = [
+        { status: { not: 'MASTERED' } },
+        { status: 'MASTERED', masteredAt: { gte: cutoff } },
+        { status: 'MASTERED', masteredAt: null, updatedAt: { gte: cutoff } },
+      ];
+    } else {
+      // status = 'MASTERED' 로 명시 요청된 경우에도 60일 이내만 반환
+      where.OR = [
+        { masteredAt: { gte: cutoff } },
+        { masteredAt: null, updatedAt: { gte: cutoff } },
+      ];
+    }
+
     // 강사(TEACHER)는 본인이 담당하는 반의 오답만 조회 가능
     if (decoded.role === 'TEACHER') {
       const myClassrooms = await prisma.classroom.findMany({
@@ -146,6 +165,7 @@ export async function POST(request: NextRequest) {
         if (problemImage && !existing.problemImage) updateData.problemImage = problemImage;
         if (existing.status === 'MASTERED') {
           updateData.status = 'ACTIVE';
+          updateData.masteredAt = null;
           updateData.round = existing.round + 1;
           if (testPaperId) updateData.testPaperId = testPaperId;
           if (problemImage) updateData.problemImage = problemImage;

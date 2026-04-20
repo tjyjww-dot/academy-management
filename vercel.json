@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/auto-migrate-base64",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-mastered",
+      "schedule": "0 19 * * *"
     }
   ]
 }

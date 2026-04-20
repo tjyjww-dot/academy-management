@@ -33,7 +33,7 @@ export async function POST(
       if (result.isCorrect) {
         await prisma.wrongAnswer.update({
           where: { id: result.wrongAnswerId },
-          data: { status: 'MASTERED' },
+          data: { status: 'MASTERED', masteredAt: new Date() },
         });
       } else {
         await prisma.wrongAnswer.update({

@@ -391,11 +391,13 @@ model WrongAnswer {
   testPaperId   String?
   status        String   @default("ACTIVE")
   round         Int      @default(1)
+  masteredAt    DateTime? // 마스터(정답 처리)된 시각 — 이 시점으로부터 60일 후 cron이 영구 삭제
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   testItems WrongAnswerTestItem[]
 
+  @@index([status, masteredAt])
   @@unique([studentId, classroomId, testName, problemNumber])
 }
 
