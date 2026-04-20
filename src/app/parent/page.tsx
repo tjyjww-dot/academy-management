@@ -22,6 +22,7 @@ export default function ParentPage() {
   const [waStats, setWaStats] = useState<any>(null);
   const [expandedWA, setExpandedWA] = useState<Set<string>>(new Set());
   const [showAnswer, setShowAnswer] = useState<Set<string>>(new Set());
+  const [waFilter, setWaFilter] = useState<Record<string, 'all' | 'active' | 'mastered'>>({});
 
   useEffect(() => {
     // 영구 로그인: localStorage에서 토큰 복원
@@ -966,25 +967,80 @@ export default function ParentPage() {
                   const activeCnt = items.filter((i: any) => i.status === 'ACTIVE').length;
                   const masteredCnt = items.filter((i: any) => i.status === 'MASTERED').length;
                   const isOpen = expandedWA.has(testName);
+                  const currentFilter = waFilter[testName] || 'all';
+                  const toggleExpand = () => {
+                    setExpandedWA(prev => {
+                      const next = new Set(prev);
+                      next.has(testName) ? next.delete(testName) : next.add(testName);
+                      return next;
+                    });
+                  };
+                  const applyFilter = (target: 'active' | 'mastered') => {
+                    setWaFilter(prev => ({
+                      ...prev,
+                      [testName]: prev[testName] === target ? 'all' : target,
+                    }));
+                    setExpandedWA(prev => {
+                      const next = new Set(prev);
+                      next.add(testName);
+                      return next;
+                    });
+                  };
                   return (
                     <Card key={testName} padding="none" elevation="sh1">
-                      <button
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onPointerDown={() => hapticSelection()}
-                        onClick={() =>
-                          setExpandedWA(prev => {
-                            const next = new Set(prev);
-                            next.has(testName) ? next.delete(testName) : next.add(testName);
-                            return next;
-                          })
-                        }
-                        className="w-full flex items-center justify-between p-4 text-left press press-subtle"
+                        onClick={toggleExpand}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleExpand();
+                          }
+                        }}
+                        className="w-full flex items-center justify-between p-4 text-left press press-subtle cursor-pointer select-none"
                         style={{ borderRadius: 'var(--radius-card)' }}
                       >
                         <div className="min-w-0">
                           <p className="text-h3" style={{ fontSize: 14.5, fontWeight: 600 }}>{testName}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            {activeCnt > 0 && <Badge tone="danger" variant="soft" size="sm">미해결 {activeCnt}</Badge>}
-                            {masteredCnt > 0 && <Badge tone="success" variant="soft" size="sm">해결 {masteredCnt}</Badge>}
+                            {activeCnt > 0 && (
+                              <button
+                                type="button"
+                                aria-pressed={currentFilter === 'active'}
+                                onPointerDown={(e) => { e.stopPropagation(); hapticSelection(); }}
+                                onClick={(e) => { e.stopPropagation(); applyFilter('active'); }}
+                                className="press press-subtle"
+                                style={{ borderRadius: 999, padding: 0, border: 'none', background: 'transparent' }}
+                              >
+                                <Badge
+                                  tone="danger"
+                                  variant={currentFilter === 'active' ? 'solid' : 'soft'}
+                                  size="sm"
+                                >
+                                  미해결 {activeCnt}
+                                </Badge>
+                              </button>
+                            )}
+                            {masteredCnt > 0 && (
+                              <button
+                                type="button"
+                                aria-pressed={currentFilter === 'mastered'}
+                                onPointerDown={(e) => { e.stopPropagation(); hapticSelection(); }}
+                                onClick={(e) => { e.stopPropagation(); applyFilter('mastered'); }}
+                                className="press press-subtle"
+                                style={{ borderRadius: 999, padding: 0, border: 'none', background: 'transparent' }}
+                              >
+                                <Badge
+                                  tone="success"
+                                  variant={currentFilter === 'mastered' ? 'solid' : 'soft'}
+                                  size="sm"
+                                >
+                                  해결 {masteredCnt}
+                                </Badge>
+                              </button>
+                            )}
                           </div>
                         </div>
                         <span
@@ -998,37 +1054,69 @@ export default function ParentPage() {
                         >
                           ▼
                         </span>
-                      </button>
+                      </div>
                       {isOpen && (
                         <div className="px-4 pb-4 anim-tab-in">
                           <Divider className="mb-3" />
-                          <div className="flex flex-wrap gap-1.5 mb-3">
-                            {items
-                              .sort((a: any, b: any) => a.problemNumber - b.problemNumber)
-                              .map((wa: any) => (
-                                <span
-                                  key={wa.id}
-                                  className="num-tabular"
-                                  style={{
-                                    background: wa.status === 'ACTIVE' ? 'var(--color-danger-bg)' : 'var(--color-success-bg)',
-                                    color: wa.status === 'ACTIVE' ? 'var(--color-danger)' : 'var(--color-success)',
-                                    fontSize: 11.5,
-                                    fontWeight: 600,
-                                    padding: '3px 9px',
-                                    borderRadius: 'var(--radius-chip)',
-                                    letterSpacing: '-0.01em',
-                                  }}
-                                >
-                                  {wa.problemNumber}번{wa.round > 1 ? ` (${wa.round}회)` : ''}
-                                </span>
-                              ))}
-                          </div>
-                          {items.some((wa: any) => wa.testPaper?.pages?.length > 0) && (
-                            <div className="space-y-3">
-                              <p className="text-caption" style={{ color: 'var(--color-mute)', fontWeight: 500 }}>문제를 풀고 정답을 확인하세요</p>
-                              {items
-                                .filter((wa: any) => wa.status === 'ACTIVE')
+                          {(() => {
+                            const filteredItems = items.filter((wa: any) =>
+                              currentFilter === 'all'
+                                ? true
+                                : currentFilter === 'active'
+                                  ? wa.status === 'ACTIVE'
+                                  : wa.status === 'MASTERED'
+                            );
+                            const detailStatus: 'ACTIVE' | 'MASTERED' =
+                              currentFilter === 'mastered' ? 'MASTERED' : 'ACTIVE';
+                            const detailItems = items
+                              .filter((wa: any) => wa.status === detailStatus)
+                              .sort((a: any, b: any) => a.problemNumber - b.problemNumber);
+                            return (
+                              <>
+                          {currentFilter !== 'all' && (
+                            <p className="text-caption mb-2" style={{ color: 'var(--color-mute)' }}>
+                              {currentFilter === 'active' ? '미해결' : '해결'} 문제만 보는 중 · 다시 탭하면 전체 보기
+                            </p>
+                          )}
+                          {filteredItems.length === 0 ? (
+                            <p className="text-caption mb-3" style={{ color: 'var(--color-mute)' }}>
+                              {currentFilter === 'active'
+                                ? '미해결 문제가 없습니다'
+                                : currentFilter === 'mastered'
+                                  ? '해결한 문제가 없습니다'
+                                  : '문제가 없습니다'}
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {filteredItems
                                 .sort((a: any, b: any) => a.problemNumber - b.problemNumber)
+                                .map((wa: any) => (
+                                  <span
+                                    key={wa.id}
+                                    className="num-tabular"
+                                    style={{
+                                      background: wa.status === 'ACTIVE' ? 'var(--color-danger-bg)' : 'var(--color-success-bg)',
+                                      color: wa.status === 'ACTIVE' ? 'var(--color-danger)' : 'var(--color-success)',
+                                      fontSize: 11.5,
+                                      fontWeight: 600,
+                                      padding: '3px 9px',
+                                      borderRadius: 'var(--radius-chip)',
+                                      letterSpacing: '-0.01em',
+                                    }}
+                                  >
+                                    {wa.problemNumber}번{wa.round > 1 ? ` (${wa.round}회)` : ''}
+                                  </span>
+                                ))}
+                            </div>
+                          )}
+                          {detailItems.some((wa: any) => wa.testPaper?.pages?.length > 0) && (
+                            <div className="space-y-3">
+                              <p className="text-caption" style={{ color: 'var(--color-mute)', fontWeight: 500 }}>
+                                {detailStatus === 'MASTERED'
+                                  ? '해결한 문제를 복습해 보세요'
+                                  : '문제를 풀고 정답을 확인하세요'}
+                              </p>
+                              {detailItems
                                 .map((wa: any) => {
                                   const page = wa.testPaper?.pages?.find((p: any) => p.pageNumber === wa.problemNumber);
                                   const imgUrl = page?.imageUrl || wa.problemImage;
@@ -1122,6 +1210,9 @@ export default function ParentPage() {
                                 })}
                             </div>
                           )}
+                              </>
+                            );
+                          })()}
                         </div>
                       )}
                     </Card>
