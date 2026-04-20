@@ -796,6 +796,19 @@ async function detectAnswersByOperatorList(
       height: item.height || Math.abs(item.transform[3]),
     }));
 
+  // --- Also collect RAW text items (INCLUDING empty strings) for row position detection ---
+  // Rationale: HWP/한글 PDFs often render answer content as unmapped font glyphs that
+  // pdfjs reports as empty strings. These still occupy a row position on the page.
+  // Without this, rows composed entirely of unmapped glyphs (e.g., answer "13) -17x+17"
+  // where "-17x+17" is rendered as font glyphs without unicode mapping) would be missed.
+  const rawTextItems = textContent.items
+    .map((item: any) => ({
+      x: item.transform[4],
+      y: ph - item.transform[5],
+      height: item.height || Math.abs(item.transform[3]),
+    }))
+    .filter((t: any) => t.y > 80 && t.y < ph * 0.93 && t.height >= 5 && t.height <= 20);
+
   // --- Get image positions from operator list ---
   const opList = await page.getOperatorList();
   const ops = opList.fnArray;
@@ -932,8 +945,14 @@ async function detectAnswersByOperatorList(
   }
 
   // --- Add text-based "N)" items ---
+  // Regex accepts: "1)", "24)", "24) (1)", "24) (1) 2t²", etc.
+  // The previous /^(\d{1,2})\)$/ was too strict and missed sub-part answers
+  // like "24) (1) 2t²  (2) 8" which pdfjs may report as a single text item.
   for (const t of textItems) {
-    const m = (t.text as string).trim().match(/^(\d{1,2})\)$/);
+    const trimmed = (t.text as string).trim();
+    // Match "N)" at the start, optionally followed by space / open-paren / other content.
+    // The "(?!\d)" prevents matching e.g. "123)" being parsed as 12).
+    const m = trimmed.match(/^(\d{1,2})\)(?:$|\s|\()/);
     if (m) {
       const num = parseInt(m[1]);
       const col = t.x < midX ? 0 : 1;
@@ -947,6 +966,86 @@ async function detectAnswersByOperatorList(
       }
     }
   }
+
+  // --- Fill in missing rows using raw text item Y-clusters ---
+  // If a column has rows whose content is ONLY unmapped font glyphs (empty str),
+  // neither image groups nor "N)" text anchors will detect them. We recover these
+  // by clustering ALL text items (including empty strings) by Y position per column
+  // and adding any cluster that isn't already covered.
+  function clusterYs(ys: number[], threshold: number): number[] {
+    if (ys.length === 0) return [];
+    const sorted = [...ys].sort((a, b) => a - b);
+    const clusters: number[][] = [[sorted[0]]];
+    for (let i = 1; i < sorted.length; i++) {
+      const last = clusters[clusters.length - 1];
+      if (sorted[i] - last[last.length - 1] <= threshold) last.push(sorted[i]);
+      else clusters.push([sorted[i]]);
+    }
+    // Return the TOP (smallest Y) of each cluster to represent the row baseline
+    return clusters.map(c => Math.min(...c));
+  }
+
+  const ROW_CLUSTER_THRESHOLD = 8; // pts — within 8pt vertically = same row
+  const ROW_DUP_TOLERANCE = 18;    // pts — merge with existing answerStart if within 18pt
+
+  const leftRawYs = rawTextItems.filter((t: any) => t.x < midX).map((t: any) => t.y);
+  const rightRawYs = rawTextItems.filter((t: any) => t.x >= midX).map((t: any) => t.y);
+  const leftRowYs = clusterYs(leftRawYs, ROW_CLUSTER_THRESHOLD);
+  const rightRowYs = clusterYs(rightRawYs, ROW_CLUSTER_THRESHOLD);
+
+  // Determine expected row count per column (half of expected answer count, rounded up)
+  const expectedPerCol = Math.ceil(expectedCount / 2);
+
+  function fillMissingRows(rowYs: number[], column: number, anchorX: number) {
+    const existing = answerStarts.filter(a => a.column === column);
+    for (const rowY of rowYs) {
+      const dup = existing.find(a => Math.abs(a.y - rowY) < ROW_DUP_TOLERANCE);
+      if (!dup) {
+        answerStarts.push({
+          y: rowY,
+          x: anchorX > 0 ? anchorX : (column === 0 ? 58 : 303),
+          column,
+          source: 'text-cluster',
+        });
+      }
+    }
+  }
+
+  // Only fill if a column is under-populated
+  const leftCount = answerStarts.filter(a => a.column === 0).length;
+  const rightCount = answerStarts.filter(a => a.column === 1).length;
+  if (leftCount < expectedPerCol) fillMissingRows(leftRowYs, 0, leftAnchorX);
+  if (rightCount < expectedPerCol) fillMissingRows(rightRowYs, 1, rightAnchorX);
+
+  // De-duplicate any rows that ended up too close (keep ones with known number / higher conf)
+  function dedupeColumn(column: number) {
+    const colEntries = answerStarts
+      .filter(a => a.column === column)
+      .sort((a, b) => a.y - b.y);
+    const kept: AnswerStart[] = [];
+    for (const e of colEntries) {
+      const near = kept.find(k => Math.abs(k.y - e.y) < ROW_DUP_TOLERANCE);
+      if (!near) { kept.push(e); continue; }
+      // Prefer entry with known number (text/merged) > image-group > text-cluster fallback.
+      // Note: 'merged' entries always carry a number, so they short-circuit via the first check.
+      const rank = (a: AnswerStart) => {
+        if (a.number !== undefined) return 3; // text or merged (both carry the answer number)
+        if (a.source === 'image') return 2;   // image-group anchor (no number, but solid position)
+        return 1;                             // text-cluster (raw-text Y fallback)
+      };
+      if (rank(e) > rank(near)) {
+        Object.assign(near, e);
+      }
+    }
+    // Replace column entries with deduplicated ones
+    const others = answerStarts.filter(a => a.column !== column);
+    answerStarts.length = 0;
+    answerStarts.push(...others, ...kept);
+  }
+  dedupeColumn(0);
+  dedupeColumn(1);
+
+  console.log(`[opList] After raw-text row fill: left=${answerStarts.filter(a => a.column === 0).length}, right=${answerStarts.filter(a => a.column === 1).length}`);
 
   // --- Split by column and sort ---
   const leftCol = answerStarts.filter(a => a.column === 0).sort((a, b) => a.y - b.y);
@@ -1354,6 +1453,14 @@ export function matchProblemsToAnswers(problems: ExtractedProblem[], answers: Ex
 }
 
 export function dataURLtoBlob(dataURL: string): Blob {
+  const parts = dataURL.split(',');
+  const mime = parts[0].match(/:(.*?);/)![1];
+  const bstr = atob(parts[1]);
+  const u8arr = new Uint8Array(bstr.length);
+  for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+  return new Blob([u8arr], { type: mime });
+}
+ction dataURLtoBlob(dataURL: string): Blob {
   const parts = dataURL.split(',');
   const mime = parts[0].match(/:(.*?);/)![1];
   const bstr = atob(parts[1]);
