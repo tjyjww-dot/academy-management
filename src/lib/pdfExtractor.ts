@@ -1219,8 +1219,13 @@ export function clearPageCache() { pageCanvasCache.clear(); }
 export async function extractProblemImage(pdf: any, problem: DetectedProblem, scale: number = 2.0): Promise<string> {
   const fullCanvas = await getOrRenderPage(pdf, problem.pageNumber, scale);
 
-  // 왼쪽에 여백을 추가하여 문제 번호/텍스트가 잘리지 않도록 함
-  const leftPadding = 25; // PDF 좌표 기준 25pt 왼쪽 여유 (기존 15 → 25)
+  // 왼쪽 패딩: 컬럼별로 분리.
+  //  - 왼쪽 컬럼(column===0): 페이지 좌여백이라 넉넉히 25pt 확보해서
+  //    문제 번호가 잘리지 않도록 한다.
+  //  - 오른쪽 컬럼(column===1): 왼쪽에 "다른 문제"가 있으므로
+  //    컬럼 경계를 넘지 않도록 아주 적게(3pt)만 준다.
+  //    (그래도 글자 획 끝은 trimWhitespace 가 다시 정리해 준다.)
+  const leftPadding = problem.column === 0 ? 25 : 3;
   const adjustedX = Math.max(0, problem.bbox.x - leftPadding);
   const extraWidth = problem.bbox.x - adjustedX; // 실제 추가된 너비
 
