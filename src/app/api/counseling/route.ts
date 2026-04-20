@@ -59,7 +59,12 @@ export async function POST(request: NextRequest) {
       sessionNotes,
       adminNotes,
       status,
-      sessionDate
+      sessionDate,
+      counselingType,
+      visitMessage,
+      scheduledDate,
+      scheduledTime,
+      assignedTeacherId,
     } = body;
 
     if (!studentId || !title) {
@@ -69,8 +74,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 학부모 요청이 아니라 직원이 직접 입력한 경우 기본 상태는 '완료'
-    const defaultStatus = parentId ? 'PENDING' : 'COMPLETED';
+    // 직원이 학생의 상담 예약을 등록할 때는 기본 상태를 PENDING 으로 둔다.
+    // (대시보드 "받은 요청사항" 에 뜨려면 PENDING 이어야 함)
+    // 학부모가 기존에 보낸 요청이 아닌 경우에도, 새로 예약된 상담이면 대기로 시작.
+    const isReservation =
+      (counselingType === 'PHONE' || counselingType === 'VISIT') &&
+      !status;
+
+    const defaultStatus = isReservation
+      ? 'PENDING'
+      : parentId
+        ? 'PENDING'
+        : 'COMPLETED';
+
+    // 담당 강사가 지정되지 않았다면 학생의 활성 반 담당강사를 자동 연결 시도.
+    let finalAssignedTeacherId: string | null = assignedTeacherId || null;
+    if (!finalAssignedTeacherId) {
+      try {
+        const enrollment = await prisma.enrollment.findFirst({
+          where: { studentId, status: 'ACTIVE' },
+          orderBy: { enrollmentDate: 'desc' },
+        });
+        if (enrollment?.classroomId) {
+          const classroom = await prisma.classroom.findUnique({
+            where: { id: enrollment.classroomId },
+            select: { teacherId: true },
+          });
+          finalAssignedTeacherId = classroom?.teacherId || null;
+        }
+      } catch {
+        // 실패해도 상담 생성 자체는 막지 않음
+      }
+    }
 
     const counselingRequest = await prisma.counselingRequest.create({
       data: {
@@ -83,6 +118,11 @@ export async function POST(request: NextRequest) {
         sessionNotes: sessionNotes || null,
         adminNotes: adminNotes || null,
         sessionDate: sessionDate || null,
+        counselingType: counselingType || 'PHONE',
+        visitMessage: visitMessage || null,
+        scheduledDate: scheduledDate || null,
+        scheduledTime: scheduledTime || null,
+        assignedTeacherId: finalAssignedTeacherId,
         createdById: decoded.userId,
         createdByName: decoded.name || null,
       },

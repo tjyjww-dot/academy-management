@@ -192,6 +192,11 @@ model CounselingRequest {
   counselingType  String   @default("PHONE")
   visitMessage    String?
   preferredDate   String?
+  // 방문상담 예정 일시 (직원이 지정). 방문상담일수록 이 두 필드가 중요.
+  scheduledDate   String?  // YYYY-MM-DD
+  scheduledTime   String?  // HH:mm
+  // 담당 강사 지정 (미지정이면 학생의 반 담당강사로 자동 매핑)
+  assignedTeacherId String?
   status          String   @default("PENDING")
   adminNotes      String?
   sessionDate     String?

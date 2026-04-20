@@ -53,12 +53,22 @@ interface CounselingItem {
   counselingType: string;
   status: string;
   preferredDate: string | null;
+  scheduledDate: string | null;
+  scheduledTime: string | null;
   sessionDate: string | null;
   sessionNotes: string | null;
   adminNotes: string | null;
+  assignedTeacherId?: string | null;
+  visitMessage?: string | null;
   createdAt: string;
-  student: { id: string; name: string };
-  parent: { name: string } | null;
+  student: {
+    id: string;
+    name: string;
+    enrollments?: Array<{
+      classroom?: { teacher?: { id: string; name: string } | null } | null;
+    }>;
+  };
+  parent: { name: string; phone?: string } | null;
   createdByName?: string | null;
 }
 
@@ -76,7 +86,7 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [upcomingTests, setUpcomingTests] = useState<EntranceTest[]>([]);
   const [taskRequests, setTaskRequests] = useState<TaskRequest[]>([]);
-  const [pendingCounselingRequests, setPendingCounselingRequests] = useState<any[]>([]);
+  const [pendingCounselingRequests, setPendingCounselingRequests] = useState<CounselingItem[]>([]);
   const [absentWithoutMemo, setAbsentWithoutMemo] = useState<any[]>([]);
   const [recentAbsentWithMemo, setRecentAbsentWithMemo] = useState<any[]>([]);
   const [absentMemoDraft, setAbsentMemoDraft] = useState<Record<string, string>>({});
@@ -658,29 +668,69 @@ export default function DashboardPage() {
                   <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{pendingCounselingRequests.length}건</span>
                 </div>
                 <div className="space-y-1.5">
-                  {pendingCounselingRequests.map((cr) => (
-                    <Link
-                      key={cr.id}
-                      href={`/counseling?id=${cr.id}`}
-                      onPointerDown={() => hapticLight()}
-                      className="press press-subtle block rounded-lg p-3"
-                      style={{ background: 'var(--color-info-bg)', border: '1px solid var(--color-info-bg)' }}
-                    >
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            <Badge tone="warn" variant="soft" size="sm">대기중</Badge>
-                            <Badge tone="accent" variant="soft" size="sm">{cr.student?.name}</Badge>
-                            <span className="text-[11px]" style={{ color: 'var(--color-mute)' }}>{cr.counselingType === 'VISIT' ? '방문상담' : '전화상담'}</span>
+                  {pendingCounselingRequests.map((cr) => {
+                    const isVisit = cr.counselingType === 'VISIT';
+                    const bg = isVisit ? 'var(--color-gold-soft, #F7EDD5)' : 'var(--color-info-bg, #E8F1FB)';
+                    const border = isVisit ? '1px solid #E8DBC2' : '1px solid #D6E4F2';
+                    const teacherName = cr.student?.enrollments?.[0]?.classroom?.teacher?.name || null;
+                    return (
+                      <Link
+                        key={cr.id}
+                        href={`/counseling?id=${cr.id}`}
+                        onPointerDown={() => hapticLight()}
+                        className="press press-subtle block rounded-lg p-3"
+                        style={{ background: bg, border }}
+                      >
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                              {isVisit ? (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                  style={{ background: 'var(--color-gold, #C99A3B)', color: '#fff' }}
+                                >
+                                  🏢 방문상담
+                                </span>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                  style={{ background: 'var(--color-accent, #1F3A5F)', color: '#fff' }}
+                                >
+                                  📞 전화상담
+                                </span>
+                              )}
+                              <Badge tone="warn" variant="soft" size="sm">대기중</Badge>
+                              <Badge tone="accent" variant="soft" size="sm">{cr.student?.name}</Badge>
+                            </div>
+                            <p className="text-[13.5px] font-semibold text-ink truncate" style={{ letterSpacing: '-0.01em' }}>{cr.title}</p>
+                            {isVisit && (cr.scheduledDate || cr.scheduledTime) && (
+                              <div
+                                className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-semibold px-2 py-1 rounded-md"
+                                style={{ background: 'rgba(201,154,59,0.18)', color: '#8A6A1F' }}
+                              >
+                                <span>📅 {cr.scheduledDate || '날짜 미정'}</span>
+                                {cr.scheduledTime && <span>· ⏰ {cr.scheduledTime}</span>}
+                              </div>
+                            )}
+                            {!isVisit && cr.preferredDate && (
+                              <div
+                                className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] font-semibold px-2 py-1 rounded-md"
+                                style={{ background: 'rgba(31,58,95,0.12)', color: 'var(--color-accent, #1F3A5F)' }}
+                              >
+                                <span>📅 희망 {cr.preferredDate}</span>
+                              </div>
+                            )}
+                            {cr.description && <p className="text-[12.5px] mt-1 line-clamp-2" style={{ color: 'var(--color-mute)' }}>{cr.description}</p>}
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {cr.parent?.name && <p className="text-[11px]" style={{ color: 'var(--color-mute-2)' }}>학부모: {cr.parent.name}{cr.parent.phone ? ` · ${cr.parent.phone}` : ''}</p>}
+                              {teacherName && <p className="text-[11px]" style={{ color: 'var(--color-mute-2)' }}>· 담당 {teacherName}</p>}
+                            </div>
                           </div>
-                          <p className="text-[13.5px] font-semibold text-ink truncate" style={{ letterSpacing: '-0.01em' }}>{cr.title}</p>
-                          {cr.description && <p className="text-[12.5px] mt-0.5 line-clamp-2" style={{ color: 'var(--color-mute)' }}>{cr.description}</p>}
-                          {cr.parent?.name && <p className="text-[11px] mt-1" style={{ color: 'var(--color-mute-2)' }}>학부모: {cr.parent.name}</p>}
+                          <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--color-mute-2)' }}>{new Date(cr.createdAt).toLocaleDateString('ko-KR')}</span>
                         </div>
-                        <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--color-mute-2)' }}>{new Date(cr.createdAt).toLocaleDateString('ko-KR')}</span>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -785,10 +835,102 @@ export default function DashboardPage() {
           </Card>
         </div>
         <Card padding="md" className="order-2 mb-6">
-          <div className="mb-4">
-            <div className="text-eyebrow mb-1">CALENDAR</div>
-            <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>학원 캘린더</h2>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-eyebrow mb-1">CALENDAR</div>
+              <h2 className="text-[17px] font-bold text-ink" style={{ letterSpacing: '-0.02em' }}>학원 캘린더</h2>
+            </div>
           </div>
+
+          {(() => {
+            const upcomingVisits = pendingCounselingRequests
+              .filter((cr) => cr.counselingType === 'VISIT' && cr.scheduledDate)
+              .sort((a, b) => {
+                const da = `${a.scheduledDate || ''} ${a.scheduledTime || ''}`;
+                const db = `${b.scheduledDate || ''} ${b.scheduledTime || ''}`;
+                return da.localeCompare(db);
+              })
+              .slice(0, 5);
+            if (upcomingVisits.length === 0) return null;
+            return (
+              <div
+                className="mb-4 rounded-xl p-3"
+                style={{ background: 'var(--color-gold-soft, #F7EDD5)', border: '1px solid #E8DBC2' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: 'var(--color-gold, #C99A3B)', color: '#fff' }}
+                  >
+                    🏢 방문상담 예약
+                  </span>
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--color-mute)' }}>{upcomingVisits.length}건</span>
+                </div>
+                <div className="space-y-1.5">
+                  {upcomingVisits.map((cr) => {
+                    // Build Google Calendar pre-fill URL
+                    const ymd = (cr.scheduledDate || '').replace(/-/g, '');
+                    const hm = (cr.scheduledTime || '09:00').replace(':', '') + '00';
+                    const startLocal = ymd && hm ? `${ymd}T${hm}` : '';
+                    // End time = +30 minutes for phone/visit consult
+                    const endDate = (() => {
+                      if (!cr.scheduledDate || !cr.scheduledTime) return '';
+                      const [hh, mm] = cr.scheduledTime.split(':').map((n) => parseInt(n, 10));
+                      const endH = mm + 30 >= 60 ? hh + 1 : hh;
+                      const endM = (mm + 30) % 60;
+                      const endHm = `${String(endH).padStart(2, '0')}${String(endM).padStart(2, '0')}00`;
+                      return `${ymd}T${endHm}`;
+                    })();
+                    const dates = startLocal && endDate ? `${startLocal}/${endDate}` : '';
+                    const title = encodeURIComponent(`[방문상담] ${cr.student?.name || ''} ${cr.parent?.name ? `(${cr.parent.name})` : ''}`);
+                    const details = encodeURIComponent(
+                      [
+                        `학생: ${cr.student?.name || ''}`,
+                        cr.parent?.name ? `학부모: ${cr.parent.name}${cr.parent.phone ? ` (${cr.parent.phone})` : ''}` : '',
+                        cr.title ? `제목: ${cr.title}` : '',
+                        cr.description ? `내용: ${cr.description}` : '',
+                      ].filter(Boolean).join('\n')
+                    );
+                    const gcalUrl = dates
+                      ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&ctz=Asia/Seoul`
+                      : '';
+                    return (
+                      <div
+                        key={cr.id}
+                        className="rounded-lg p-2.5 flex items-center gap-2 flex-wrap"
+                        style={{ background: 'rgba(255,255,255,0.65)' }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge tone="accent" variant="soft" size="sm">{cr.student?.name}</Badge>
+                            <span className="text-[12px] font-bold" style={{ color: '#8A6A1F' }}>📅 {cr.scheduledDate}{cr.scheduledTime ? ` · ⏰ ${cr.scheduledTime}` : ''}</span>
+                          </div>
+                          <p className="text-[12.5px] mt-0.5 truncate text-ink">{cr.title}</p>
+                          {cr.parent?.name && <p className="text-[11px]" style={{ color: 'var(--color-mute-2)' }}>학부모: {cr.parent.name}{cr.parent.phone ? ` · ${cr.parent.phone}` : ''}</p>}
+                        </div>
+                        {gcalUrl && (
+                          <a
+                            href={gcalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onPointerDown={() => hapticMedium()}
+                            className="press press-strong inline-flex items-center gap-1 text-[11.5px] font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap"
+                            style={{ background: 'var(--color-accent, #1F3A5F)', color: '#fff' }}
+                          >
+                            📌 캘린더에 추가
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10.5px] mt-2" style={{ color: 'var(--color-mute-2)' }}>
+                  * 버튼을 누르면 Google 캘린더가 열리고 일정이 자동으로 입력됩니다. [저장]만 눌러주세요.
+                </p>
+              </div>
+            );
+          })()}
+
           <div
             className="w-full overflow-hidden hidden md:block"
             style={{ height: '700px', borderRadius: 'var(--radius-card)', border: '1px solid var(--color-border)' }}

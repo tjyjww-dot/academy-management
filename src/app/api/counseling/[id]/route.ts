@@ -45,7 +45,19 @@ export async function PUT(request: NextRequest, props: { params: Promise<{ id: s
 
     const { id } = await props.params;
     const body = await request.json();
-    const { status, adminNotes, sessionDate, sessionNotes } = body;
+    const {
+      status,
+      adminNotes,
+      sessionDate,
+      sessionNotes,
+      counselingType,
+      scheduledDate,
+      scheduledTime,
+      assignedTeacherId,
+      visitMessage,
+      title,
+      description,
+    } = body;
 
     const updatedRequest = await prisma.counselingRequest.update({
       where: { id },
@@ -54,6 +66,13 @@ export async function PUT(request: NextRequest, props: { params: Promise<{ id: s
         adminNotes: adminNotes !== undefined ? adminNotes : undefined,
         sessionDate: sessionDate !== undefined ? sessionDate : undefined,
         sessionNotes: sessionNotes !== undefined ? sessionNotes : undefined,
+        counselingType: counselingType !== undefined ? counselingType : undefined,
+        scheduledDate: scheduledDate !== undefined ? scheduledDate : undefined,
+        scheduledTime: scheduledTime !== undefined ? scheduledTime : undefined,
+        assignedTeacherId: assignedTeacherId !== undefined ? assignedTeacherId : undefined,
+        visitMessage: visitMessage !== undefined ? visitMessage : undefined,
+        title: title !== undefined ? title : undefined,
+        description: description !== undefined ? description : undefined,
       },
       include: {
         parent: true,

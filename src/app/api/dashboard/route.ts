@@ -129,19 +129,37 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // 대기중인 상담 요청 - 강사는 담당 학생만, 관리자/데스크는 전체
-      // parentId 유무와 무관하게 PENDING 상태면 모두 포함 (조치 필요)
+      // 대기중인 상담 요청
+      //  - 강사: (a) 자기 반 소속 학생 의 상담  OR  (b) assignedTeacherId 가 자기 인 상담
+      //  - 관리자/데스크: 전체
+      const pendingCounselingWhere: any = { status: 'PENDING' };
+      if (!isAdminOrDesk) {
+        pendingCounselingWhere.OR = [
+          { studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] } },
+          { assignedTeacherId: decoded.userId },
+        ];
+      }
       const pendingCounselingRequests = await prisma.counselingRequest.findMany({
-        where: {
-          status: 'PENDING',
-          ...(isAdminOrDesk ? {} : { studentId: { in: studentIds.length > 0 ? studentIds : ['__none__'] } }),
-        },
+        where: pendingCounselingWhere,
         include: {
-          student: { select: { id: true, name: true } },
+          student: {
+            select: {
+              id: true,
+              name: true,
+              enrollments: {
+                where: { status: 'ACTIVE' },
+                include: { classroom: { include: { teacher: { select: { id: true, name: true } } } } },
+                take: 1,
+              },
+            },
+          },
           parent: { select: { name: true, phone: true } },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
+        orderBy: [
+          { scheduledDate: 'asc' },
+          { createdAt: 'desc' },
+        ],
+        take: 30,
       });
 
       // 결석인데 메모(remarks)가 없는 출결 기록 - 강사는 담당 학생만, 관리자/데스크는 전체
