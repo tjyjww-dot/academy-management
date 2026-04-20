@@ -295,47 +295,65 @@ export default function WrongAnswersPage() {
       const numPages = pdf.numPages;
       setTotalPages(numPages);
 
-      // Auto-detect answer pages: scan from last page backward for "N) 답" or "N)" patterns
-      let answerStartPage = numPages; // default: last page is the answer page
-      for (let p = numPages; p >= Math.max(1, numPages - 5); p--) {
+      // ============================================================
+      // 페이지별 "답지 여부" 판별 (heuristic)
+      //   - 문제 페이지: 긴 지문 텍스트가 많음 (longChars ≥ ~200)
+      //   - 답지 페이지:
+      //       (a) 텍스트 기반: "N)" 답 번호가 많고(≥8), 긴 지문이 거의 없음(<100자)
+      //       (b) 이미지 기반: 숫자 이미지가 많고(≥15), 긴 지문 없음
+      //   ※ 문제 페이지에도 "정답 : ____" 입력란이 있어서
+      //     "정답/테스트/답지" 같은 키워드만으로는 판별 불가 → 사용하지 않음.
+      // ============================================================
+      const pageIsAnswer = new Array<boolean>(numPages + 1).fill(false);
+
+      for (let p = 1; p <= numPages; p++) {
         try {
           const { items } = await getPageTextItems(pdf, p);
-          // Check for answer patterns: "N) 답" (text-based) or few readable text items with "N)" (image-based)
+          const longItems = items.filter((t: any) => t.text.trim().length >= 15);
+          const totalLongChars = longItems.reduce((s: number, t: any) => s + t.text.trim().length, 0);
           const ansPatterns = items.filter((t: any) =>
-            t.text.match(/^\d{1,2}\)\s*답/) || t.text.match(/^\d{1,2}\)\s*$/)
+            /^\d{1,2}\)\s*$/.test(t.text) ||
+            /^\d{1,2}\)\s*답/.test(t.text) ||
+            /^\d{1,2}\)(?:\s|\()/.test(t.text)
           );
-          // Also check: pages with very few readable items but answer-page headers
-          const hasAnswerHeader = items.some((t: any) =>
-            t.text.includes('테스트') || t.text.includes('답지') || t.text.includes('정답')
-          );
-          const hasAnswerContent = ansPatterns.length >= 2 || (hasAnswerHeader && items.length < 100);
 
-          if (hasAnswerContent && p < numPages) {
-            answerStartPage = p; // Extend answer range backward
-          } else if (p === numPages && (ansPatterns.length >= 1 || hasAnswerHeader)) {
-            answerStartPage = p; // Last page has answers
-          } else {
-            break; // No more answer pages
+          // 긴 지문이 많으면 무조건 문제 페이지
+          const looksLikeProblem = totalLongChars >= 150 || longItems.length >= 5;
+          if (looksLikeProblem) { pageIsAnswer[p] = false; continue; }
+
+          // 텍스트 기반 답지
+          if (ansPatterns.length >= 8 && totalLongChars < 100) {
+            pageIsAnswer[p] = true; continue;
           }
-        } catch { break; }
+
+          // 이미지 기반 답지 (숫자 이미지 다수)
+          try {
+            const page = await pdf.getPage(p);
+            const opList = await page.getOperatorList();
+            let imgCount = 0;
+            for (let i = 0; i < opList.fnArray.length; i++) {
+              if (opList.fnArray[i] === 85) imgCount++; // paintImageXObject
+            }
+            if (imgCount >= 15 && totalLongChars < 100) {
+              pageIsAnswer[p] = true; continue;
+            }
+          } catch { /* ignore */ }
+
+          pageIsAnswer[p] = false;
+        } catch { pageIsAnswer[p] = false; }
       }
 
-      // For image-based answer PDFs (very few readable text items on last page),
-      // also check if last page has many small images (answer number glyphs)
-      if (answerStartPage === numPages) {
-        try {
-          const lastPage = await pdf.getPage(numPages);
-          const lastVp = lastPage.getViewport({ scale: 1.0 });
-          const opList = await lastPage.getOperatorList();
-          let imgCount = 0;
-          for (let i = 0; i < opList.fnArray.length; i++) {
-            if (opList.fnArray[i] === 85) imgCount++; // paintImageXObject
-          }
-          if (imgCount >= 10) {
-            answerStartPage = numPages; // Confirmed: last page has answer images
-          }
-        } catch { /* ignore */ }
+      // 뒤에서부터 연속된 답지 페이지를 찾음. 중간에 끊기면 거기서 멈춤.
+      let answerStartPage = numPages + 1;
+      for (let p = numPages; p >= 2; p--) {
+        if (pageIsAnswer[p]) answerStartPage = p;
+        else break;
       }
+
+      // 감지 실패 시 기존 fallback: 마지막 페이지를 답지로
+      if (answerStartPage > numPages) answerStartPage = numPages;
+      // 안전장치: 최소 1페이지는 문제로 유지
+      if (answerStartPage < 2) answerStartPage = 2;
 
       setProblemPageRange({ start: 1, end: Math.max(1, answerStartPage - 1) });
       setAnswerPageRange({ start: answerStartPage, end: numPages });
