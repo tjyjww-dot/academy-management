@@ -1276,6 +1276,20 @@ function trimWhitespace(canvas: HTMLCanvasElement): string {
   while (top < height && rowCounts[top] < MIN_PIXELS) top++;
   while (bottom > top && rowCounts[bottom] < MIN_PIXELS) bottom--;
 
+  // 하단 재탐색: 정답지 컬럼의 세로 구분선/테두리처럼 얇은 선 노이즈가
+  // 본문 아래까지 이어져 bottom 이 과도하게 낮게 잡히는 문제를 보정한다.
+  // (예: 컬럼 마지막 문항의 정답 이미지 — "15) 7≤x<11" 뒤로 세로선만 계속되는 경우)
+  // "실질적 콘텐츠" 기준(행당 픽셀 수가 폭의 1.5% 이상)으로 다시 한 번 훑어,
+  // 마지막 실질 콘텐츠 행 아래로 30px 넘게 남으면 그 지점으로 잘라낸다.
+  const SUBSTANTIAL_MIN_PIXELS = Math.max(8, Math.floor(width * 0.015));
+  let substantialBottom = bottom;
+  while (substantialBottom > top && rowCounts[substantialBottom] < SUBSTANTIAL_MIN_PIXELS) {
+    substantialBottom--;
+  }
+  if (substantialBottom > top && (bottom - substantialBottom) > 30) {
+    bottom = substantialBottom;
+  }
+
   // Advanced: detect large empty gaps in bottom half to trim excess whitespace
   // This handles cases where sparse noise pixels below the actual content
   // prevent basic trimming from working properly
