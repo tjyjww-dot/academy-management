@@ -1460,11 +1460,3 @@ export function dataURLtoBlob(dataURL: string): Blob {
   for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
   return new Blob([u8arr], { type: mime });
 }
-ction dataURLtoBlob(dataURL: string): Blob {
-  const parts = dataURL.split(',');
-  const mime = parts[0].match(/:(.*?);/)![1];
-  const bstr = atob(parts[1]);
-  const u8arr = new Uint8Array(bstr.length);
-  for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-  return new Blob([u8arr], { type: mime });
-}
