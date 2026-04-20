@@ -1176,6 +1176,15 @@ ${pages.map((pageProblems, pageIdx) => {
     return acc;
   }, {} as Record<string, { name: string; items: WrongAnswerRecord[] }>);
 
+  // 오답 목록 화면에서는 "미해결(ACTIVE)" 문제가 1개 이상인 학생만 표시
+  // - 마스터(MASTERED) 된 문제는 학생 헤더의 "마스터 N" 배지로만 카운트 노출
+  // - 모두 마스터된 학생은 카드 자체가 리스트에서 사라짐
+  const visibleGroupedByStudent = Object.fromEntries(
+    Object.entries(groupedByStudent).filter(([, { items }]) =>
+      items.some(i => i.status === 'ACTIVE')
+    )
+  );
+
   /* ============================================================
      Render
      ============================================================ */
@@ -2070,7 +2079,7 @@ ${pages.map((pageProblems, pageIdx) => {
                       {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
-                  {Object.keys(groupedByStudent).length > 0 && (
+                  {Object.keys(visibleGroupedByStudent).length > 0 && (
                     wrongSelectMode ? (
                       <Button
                         variant="ghost"
@@ -2092,19 +2101,32 @@ ${pages.map((pageProblems, pageIdx) => {
                 </div>
               </Card>
 
-              {Object.keys(groupedByStudent).length === 0 ? (
+              {Object.keys(visibleGroupedByStudent).length === 0 ? (
                 <EmptyState
                   size="md"
                   icon="📝"
-                  title={filterClassroom ? '선택한 반에 등록된 오답이 없습니다' : '등록된 오답이 없습니다'}
-                  description="'오답 등록' 탭에서 학생별 틀린 문제를 등록하면 여기에 모입니다."
+                  title={
+                    filterClassroom
+                      ? (Object.keys(groupedByStudent).length > 0
+                          ? '모든 학생이 오답을 마스터했습니다'
+                          : '선택한 반에 등록된 오답이 없습니다')
+                      : (Object.keys(groupedByStudent).length > 0
+                          ? '모든 학생이 오답을 마스터했습니다'
+                          : '등록된 오답이 없습니다')
+                  }
+                  description={
+                    Object.keys(groupedByStudent).length > 0
+                      ? '현재 미해결 오답이 없습니다. 새 오답을 등록하거나 다른 반을 선택해보세요.'
+                      : "'오답 등록' 탭에서 학생별 틀린 문제를 등록하면 여기에 모입니다."
+                  }
                   asCard
                 />
               ) : (
-                Object.entries(groupedByStudent).map(([studentId, { name, items }]) => {
+                Object.entries(visibleGroupedByStudent).map(([studentId, { name, items }]) => {
                   const active = items.filter(i => i.status === 'ACTIVE');
                   const mastered = items.filter(i => i.status === 'MASTERED');
-                  const studentItemIds = items.map(i => i.id);
+                  // 선택 모드에서 한번에 선택되는 대상은 "미해결(ACTIVE)" 만 — 마스터 항목은 화면에서 숨겨져 있어 선택 불가
+                  const studentItemIds = active.map(i => i.id);
                   const allStudentSelected = studentItemIds.length > 0 && studentItemIds.every(id => selectedWrongIds.has(id));
                   const someStudentSelected = studentItemIds.some(id => selectedWrongIds.has(id));
                   return (
@@ -2150,7 +2172,8 @@ ${pages.map((pageProblems, pageIdx) => {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1.5 px-4 py-3">
-                        {items.map(wa => {
+                        {/* 오답 목록은 "미해결(ACTIVE)" 만 표시. 마스터된 문제는 헤더 배지 카운트로만 노출. */}
+                        {active.map(wa => {
                           const isSelected = selectedWrongIds.has(wa.id);
                           const isMastered = wa.status === 'MASTERED';
                           if (wrongSelectMode) {
