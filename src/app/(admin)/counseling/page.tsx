@@ -111,7 +111,11 @@ export default function CounselingPage() {
       const query = statusFilter !== 'ALL' ? `?status=${statusFilter}` : '';
       const res = await fetch(`/api/counseling${query}`);
       const data = await res.json();
-      setCounselingRequests(data);
+      // '전체' 탭에서는 완료된 상담은 숨김 (완료 탭에서 따로 확인)
+      const filtered = statusFilter === 'ALL'
+        ? (Array.isArray(data) ? data.filter((r: any) => r.status !== 'COMPLETED') : data)
+        : data;
+      setCounselingRequests(filtered);
     } catch (error) {
       console.error('Failed to fetch counseling requests:', error);
     } finally {
