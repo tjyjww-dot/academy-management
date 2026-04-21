@@ -724,7 +724,13 @@ export default function RequestsPage() {
                       <input
                         type="date"
                         value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
+                        onChange={(e) => {
+                          setScheduledDate(e.target.value);
+                          // 연/월/일을 모두 선택한 경우(=유효한 값) 자동으로 picker 닫기
+                          if (e.target.value) {
+                            e.target.blur();
+                          }
+                        }}
                         className="input-apple"
                       />
                     </LabeledField>
@@ -732,7 +738,13 @@ export default function RequestsPage() {
                       <input
                         type="time"
                         value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
+                        onChange={(e) => {
+                          setScheduledTime(e.target.value);
+                          // HH:MM 형태로 완성된 순간 picker 를 닫아준다 (날짜 picker 와 동일 UX)
+                          if (/^\d{1,2}:\d{2}$/.test(e.target.value)) {
+                            e.target.blur();
+                          }
+                        }}
                         className="input-apple"
                       />
                     </LabeledField>

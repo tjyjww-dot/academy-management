@@ -15,9 +15,9 @@ export default function ParentPage() {
   const [tab, setTab] = useState('notice');
   const [memos, setMemos] = useState<any[]>([]);
   const [newMemo, setNewMemo] = useState('');
-  const [showCounselForm, setShowCounselForm] = useState(false);
-  const [counselType, setCounselType] = useState('PHONE');
+  const [counselType, setCounselType] = useState<'PHONE' | 'VISIT'>('PHONE');
   const [counselDesc, setCounselDesc] = useState('');
+  const [counselSubmitting, setCounselSubmitting] = useState(false);
   const [wrongAnswers, setWrongAnswers] = useState<any[]>([]);
   const [waStats, setWaStats] = useState<any>(null);
   const [expandedWA, setExpandedWA] = useState<Set<string>>(new Set());
@@ -84,18 +84,30 @@ export default function ParentPage() {
 
   const submitCounsel = async () => {
     if (!data?.students?.[0]) return;
-    await fetch('/api/counseling', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId: data.students[0].id,
-        title: counselType === 'PHONE' ? '전화상담 요청' : '방문상담 요청',
-        description: counselDesc,
-        counselingType: counselType
-      })
-    });
-    alert('상담 요청이 접수되었습니다.');
-    setShowCounselForm(false);
-    setCounselDesc('');
+    if (counselSubmitting) return;
+    setCounselSubmitting(true);
+    try {
+      const res = await fetch('/api/counseling', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: data.students[0].id,
+          title: counselType === 'PHONE' ? '전화상담 요청' : '방문상담 요청',
+          description: counselDesc,
+          counselingType: counselType
+        })
+      });
+      if (!res.ok) {
+        alert('상담 요청 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+      alert('상담실 확인 후 연락드리겠습니다.');
+      setCounselDesc('');
+      setCounselType('PHONE');
+    } catch {
+      alert('상담 요청 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setCounselSubmitting(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -698,112 +710,94 @@ export default function ParentPage() {
         {tab === 'counsel' && (
           <>
             <SectionHeader eyebrow="COUNSELING" title="상담 요청" />
-            {!showCounselForm ? (
-              <div className="space-y-3">
-                <Card
-                  interactive
-                  haptic="light"
-                  elevation="sh1"
-                  padding="none"
-                  onClick={() => { setCounselType('PHONE'); setShowCounselForm(true); }}
-                  className="w-full text-left"
-                  style={{ padding: '18px 20px' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="shrink-0"
+            <Card padding="md" elevation="sh1">
+              {/* 상담 유형 세그먼트 토글 */}
+              <div
+                className="flex gap-1 p-1 mb-4"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-btn)',
+                }}
+                role="tablist"
+                aria-label="상담 유형"
+              >
+                {(
+                  [
+                    { key: 'PHONE', icon: '☏', label: '전화 상담', hint: '선생님이 전화드립니다' },
+                    { key: 'VISIT', icon: '⌂', label: '방문 상담', hint: '학원에 방문하여 상담' },
+                  ] as const
+                ).map((t) => {
+                  const active = counselType === t.key;
+                  const activeColor = t.key === 'VISIT'
+                    ? 'var(--color-gold, #C99A3B)'
+                    : 'var(--color-accent)';
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onPointerDown={() => hapticSelection()}
+                      onClick={() => setCounselType(t.key)}
+                      className="press press-subtle flex-1 py-3 text-center transition-colors"
                       style={{
-                        width: 44, height: 44,
-                        background: 'var(--color-info-bg)',
-                        color: 'var(--color-accent)',
-                        borderRadius: 'var(--radius-btn)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 20,
+                        background: active ? 'var(--color-surface)' : 'transparent',
+                        color: active ? activeColor : 'var(--color-mute)',
+                        borderRadius: 'calc(var(--radius-btn) - 2px)',
+                        boxShadow: active ? '0 1px 2px rgba(14,14,12,0.06)' : undefined,
+                        minHeight: 44,
                       }}
                     >
-                      ☏
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-h3" style={{ fontSize: 15 }}>전화 상담 요청</p>
-                      <p className="text-caption mt-0.5">선생님이 전화를 드립니다</p>
-                    </div>
-                    <span
-                      className="shrink-0"
-                      style={{ color: 'var(--color-mute)', fontSize: 16, lineHeight: 1 }}
-                      aria-hidden
-                    >
-                      ›
-                    </span>
-                  </div>
-                </Card>
-                <Card
-                  interactive
-                  haptic="light"
-                  elevation="sh1"
-                  padding="none"
-                  onClick={() => { setCounselType('VISIT'); setShowCounselForm(true); }}
-                  className="w-full text-left"
-                  style={{ padding: '18px 20px' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="shrink-0"
-                      style={{
-                        width: 44, height: 44,
-                        background: 'var(--color-gold-soft)',
-                        color: 'var(--color-gold)',
-                        borderRadius: 'var(--radius-btn)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 20,
-                      }}
-                    >
-                      ⌂
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-h3" style={{ fontSize: 15 }}>방문 상담 요청</p>
-                      <p className="text-caption mt-0.5">학원에 방문하여 상담</p>
-                    </div>
-                    <span
-                      className="shrink-0"
-                      style={{ color: 'var(--color-mute)', fontSize: 16, lineHeight: 1 }}
-                      aria-hidden
-                    >
-                      ›
-                    </span>
-                  </div>
-                </Card>
+                      <div style={{ fontSize: 18, lineHeight: 1 }} aria-hidden>{t.icon}</div>
+                      <div className="text-h3 mt-1" style={{ fontSize: 14 }}>{t.label}</div>
+                      <div className="text-caption mt-0.5" style={{ fontSize: 11 }}>{t.hint}</div>
+                    </button>
+                  );
+                })}
               </div>
-            ) : (
-              <Card padding="md" elevation="sh1">
-                <div className="flex items-center gap-2 mb-4">
-                  <Badge tone="accent" variant="soft" size="md">
-                    {counselType === 'PHONE' ? '전화' : '방문'} 상담 요청
-                  </Badge>
-                </div>
-                <textarea
-                  value={counselDesc}
-                  onChange={e => setCounselDesc(e.target.value)}
-                  placeholder="상담 내용을 입력해주세요"
-                  rows={4}
-                  className="w-full text-body resize-none transition-all outline-none"
-                  style={{
-                    background: 'var(--color-surface-2)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-btn)',
-                    padding: '12px 14px',
-                    color: 'var(--color-ink)',
-                  }}
-                />
-                <div className="flex gap-2 mt-4">
-                  <Button variant="ghost" className="flex-1" onClick={() => setShowCounselForm(false)}>
-                    취소
-                  </Button>
-                  <Button variant="primary" className="flex-1" onClick={submitCounsel}>
-                    요청하기
-                  </Button>
-                </div>
-              </Card>
-            )}
+
+              <textarea
+                value={counselDesc}
+                onChange={e => setCounselDesc(e.target.value)}
+                placeholder={
+                  counselType === 'PHONE'
+                    ? '전화 상담 요청 내용을 입력해주세요 (선택)'
+                    : '방문 상담 요청 내용을 입력해주세요 (선택)'
+                }
+                rows={4}
+                className="w-full text-body resize-none transition-all outline-none"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-btn)',
+                  padding: '12px 14px',
+                  color: 'var(--color-ink)',
+                }}
+              />
+
+              <Button
+                variant="primary"
+                className="w-full mt-4"
+                disabled={counselSubmitting}
+                onClick={submitCounsel}
+                style={{
+                  background: counselType === 'VISIT'
+                    ? 'var(--color-gold, #C99A3B)'
+                    : undefined,
+                }}
+              >
+                {counselSubmitting
+                  ? '접수 중...'
+                  : counselType === 'PHONE' ? '전화 상담 요청하기' : '방문 상담 요청하기'}
+              </Button>
+              <p
+                className="text-caption mt-2 text-center"
+                style={{ fontSize: 11.5, color: 'var(--color-mute)' }}
+              >
+                요청 접수 후 상담실에서 확인하고 연락드립니다.
+              </p>
+            </Card>
 
             {/* 구분선 */}
             <div className="pt-2" />
