@@ -32,12 +32,22 @@ export async function GET(request: NextRequest) {
       )];
     }
 
-    // 현재 재원 중인 학생 목록
+    // 현재 재원 중인 학생 목록 (활성 반 정보 포함)
     const activeStudents = await prisma.student.findMany({
       where: {
         status: 'ACTIVE',
         ...(search ? { name: { contains: search } } : {}),
         ...(teacherStudentIds ? { id: { in: teacherStudentIds } } : {}),
+      },
+      include: {
+        enrollments: {
+          where: { status: 'ACTIVE' },
+          include: {
+            classroom: {
+              select: { id: true, name: true, status: true },
+            },
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -60,12 +70,19 @@ export async function GET(request: NextRequest) {
     const paymentMap = new Map(payments.map((p: any) => [p.studentId, p]));
     const result = activeStudents.map((student: any) => {
       const payment = paymentMap.get(student.id);
+      // 활성 반 목록 (활성 반만, 이름순)
+      const classrooms = (student.enrollments || [])
+        .map((e: any) => e.classroom)
+        .filter((c: any) => c && c.status === 'ACTIVE')
+        .map((c: any) => ({ id: c.id, name: c.name }))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name, 'ko'));
       return {
         studentId: student.id,
         studentName: student.name,
         studentNumber: student.studentNumber,
         grade: student.grade,
         school: student.school,
+        classrooms,
         payment: payment || null,
       };
     });

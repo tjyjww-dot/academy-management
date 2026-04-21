@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
 
 interface Payment {
   id: string;
@@ -16,12 +16,18 @@ interface Payment {
   student?: { name: string; studentNumber: string; grade: string; school: string };
 }
 
+interface ClassroomRef {
+  id: string;
+  name: string;
+}
+
 interface StudentPaymentRow {
   studentId: string;
   studentName: string;
   studentNumber: string;
   grade: string;
   school: string;
+  classrooms: ClassroomRef[];
   payment: Payment | null;
 }
 
@@ -77,6 +83,7 @@ export default function PaymentsPage() {
     tuitionFee: number; specialFee: number; otherFee: number; siblingDiscount: number; remarks: string;
   }>({ tuitionFee: 0, specialFee: 0, otherFee: 0, siblingDiscount: 0, remarks: '' });
   const [showPaid, setShowPaid] = useState(false);
+  const [classFilter, setClassFilter] = useState<string>('all'); // 'all' | classroomId | 'none'
 
   // Search tab state
   const [searchQuery, setSearchQuery] = useState('');
@@ -192,9 +199,51 @@ export default function PaymentsPage() {
     });
   };
 
+  // 반 필터 적용 (전체=all / 미배정=none / 특정 반=classroomId)
+  const classFilteredRows = rows.filter((r) => {
+    if (classFilter === 'all') return true;
+    if (classFilter === 'none') return (r.classrooms || []).length === 0;
+    return (r.classrooms || []).some((c) => c.id === classFilter);
+  });
+
   const filteredRows = showPaid
-    ? rows
-    : rows.filter((r) => r.payment?.status !== 'PAID');
+    ? classFilteredRows
+    : classFilteredRows.filter((r) => r.payment?.status !== 'PAID');
+
+  // 유니크한 반 목록 (드롭다운용, 이름순)
+  const uniqueClassrooms: ClassroomRef[] = (() => {
+    const map = new Map<string, ClassroomRef>();
+    rows.forEach((r) => (r.classrooms || []).forEach((c) => { if (!map.has(c.id)) map.set(c.id, c); }));
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  })();
+
+  const hasUnassigned = rows.some((r) => (r.classrooms || []).length === 0);
+
+  // "전체" 뷰일 때 반별 그룹핑
+  // 한 학생이 여러 반에 속하면 각 반에 모두 노출. 반 없는 학생은 (반 미배정)에 모음.
+  const groupedRows: { classroomId: string; classroomName: string; rows: StudentPaymentRow[] }[] = (() => {
+    if (classFilter !== 'all') return [];
+    const groups = new Map<string, { classroomId: string; classroomName: string; rows: StudentPaymentRow[] }>();
+    // 반 순서 유지
+    uniqueClassrooms.forEach((c) => {
+      groups.set(c.id, { classroomId: c.id, classroomName: c.name, rows: [] });
+    });
+    filteredRows.forEach((r) => {
+      const cls = r.classrooms || [];
+      if (cls.length === 0) {
+        if (!groups.has('__none__')) {
+          groups.set('__none__', { classroomId: '__none__', classroomName: '(반 미배정)', rows: [] });
+        }
+        groups.get('__none__')!.rows.push(r);
+      } else {
+        cls.forEach((c) => {
+          const g = groups.get(c.id);
+          if (g) g.rows.push(r);
+        });
+      }
+    });
+    return Array.from(groups.values()).filter((g) => g.rows.length > 0);
+  })();
 
   const changeMonth = (delta: number) => {
     const [y, m] = yearMonth.split('-').map(Number);
@@ -202,14 +251,196 @@ export default function PaymentsPage() {
     setYearMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
+  // 학생 행 렌더러 (그룹 모드에서 동일 학생이 여러 반에 중복 등장할 수 있어 keyPrefix 필요)
+  const renderStudentRow = (row: StudentPaymentRow, keyPrefix: string = '') => {
+    const isEditing = editingRow === row.studentId;
+    const payment = row.payment;
+    const currentStatus = payment?.status || 'PENDING';
+    return (
+      <tr key={`${keyPrefix}${row.studentId}`} className="hover:bg-gray-50 transition-colors">
+        {/* Student Info */}
+        <td className="px-4 py-3">
+          <div>
+            <p className="font-medium text-gray-900">{row.studentName}</p>
+            <p className="text-xs text-gray-500">{row.grade} · {row.school}</p>
+          </div>
+        </td>
+
+        {/* Fee Fields */}
+        {isEditing ? (
+          <>
+            <td className="px-4 py-3">
+              <input
+                type="number"
+                value={editData.tuitionFee || ''}
+                onChange={(e) => setEditData({ ...editData, tuitionFee: Number(e.target.value) || 0 })}
+                className="w-28 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="0"
+              />
+            </td>
+            <td className="px-4 py-3">
+              <input
+                type="number"
+                value={editData.specialFee || ''}
+                onChange={(e) => setEditData({ ...editData, specialFee: Number(e.target.value) || 0 })}
+                className="w-28 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="0"
+              />
+            </td>
+            <td className="px-4 py-3">
+              <input
+                type="number"
+                value={editData.otherFee || ''}
+                onChange={(e) => setEditData({ ...editData, otherFee: Number(e.target.value) || 0 })}
+                className="w-28 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="0"
+              />
+            </td>
+            <td className="px-4 py-3">
+              <input
+                type="number"
+                value={editData.siblingDiscount || ''}
+                onChange={(e) => setEditData({ ...editData, siblingDiscount: Number(e.target.value) || 0 })}
+                className="w-28 px-2 py-1.5 border border-orange-300 rounded text-right text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-orange-50"
+                placeholder="0"
+              />
+            </td>
+            <td className="px-4 py-3 text-right">
+              <span className="font-bold text-blue-600">
+                {formatCurrency(editData.tuitionFee + editData.specialFee + editData.otherFee - editData.siblingDiscount)}
+              </span>
+            </td>
+            <td className="px-4 py-3">
+              <input
+                type="text"
+                value={editData.remarks}
+                onChange={(e) => setEditData({ ...editData, remarks: e.target.value })}
+                className="w-36 px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="메모"
+              />
+            </td>
+          </>
+        ) : (
+          <>
+            <td className="px-4 py-3 text-right text-sm text-gray-700">
+              {payment ? formatCurrency(payment.tuitionFee) : '-'}
+            </td>
+            <td className="px-4 py-3 text-right text-sm text-gray-700">
+              {payment ? formatCurrency(payment.specialFee) : '-'}
+            </td>
+            <td className="px-4 py-3 text-right text-sm text-gray-700">
+              {payment ? formatCurrency(payment.otherFee) : '-'}
+            </td>
+            <td className="px-4 py-3 text-right text-sm text-orange-600">
+              {payment && payment.siblingDiscount > 0 ? `-${formatCurrency(payment.siblingDiscount)}` : '-'}
+            </td>
+            <td className="px-4 py-3 text-right">
+              <span className="font-bold text-gray-900">
+                {payment ? formatCurrency(payment.totalFee) : '-'}
+              </span>
+            </td>
+            <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px] truncate">
+              {payment?.remarks || '-'}
+            </td>
+          </>
+        )}
+
+        {/* Status Badge */}
+        <td className="px-4 py-3 text-center">
+          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[currentStatus]}`}>
+            {STATUS_LABELS[currentStatus]}
+          </span>
+        </td>
+
+        {/* Actions */}
+        <td className="px-4 py-3 text-center">
+          <div className="flex items-center justify-center gap-1">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => handleSave(row.studentId, payment)}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => setEditingRow(null)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  취소
+                </button>
+              </>
+            ) : (
+              <>
+                {(!payment || currentStatus === 'PENDING') && (
+                  <button
+                    onClick={() => startEdit(row)}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    입력
+                  </button>
+                )}
+                {payment && currentStatus === 'INPUT_DONE' && (
+                  <>
+                    <button
+                      onClick={() => startEdit(row)}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
+                    >
+                      수정
+                    </button>
+                    <button
+                      onClick={() => handleStatusAdvance(payment.id, currentStatus)}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      발송처리
+                    </button>
+                  </>
+                )}
+                {payment && currentStatus === 'SENT' && (
+                  <>
+                    <button
+                      onClick={() => startEdit(row)}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
+                    >
+                      수정
+                    </button>
+                    <button
+                      onClick={() => handleStatusAdvance(payment.id, currentStatus)}
+                      className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      입금확인
+                    </button>
+                  </>
+                )}
+                {payment && currentStatus === 'PAID' && (
+                  <>
+                    <button
+                      onClick={() => startEdit(row)}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
+                    >
+                      수정
+                    </button>
+                    <span className="text-xs text-green-600 font-medium">완료</span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // 요약 카드는 현재 반 필터가 적용된 학생 기준으로 집계 (중복 제거)
+  const statRows = classFilter === 'all' ? rows : classFilteredRows;
   const summaryStats = {
-    total: rows.length,
-    inputDone: rows.filter((r) => r.payment?.status === 'INPUT_DONE').length,
-    sent: rows.filter((r) => r.payment?.status === 'SENT').length,
-    paid: rows.filter((r) => r.payment?.status === 'PAID').length,
-    pending: rows.filter((r) => !r.payment || r.payment.status === 'PENDING').length,
-    totalAmount: rows.reduce((sum, r) => sum + (r.payment?.totalFee || 0), 0),
-    paidAmount: rows.filter((r) => r.payment?.status === 'PAID').reduce((sum, r) => sum + (r.payment?.totalFee || 0), 0),
+    total: statRows.length,
+    inputDone: statRows.filter((r) => r.payment?.status === 'INPUT_DONE').length,
+    sent: statRows.filter((r) => r.payment?.status === 'SENT').length,
+    paid: statRows.filter((r) => r.payment?.status === 'PAID').length,
+    pending: statRows.filter((r) => !r.payment || r.payment.status === 'PENDING').length,
+    totalAmount: statRows.reduce((sum, r) => sum + (r.payment?.totalFee || 0), 0),
+    paidAmount: statRows.filter((r) => r.payment?.status === 'PAID').reduce((sum, r) => sum + (r.payment?.totalFee || 0), 0),
   };
 
   return (
@@ -269,15 +500,33 @@ export default function PaymentsPage() {
                   </svg>
                 </button>
               </div>
-              <label className="flex items-center gap-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={showPaid}
-                  onChange={(e) => setShowPaid(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                입금완료 항목 표시
-              </label>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="text-gray-500">반</span>
+                  <select
+                    value={classFilter}
+                    onChange={(e) => setClassFilter(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent min-w-[140px]"
+                  >
+                    <option value="all">전체</option>
+                    {uniqueClassrooms.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                    {hasUnassigned && (
+                      <option value="none">(반 미배정)</option>
+                    )}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showPaid}
+                    onChange={(e) => setShowPaid(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  입금완료 항목 표시
+                </label>
+              </div>
             </div>
 
             {/* Summary Cards */}
@@ -316,7 +565,9 @@ export default function PaymentsPage() {
               </div>
             ) : filteredRows.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                {showPaid ? '해당 월에 재원 중인 학생이 없습니다.' : '처리할 수납 항목이 없습니다. (모두 입금완료 처리됨)'}
+                {classFilter !== 'all'
+                  ? (showPaid ? '선택한 반에 재원 중인 학생이 없습니다.' : '이 반에 처리할 수납 항목이 없습니다.')
+                  : (showPaid ? '해당 월에 재원 중인 학생이 없습니다.' : '처리할 수납 항목이 없습니다. (모두 입금완료 처리됨)')}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -335,185 +586,28 @@ export default function PaymentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredRows.map((row) => {
-                      const isEditing = editingRow === row.studentId;
-                      const payment = row.payment;
-                      const currentStatus = payment?.status || 'PENDING';
-
-                      return (
-                        <tr key={row.studentId} className="hover:bg-gray-50 transition-colors">
-                          {/* Student Info */}
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-medium text-gray-900">{row.studentName}</p>
-                              <p className="text-xs text-gray-500">{row.grade} · {row.school}</p>
-                            </div>
-                          </td>
-
-                          {/* Fee Fields */}
-                          {isEditing ? (
-                            <>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  value={editData.tuitionFee || ''}
-                                  onChange={(e) => setEditData({ ...editData, tuitionFee: Number(e.target.value) || 0 })}
-                                  className="w-28 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  value={editData.specialFee || ''}
-                                  onChange={(e) => setEditData({ ...editData, specialFee: Number(e.target.value) || 0 })}
-                                  className="w-28 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  value={editData.otherFee || ''}
-                                  onChange={(e) => setEditData({ ...editData, otherFee: Number(e.target.value) || 0 })}
-                                  className="w-28 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  value={editData.siblingDiscount || ''}
-                                  onChange={(e) => setEditData({ ...editData, siblingDiscount: Number(e.target.value) || 0 })}
-                                  className="w-28 px-2 py-1.5 border border-orange-300 rounded text-right text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-orange-50"
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <span className="font-bold text-blue-600">
-                                  {formatCurrency(editData.tuitionFee + editData.specialFee + editData.otherFee - editData.siblingDiscount)}
+                    {classFilter === 'all' ? (
+                      groupedRows.map((group) => (
+                        <Fragment key={group.classroomId}>
+                          <tr className="bg-blue-50/60 border-t border-b border-blue-100">
+                            <td colSpan={9} className="px-4 py-2">
+                              <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <span>{group.classroomName}</span>
+                                <span className="text-xs font-medium text-blue-700 bg-white/70 px-2 py-0.5 rounded-full">
+                                  {group.rows.length}명
                                 </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={editData.remarks}
-                                  onChange={(e) => setEditData({ ...editData, remarks: e.target.value })}
-                                  className="w-36 px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  placeholder="메모"
-                                />
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-4 py-3 text-right text-sm text-gray-700">
-                                {payment ? formatCurrency(payment.tuitionFee) : '-'}
-                              </td>
-                              <td className="px-4 py-3 text-right text-sm text-gray-700">
-                                {payment ? formatCurrency(payment.specialFee) : '-'}
-                              </td>
-                              <td className="px-4 py-3 text-right text-sm text-gray-700">
-                                {payment ? formatCurrency(payment.otherFee) : '-'}
-                              </td>
-                              <td className="px-4 py-3 text-right text-sm text-orange-600">
-                                {payment && payment.siblingDiscount > 0 ? `-${formatCurrency(payment.siblingDiscount)}` : '-'}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <span className="font-bold text-gray-900">
-                                  {payment ? formatCurrency(payment.totalFee) : '-'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px] truncate">
-                                {payment?.remarks || '-'}
-                              </td>
-                            </>
-                          )}
-
-                          {/* Status Badge */}
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[currentStatus]}`}>
-                              {STATUS_LABELS[currentStatus]}
-                            </span>
-                          </td>
-
-                          {/* Actions */}
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              {isEditing ? (
-                                <>
-                                  <button
-                                    onClick={() => handleSave(row.studentId, payment)}
-                                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
-                                  >
-                                    저장
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingRow(null)}
-                                    className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
-                                  >
-                                    취소
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  {(!payment || currentStatus === 'PENDING') && (
-                                    <button
-                                      onClick={() => startEdit(row)}
-                                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
-                                    >
-                                      입력
-                                    </button>
-                                  )}
-                                  {payment && currentStatus === 'INPUT_DONE' && (
-                                    <>
-                                      <button
-                                        onClick={() => startEdit(row)}
-                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
-                                      >
-                                        수정
-                                      </button>
-                                      <button
-                                        onClick={() => handleStatusAdvance(payment.id, currentStatus)}
-                                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
-                                      >
-                                        발송처리
-                                      </button>
-                                    </>
-                                  )}
-                                  {payment && currentStatus === 'SENT' && (
-                                    <>
-                                      <button
-                                        onClick={() => startEdit(row)}
-                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
-                                      >
-                                        수정
-                                      </button>
-                                      <button
-                                        onClick={() => handleStatusAdvance(payment.id, currentStatus)}
-                                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors"
-                                      >
-                                        입금확인
-                                      </button>
-                                    </>
-                                  )}
-                                  {payment && currentStatus === 'PAID' && (
-                                    <>
-                                      <button
-                                        onClick={() => startEdit(row)}
-                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-300 transition-colors"
-                                      >
-                                        수정
-                                      </button>
-                                      <span className="text-xs text-green-600 font-medium">완료</span>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                              </div>
+                            </td>
+                          </tr>
+                          {group.rows.map((row) => renderStudentRow(row, `${group.classroomId}__`))}
+                        </Fragment>
+                      ))
+                    ) : (
+                      filteredRows.map((row) => renderStudentRow(row))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -669,3 +763,4 @@ export default function PaymentsPage() {
     </div>
   );
 }
+                      
