@@ -169,6 +169,10 @@ export default function ClassDetailPage() {
         setProgressNote('');
         setHomework('');
         setAnnouncement(data.prevAnnouncement || '');
+        // 날짜 이동 시 학생별 숙제/진도/전달사항이 이전 날짜 값으로 잔존하지 않도록 초기화
+        setPerStudentHomeworkMap({});
+        setPerStudentProgressMap({});
+        setPersonalNotes({});
       }
 
       if (data.videos && data.videos.length > 0) {
