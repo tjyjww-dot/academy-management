@@ -10,8 +10,16 @@ $logPath  = Join-Path $repoPath 'scripts\claude-auto-deploy-log.txt'
 $msgPath  = Join-Path $repoPath 'scripts\.claude-next-commit-msg.txt'
 $stagePath = Join-Path $repoPath 'scripts\.claude-next-stage.txt'
 
-function Log($text) {
-    $text | Out-File -LiteralPath $logPath -Append -Encoding UTF8
+function Log {
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline=$true, Position=0)]
+        $text
+    )
+    process {
+        if ($null -eq $text) { return }
+        $text | Out-File -LiteralPath $script:logPath -Append -Encoding UTF8
+    }
 }
 
 if (-not (Test-Path $repoPath)) {
@@ -60,10 +68,10 @@ Log "=== git status (before) ==="
 $stagedAny = $false
 if (Test-Path $stagePath) {
     $paths = Get-Content -LiteralPath $stagePath -Encoding UTF8 | Where-Object { $_ -and ($_ -notmatch '^\s*#') -and ($_.Trim() -ne '') }
-    if ($paths -and $paths.Count -gt 0) {
+    if ($paths -and @($paths).Count -gt 0) {
         Log ""
         Log "=== git add (specific paths) ==="
-        foreach ($p in $paths) {
+        foreach ($p in @($paths)) {
             $p = $p.Trim()
             Log "add: $p"
             (git add -- $p 2>&1) | Out-String | Log
@@ -105,9 +113,9 @@ Log "=== git log -3 (after push) ==="
 Log ""
 Log "=== DONE $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
 
-# 6) 템플릿 파일 비움
+# 6) 템플릿 파일 비움 (다음 실행 안전장치)
 Clear-Content -LiteralPath $msgPath -ErrorAction SilentlyContinue
 if (Test-Path $stagePath) { Clear-Content -LiteralPath $stagePath -ErrorAction SilentlyContinue }
 
 Write-Host "=== DONE ==="
-Get-Content -LiteralPath $logPath -Tail 60
+Get-Content -LiteralPath $logPath -Tail 80
