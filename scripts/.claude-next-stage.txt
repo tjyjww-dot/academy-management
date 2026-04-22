@@ -1,0 +1,4 @@
+scripts/claude-auto-deploy.ps1
+scripts/claude-auto-deploy.bat
+scripts/.claude-next-commit-msg.txt
+scripts/.claude-next-stage.txt
