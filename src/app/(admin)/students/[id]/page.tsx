@@ -45,7 +45,7 @@ export default function StudentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('counseling');
   const [gradeStats, setGradeStats] = useState<any[]>([]);
   const [editData, setEditData] = useState<Partial<Student>>({});
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
@@ -420,9 +420,9 @@ export default function StudentDetailPage() {
         <div className="bg-white rounded-lg shadow">
           <div className="border-b flex">
             {[
+              { id: 'counseling', label: '상담내역' },
               { id: 'basic', label: '기본정보' },
               { id: 'classes', label: '수강반' },
-              { id: 'counseling', label: '상담내역' },
               { id: 'grades', label: '성적' },
               { id: 'attendance', label: '출결' },
             ].map((tab) => (
