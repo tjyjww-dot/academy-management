@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { CommandPaletteProvider, type CommandItem } from '@/components/ui/CommandPalette';
 import StudentSearchBox from '@/components/ui/StudentSearchBox';
+import ClassQuickNav from '@/components/ui/ClassQuickNav';
 import { hapticSelection, hapticLight } from '@/lib/haptics';
 
 interface User {
@@ -460,12 +461,17 @@ export default function AdminLayout({
           </button>
           <div className="flex-1" />
 
-          {/* 원생 이름 검색창 (이름 입력 → 해당 원생 상세로 이동) */}
-          <StudentSearchBox />
+          <div className="flex items-center gap-2">
+            {/* 원생 이름 검색창 (이름 입력 → 해당 원생 상세로 이동) */}
+            <StudentSearchBox />
+
+            {/* 반 빠른 이동 드롭다운 (선택 → 해당 반 상세로 이동) */}
+            <ClassQuickNav />
+          </div>
 
           {/* User Info */}
           {user && (
-            <div className="flex items-center gap-3">
+            <div className="ml-3 flex items-center gap-3">
               <div className="hidden sm:block text-right">
                 <p
                   className="text-[13px] font-semibold"
