@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
-import { CommandPaletteProvider, useCommandPalette, type CommandItem } from '@/components/ui/CommandPalette';
+import { CommandPaletteProvider, type CommandItem } from '@/components/ui/CommandPalette';
+import StudentSearchBox from '@/components/ui/StudentSearchBox';
 import { hapticSelection, hapticLight } from '@/lib/haptics';
 
 interface User {
@@ -133,55 +134,6 @@ function roleTone(role: string): 'accent' | 'gold' | 'neutral' {
   if (role === 'ADMIN') return 'accent';
   if (role === 'TEACHER' || role === 'DESK') return 'gold';
   return 'neutral';
-}
-
-/**
- * Command Palette 트리거 버튼
- * — 헤더에 표시되는 검색창 모양의 버튼, 클릭 시 팔레트를 연다.
- * — 데스크탑에선 "이동·검색 ⌘K" 형태, 모바일에선 아이콘만.
- */
-function CommandPaletteTrigger() {
-  const { open } = useCommandPalette();
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    if (typeof navigator !== 'undefined') {
-      setIsMac(/Mac|iPhone|iPad|iPod/.test(navigator.platform));
-    }
-  }, []);
-
-  return (
-    <button
-      type="button"
-      aria-label="빠른 이동 · 명령 팔레트 열기"
-      onPointerDown={() => hapticLight()}
-      onClick={() => open()}
-      className="press press-subtle h-9 rounded-lg flex items-center gap-2 transition-colors"
-      style={{
-        background: 'var(--color-surface-2)',
-        border: '1px solid var(--color-border)',
-        color: 'var(--color-mute)',
-        padding: '0 10px 0 12px',
-      }}
-    >
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
-      </svg>
-      <span className="hidden md:inline text-[13px]" style={{ letterSpacing: '-0.01em' }}>
-        이동 · 검색
-      </span>
-      <kbd
-        className="hidden md:inline-flex items-center h-5 px-1.5 rounded text-[10.5px] font-semibold"
-        style={{
-          background: 'var(--color-surface)',
-          color: 'var(--color-ink-2)',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        {isMac ? '⌘K' : 'Ctrl K'}
-      </kbd>
-    </button>
-  );
 }
 
 export default function AdminLayout({
@@ -508,8 +460,8 @@ export default function AdminLayout({
           </button>
           <div className="flex-1" />
 
-          {/* Command Palette 트리거 */}
-          <CommandPaletteTrigger />
+          {/* 원생 이름 검색창 (이름 입력 → 해당 원생 상세로 이동) */}
+          <StudentSearchBox />
 
           {/* User Info */}
           {user && (
