@@ -74,16 +74,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 직원이 학생의 상담 예약을 등록할 때는 기본 상태를 PENDING 으로 둔다.
-    // (대시보드 "받은 요청사항" 에 뜨려면 PENDING 이어야 함)
-    // 학부모가 기존에 보낸 요청이 아닌 경우에도, 새로 예약된 상담이면 대기로 시작.
-    const isReservation =
-      (counselingType === 'PHONE' || counselingType === 'VISIT') &&
-      !status;
+    // 기본 상태 결정 규칙
+    //  1) 요청자 역할이 PARENT  → 학부모 앱에서 온 새 요청이므로 PENDING
+    //  2) 요청자 역할이 직원    →
+    //       · scheduledDate/Time 또는 preferredDate 가 있으면 "미래 예약"  → PENDING
+    //       · 아니면 원생 상세/반관리에서 기록하는 "완료된 상담"           → COMPLETED
+    //  3) status 가 명시적으로 전달된 경우 그 값을 그대로 사용
+    const isParent = decoded.role === 'PARENT';
+    const hasSchedule = Boolean(scheduledDate || scheduledTime || preferredDate);
 
-    const defaultStatus = isReservation
+    const defaultStatus = isParent
       ? 'PENDING'
-      : parentId
+      : hasSchedule
         ? 'PENDING'
         : 'COMPLETED';
 
