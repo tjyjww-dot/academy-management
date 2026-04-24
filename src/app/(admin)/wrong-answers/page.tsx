@@ -141,7 +141,8 @@ export default function WrongAnswersPage() {
 
   // Grading modal
   const [gradingTest, setGradingTest] = useState<WrongAnswerTestRecord | null>(null);
-  const [gradeResults, setGradeResults] = useState<Record<string, boolean>>({});
+  // null = 아직 채점하지 않음 · true = 정답 · false = 오답
+  const [gradeResults, setGradeResults] = useState<Record<string, boolean | null>>({});
   const [showGradeAnswer, setShowGradeAnswer] = useState<Set<string>>(new Set());
   // 채점 화면의 문제 순서 — PDF 출력과 동일한 순서를 보장하기 위해 seededShuffle 사용
   const gradingItemsOrdered = useMemo(() => {
@@ -1188,16 +1189,45 @@ ${pages.map((pageProblems, pageIdx) => {
 
   const handleStartGrading = (test: WrongAnswerTestRecord) => {
     setGradingTest(test);
-    const init: Record<string, boolean> = {};
-    test.items.forEach(i => { init[i.wrongAnswerId] = i.isCorrect ?? false; });
+    // 이전에 채점된 값은 그대로 복원, 아직 채점되지 않은 항목은 null(미채점) 로 시작
+    // — 기본값을 false 로 두면 선생님이 O 를 누르지 않은 문제가 전부 오답으로 저장됨. 이를 방지.
+    const init: Record<string, boolean | null> = {};
+    test.items.forEach(i => {
+      init[i.wrongAnswerId] = i.isCorrect == null ? null : i.isCorrect;
+    });
     setGradeResults(init);
     setShowGradeAnswer(new Set());
   };
 
   const handleSubmitGrade = async () => {
     if (!gradingTest) return;
+
+    // 미채점 항목 검증 — O/X 중 어느 것도 선택하지 않은 문제가 있으면 경고
+    const ungradedEntries = Object.entries(gradeResults).filter(([, v]) => v == null);
+    if (ungradedEntries.length > 0) {
+      const ungradedNumbers = ungradedEntries
+        .map(([waId]) => gradingTest.items.find(it => it.wrongAnswerId === waId)?.wrongAnswer.problemNumber)
+        .filter((n): n is number => typeof n === 'number')
+        .sort((a, b) => a - b)
+        .join(', ');
+      const proceed = window.confirm(
+        `아직 채점하지 않은 문제가 ${ungradedEntries.length}개 있습니다 (문제 #${ungradedNumbers}).\n` +
+        `계속하면 해당 문제들은 저장되지 않고 나중에 다시 채점할 수 있습니다.\n\n진행하시겠습니까?`
+      );
+      if (!proceed) return;
+    }
+
     try {
-      const results = Object.entries(gradeResults).map(([wrongAnswerId, isCorrect]) => ({ wrongAnswerId, isCorrect }));
+      // null(미채점) 은 서버로 보내지 않음 — 해당 항목은 isCorrect=null 로 남아 재채점 가능
+      const results = Object.entries(gradeResults)
+        .filter(([, isCorrect]) => isCorrect != null)
+        .map(([wrongAnswerId, isCorrect]) => ({ wrongAnswerId, isCorrect: isCorrect as boolean }));
+
+      if (results.length === 0) {
+        showMsg('채점된 문제가 없습니다', 'error');
+        return;
+      }
+
       const res = await fetch(`/api/wrong-answers/tests/${gradingTest.id}/grade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2402,19 +2432,40 @@ ${pages.map((pageProblems, pageIdx) => {
                         </div>
                         {graded && (
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {test.items.map(item => (
-                              <span
-                                key={item.id}
-                                className="inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold num-tabular"
-                                style={{
-                                  background: item.isCorrect ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
-                                  color: item.isCorrect ? 'var(--color-success)' : 'var(--color-danger)',
-                                  border: `1px solid ${item.isCorrect ? 'var(--color-success)' : 'var(--color-danger)'}`,
-                                }}
-                              >
-                                {item.wrongAnswer.problemNumber}
-                              </span>
-                            ))}
+                            {test.items.map(item => {
+                              // null = 미채점 (회색) · true = 정답 (초록) · false = 오답 (빨강)
+                              const isUngradedItem = item.isCorrect == null;
+                              const bg = isUngradedItem
+                                ? 'var(--color-surface-2)'
+                                : item.isCorrect
+                                ? 'var(--color-success-bg)'
+                                : 'var(--color-danger-bg)';
+                              const fg = isUngradedItem
+                                ? 'var(--color-mute)'
+                                : item.isCorrect
+                                ? 'var(--color-success)'
+                                : 'var(--color-danger)';
+                              const bd = isUngradedItem
+                                ? 'var(--color-border)'
+                                : item.isCorrect
+                                ? 'var(--color-success)'
+                                : 'var(--color-danger)';
+                              return (
+                                <span
+                                  key={item.id}
+                                  title={isUngradedItem ? '미채점' : item.isCorrect ? '정답' : '오답'}
+                                  className="inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold num-tabular"
+                                  style={{
+                                    background: bg,
+                                    color: fg,
+                                    border: `1px solid ${bd}`,
+                                    borderStyle: isUngradedItem ? 'dashed' : 'solid',
+                                  }}
+                                >
+                                  {item.wrongAnswer.problemNumber}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </Card>
@@ -2623,9 +2674,28 @@ ${pages.map((pageProblems, pageIdx) => {
             style={{ background: 'var(--color-surface)', boxShadow: 'var(--shadow-sh3)' }}
           >
             <h3 className="text-lg font-bold text-ink mb-1" style={{ letterSpacing: '-0.01em' }}>채점</h3>
-            <p className="text-sm mb-4" style={{ color: 'var(--color-ink-2)' }}>
+            <p className="text-sm mb-2" style={{ color: 'var(--color-ink-2)' }}>
               {gradingTest.student.name} <span style={{ color: 'var(--color-mute)' }}>·</span> {gradingTest.round}회차
             </p>
+            {(() => {
+              const total = gradingItemsOrdered.length;
+              const gradedCnt = Object.values(gradeResults).filter(v => v != null).length;
+              const remaining = total - gradedCnt;
+              return (
+                <div
+                  className="mb-4 px-3 py-2 rounded-[10px] text-xs flex items-center justify-between"
+                  style={{
+                    background: remaining === 0 ? 'var(--color-success-bg)' : 'rgba(245, 158, 11, 0.10)',
+                    border: `1px solid ${remaining === 0 ? 'var(--color-success)' : 'rgba(245, 158, 11, 0.45)'}`,
+                    color: remaining === 0 ? 'var(--color-success)' : '#c2410c',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>채점 진행: {gradedCnt} / {total}</span>
+                  <span>{remaining === 0 ? '모든 문제 채점 완료' : `미채점 ${remaining}개`}</span>
+                </div>
+              );
+            })()}
             <div className="space-y-3">
               {gradingItemsOrdered.map((item, idx) => {
                 const val = gradeResults[item.wrongAnswerId];
@@ -2647,11 +2717,13 @@ ${pages.map((pageProblems, pageIdx) => {
                 }
                 const hasAnswer = !!(answerImg || answerText);
                 const isAnswerShown = showGradeAnswer.has(wa.id);
+                // val === null/undefined → 미채점 · true → 정답 · false → 오답
+                const isUngraded = val == null;
                 return (
                   <div
                     key={item.id}
                     style={{
-                      border: '1px solid var(--color-border)',
+                      border: isUngraded ? '1.5px dashed var(--color-warn, #f59e0b)' : '1px solid var(--color-border)',
                       borderRadius: 'var(--radius-btn)',
                       overflow: 'hidden',
                       background: 'var(--color-surface)',
@@ -2676,6 +2748,18 @@ ${pages.map((pageProblems, pageIdx) => {
                           {wa.testName} <span style={{ color: 'var(--color-mute)' }}>#{wa.problemNumber}</span>
                         </span>
                       </div>
+                      {isUngraded && (
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                          style={{
+                            background: 'rgba(245, 158, 11, 0.14)',
+                            color: '#c2410c',
+                            letterSpacing: '0.02em',
+                          }}
+                        >
+                          미채점
+                        </span>
+                      )}
                     </div>
 
                     {/* Problem Image */}

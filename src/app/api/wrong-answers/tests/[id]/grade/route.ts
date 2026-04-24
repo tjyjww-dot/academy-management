@@ -25,6 +25,9 @@ export async function POST(
     }
 
     for (const result of results) {
+      // 방어: 클라이언트에서 boolean 이 아닌 값이 섞여 들어오면 해당 항목은 건너뜀
+      if (typeof result.isCorrect !== 'boolean' || !result.wrongAnswerId) continue;
+
       // 기존 채점 상태 조회 (재채점 대응)
       const existingItem = await prisma.wrongAnswerTestItem.findFirst({
         where: { testId: id, wrongAnswerId: result.wrongAnswerId },
