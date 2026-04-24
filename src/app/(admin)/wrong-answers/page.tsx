@@ -2383,11 +2383,9 @@ ${pages.map((pageProblems, pageIdx) => {
                             <Button variant="secondary" size="sm" onClick={() => generateTestPDF(test)}>
                               테스트지 출력
                             </Button>
-                            {test.status === 'PENDING' && (
-                              <Button variant="accent" size="sm" onClick={() => handleStartGrading(test)}>
-                                채점하기
-                              </Button>
-                            )}
+                            <Button variant="accent" size="sm" onClick={() => handleStartGrading(test)}>
+                              {test.status === 'PENDING' ? '채점하기' : '채점 수정'}
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

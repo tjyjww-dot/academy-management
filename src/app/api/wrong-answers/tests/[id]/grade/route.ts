@@ -25,20 +25,60 @@ export async function POST(
     }
 
     for (const result of results) {
+      // 기존 채점 상태 조회 (재채점 대응)
+      const existingItem = await prisma.wrongAnswerTestItem.findFirst({
+        where: { testId: id, wrongAnswerId: result.wrongAnswerId },
+        select: { isCorrect: true },
+      });
+      const prev = existingItem?.isCorrect ?? null; // null = 미채점
+      const next: boolean = result.isCorrect;
+
+      // 아이템 업데이트
       await prisma.wrongAnswerTestItem.updateMany({
         where: { testId: id, wrongAnswerId: result.wrongAnswerId },
-        data: { isCorrect: result.isCorrect },
+        data: { isCorrect: next },
       });
 
-      if (result.isCorrect) {
+      // 변화 없음 → 사이드이펙트 건너뜀
+      if (prev === next) continue;
+
+      if (prev === null) {
+        // 첫 채점
+        if (next) {
+          await prisma.wrongAnswer.update({
+            where: { id: result.wrongAnswerId },
+            data: { status: 'MASTERED', masteredAt: new Date() },
+          });
+        } else {
+          await prisma.wrongAnswer.update({
+            where: { id: result.wrongAnswerId },
+            data: { round: { increment: 1 } },
+          });
+        }
+      } else if (prev === true && next === false) {
+        // 재채점: 정답 → 오답 (MASTERED 해제 + round++)
         await prisma.wrongAnswer.update({
           where: { id: result.wrongAnswerId },
-          data: { status: 'MASTERED', masteredAt: new Date() },
+          data: {
+            status: 'ACTIVE',
+            masteredAt: null,
+            round: { increment: 1 },
+          },
         });
-      } else {
+      } else if (prev === false && next === true) {
+        // 재채점: 오답 → 정답 (round-- 최소 1, MASTERED 설정)
+        const current = await prisma.wrongAnswer.findUnique({
+          where: { id: result.wrongAnswerId },
+          select: { round: true },
+        });
+        const newRound = Math.max(1, (current?.round ?? 1) - 1);
         await prisma.wrongAnswer.update({
           where: { id: result.wrongAnswerId },
-          data: { round: { increment: 1 } },
+          data: {
+            status: 'MASTERED',
+            masteredAt: new Date(),
+            round: newRound,
+          },
         });
       }
     }
