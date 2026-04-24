@@ -865,41 +865,54 @@ async function detectAnswersByOperatorList(
   }
 
   // --- Group images by Y position (within 8pt = same answer line) ---
+  // IMPORTANT: Split images by COLUMN before Y-grouping so that left and
+  // right column answers at nearly-identical Y values do not merge into one
+  // group (which would cause one column's anchor to mask the other).
+  //
+  // Historical bug: a test PDF with left-col #3 at y=197.4 and right-col
+  // #16 at y=191.0 produced a mixed group with minX=58 (left anchor),
+  // silently dropping the right-column anchor at x≈303. Splitting first
+  // keeps each column's rows independent.
   const Y_GROUP_THRESHOLD = 8;
-  const sorted = [...contentImages].sort((a, b) => a.y - b.y);
-  const yGroups: typeof contentImages[] = [];
-
-  if (sorted.length > 0) {
+  function groupByY(imgs: typeof contentImages): (typeof contentImages)[] {
+    if (imgs.length === 0) return [];
+    const sorted = [...imgs].sort((a, b) => a.y - b.y);
+    const out: (typeof contentImages)[] = [];
     let group = [sorted[0]];
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].y - group[0].y <= Y_GROUP_THRESHOLD) {
         group.push(sorted[i]);
       } else {
-        yGroups.push(group);
+        out.push(group);
         group = [sorted[i]];
       }
     }
-    yGroups.push(group);
+    out.push(group);
+    return out;
   }
+
+  const leftImages = contentImages.filter(im => im.x < midX);
+  const rightImages = contentImages.filter(im => im.x >= midX);
+  const leftYGroups = groupByY(leftImages);
+  const rightYGroups = groupByY(rightImages);
 
   // --- Identify anchor X positions ---
   // Find the most common leftmost X positions for answer numbers
-  // Left column anchors cluster around x≈55-62, right column around x≈300-310
-  // We detect these dynamically rather than hardcoding
-
-  // Collect the minimum X of each Y-group
-  const groupMinXs = yGroups.map(g => ({
-    minX: Math.min(...g.map(img => img.x)),
-    y: g.reduce((s, img) => s + img.y, 0) / g.length,
-    count: g.length,
-  }));
-
-  // Separate into left and right column groups
-  const leftGroups = groupMinXs.filter(g => g.minX < midX);
-  const rightGroups = groupMinXs.filter(g => g.minX >= midX);
+  // Left column anchors cluster around x≈55-62, right column around x≈300-310.
+  // Each column's anchor is computed from its own Y-groups only.
+  type GroupMinX = { minX: number; y: number; count: number };
+  function collectMinXs(groups: (typeof contentImages)[]): GroupMinX[] {
+    return groups.map(g => ({
+      minX: Math.min(...g.map(img => img.x)),
+      y: g.reduce((s, img) => s + img.y, 0) / g.length,
+      count: g.length,
+    }));
+  }
+  const leftMinXs = collectMinXs(leftYGroups);
+  const rightMinXs = collectMinXs(rightYGroups);
 
   // Find the anchor X for each column (most common minX within tolerance)
-  function findAnchorX(groups: typeof groupMinXs): number {
+  function findAnchorX(groups: GroupMinX[]): number {
     if (groups.length === 0) return 0;
     const xs = groups.map(g => g.minX).sort((a, b) => a - b);
     // Use the most frequent X value (with 5pt tolerance)
@@ -913,8 +926,8 @@ async function detectAnswersByOperatorList(
     return buckets[0]?.x || 0;
   }
 
-  const leftAnchorX = findAnchorX(leftGroups);
-  const rightAnchorX = findAnchorX(rightGroups);
+  const leftAnchorX = findAnchorX(leftMinXs);
+  const rightAnchorX = findAnchorX(rightMinXs);
   const ANCHOR_TOLERANCE = 8;
 
   console.log(`[opList] Anchors: left=${leftAnchorX.toFixed(1)}, right=${rightAnchorX.toFixed(1)}`);
@@ -929,17 +942,19 @@ async function detectAnswersByOperatorList(
   }
 
   const answerStarts: AnswerStart[] = [];
-  for (const group of yGroups) {
+  // Left column anchors
+  for (const group of leftYGroups) {
     const minX = Math.min(...group.map(g => g.x));
     const avgY = group.reduce((s, g) => s + g.y, 0) / group.length;
-
-    const isLeftAnchor = leftAnchorX > 0 && Math.abs(minX - leftAnchorX) <= ANCHOR_TOLERANCE && minX < midX;
-    const isRightAnchor = rightAnchorX > 0 && Math.abs(minX - rightAnchorX) <= ANCHOR_TOLERANCE && minX >= midX;
-
-    if (isLeftAnchor) {
+    if (leftAnchorX > 0 && Math.abs(minX - leftAnchorX) <= ANCHOR_TOLERANCE) {
       answerStarts.push({ y: avgY, x: leftAnchorX, column: 0, source: 'image' });
     }
-    if (isRightAnchor) {
+  }
+  // Right column anchors
+  for (const group of rightYGroups) {
+    const minX = Math.min(...group.map(g => g.x));
+    const avgY = group.reduce((s, g) => s + g.y, 0) / group.length;
+    if (rightAnchorX > 0 && Math.abs(minX - rightAnchorX) <= ANCHOR_TOLERANCE) {
       answerStarts.push({ y: avgY, x: rightAnchorX, column: 1, source: 'image' });
     }
   }
@@ -1479,3 +1494,5 @@ export function dataURLtoBlob(dataURL: string): Blob {
   for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
   return new Blob([u8arr], { type: mime });
 }
+
+
