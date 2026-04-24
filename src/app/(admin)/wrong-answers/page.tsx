@@ -896,6 +896,24 @@ export default function WrongAnswersPage() {
     padding-bottom: 7px;
     margin-bottom: 9px;
   }
+  .page-header .header-main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .page-header .brand-logo {
+    flex: 0 0 auto;
+    height: 34px;
+    width: auto;
+    max-width: 180px;
+    object-fit: contain;
+    object-position: left center;
+    /* logo-horizontal.png 은 우측에 여백이 크므로 가변 너비로 잘라낸다 */
+  }
+  .page-header .header-right {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .page-header .title-row {
     display: flex;
     justify-content: space-between;
@@ -1061,15 +1079,20 @@ ${pages.map((pageProblems, pageIdx) => {
   return `
 <section class="test-page">
   <div class="page-header">
-    <div class="title-row">
-      <h1>오답 테스트 · ${test.student.name}</h1>
-      <span class="meta">${pageIdx + 1} / ${totalPages} 페이지</span>
-    </div>
-    <div class="info-row">
-      <span><b>반</b> ${test.classroom.name}</span>
-      <span><b>회차</b> ${test.round}회</span>
-      <span><b>날짜</b> ${today}</span>
-      <span><b>총 ${problems.length}문항</b></span>
+    <div class="header-main">
+      <img class="brand-logo" src="${origin}/logo-horizontal.png" alt="수학탐구학원" />
+      <div class="header-right">
+        <div class="title-row">
+          <h1>오답 테스트 · ${test.student.name}</h1>
+          <span class="meta">${pageIdx + 1} / ${totalPages} 페이지</span>
+        </div>
+        <div class="info-row">
+          <span><b>반</b> ${test.classroom.name}</span>
+          <span><b>회차</b> ${test.round}회</span>
+          <span><b>날짜</b> ${today}</span>
+          <span><b>총 ${problems.length}문항</b></span>
+        </div>
+      </div>
     </div>
   </div>
   <div class="grid">
