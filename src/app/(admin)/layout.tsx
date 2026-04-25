@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { CommandPaletteProvider, type CommandItem } from '@/components/ui/CommandPalette';
 import StudentSearchBox from '@/components/ui/StudentSearchBox';
 import ClassQuickNav from '@/components/ui/ClassQuickNav';
+import DriveAuthBanner from '@/components/DriveAuthBanner';
 import { hapticSelection, hapticLight } from '@/lib/haptics';
 
 interface User {
@@ -500,8 +501,11 @@ export default function AdminLayout({
         </header>
 
         {/* Page Content */}
-        <main id="admin-main" tabIndex={-1} className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
-          {children}
+        <main id="admin-main" tabIndex={-1} className="flex-1 overflow-auto">
+          <DriveAuthBanner role={user?.role} />
+          <div className="p-3 sm:p-4 md:p-6">
+            {children}
+          </div>
         </main>
       </div>
     </div>
