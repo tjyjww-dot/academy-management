@@ -1003,6 +1003,13 @@ export default function WrongAnswersPage() {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+    /* 자동 여백 잘라내기 후에는 셀에 꽉 차게 보이도록 width: 100% 강제 */
+    transition: opacity 120ms ease;
+  }
+  .problem-body img.trimmed {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
   .problem-body .no-img {
     color: #bbb;
@@ -1108,7 +1115,7 @@ ${pages.map((pageProblems, pageIdx) => {
         <span class="source">${p.testName} #${p.originalNum}</span>
       </div>
       <div class="problem-body">
-        ${p.imgUrl ? `<img src="${toRenderableImageSrc(p.imgUrl)}" alt="문제 ${p.num}" referrerpolicy="no-referrer" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'no-img\\'>이미지 로드 실패</div>')" />` : '<div class="no-img">문제 이미지 없음</div>'}
+        ${p.imgUrl ? `<img src="${toRenderableImageSrc(p.imgUrl)}" alt="문제 ${p.num}" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'no-img\\'>이미지 로드 실패</div>')" />` : '<div class="no-img">문제 이미지 없음</div>'}
       </div>
       <div class="answer-area">
         <div class="answer-label">답<span class="ans-box">·</span></div>
@@ -1124,6 +1131,131 @@ ${pages.map((pageProblems, pageIdx) => {
 </section>`;
 }).join('')}
 
+<script>
+/* ======================================================================
+   자동 여백 잘라내기
+   ----------------------------------------------------------------------
+   PDF 추출 단계에서 가끔 한 문제 이미지에 큰 흰 여백이 함께 잘려 들어가는
+   경우가 있어 셀에서 문제가 작게 보임. 페이지 로드 후 각 .problem-body img
+   를 canvas 로 복사 → 흰 여백 영역을 픽셀 스캔으로 감지 → 비-여백 영역만
+   잘라낸 dataURL 로 교체. drive-image proxy 가 CORS 헤더를 보내므로 canvas
+   가 tainted 되지 않음.
+   ====================================================================== */
+(function () {
+  function detectBBox(canvas, ctx) {
+    var w = canvas.width, h = canvas.height;
+    var data = ctx.getImageData(0, 0, w, h).data;
+    var THRESHOLD = 235;  // 이 값 이상이면 흰색으로 간주 (JPEG 압축 노이즈 허용)
+    function isContent(x, y) {
+      var i = (y * w + x) * 4;
+      var r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+      if (a < 30) return false;  // 투명도 무시
+      return (r < THRESHOLD || g < THRESHOLD || b < THRESHOLD);
+    }
+    var top = 0, bottom = h - 1, left = 0, right = w - 1;
+    // top
+    outer1: for (; top < h; top++) {
+      for (var x = 0; x < w; x++) if (isContent(x, top)) break outer1;
+    }
+    // bottom
+    outer2: for (; bottom > top; bottom--) {
+      for (var x = 0; x < w; x++) if (isContent(x, bottom)) break outer2;
+    }
+    // left
+    outer3: for (; left < w; left++) {
+      for (var y = top; y <= bottom; y++) if (isContent(left, y)) break outer3;
+    }
+    // right
+    outer4: for (; right > left; right--) {
+      for (var y = top; y <= bottom; y++) if (isContent(right, y)) break outer4;
+    }
+    return { top: top, bottom: bottom, left: left, right: right };
+  }
+
+  function trimImage(imgEl) {
+    return new Promise(function (resolve) {
+      try {
+        // crossOrigin 을 미리 설정한 별도 이미지로 다시 로드 (CORS 안전)
+        var loader = new Image();
+        loader.crossOrigin = 'anonymous';
+        loader.onload = function () {
+          try {
+            var iw = loader.naturalWidth, ih = loader.naturalHeight;
+            if (!iw || !ih) { resolve(false); return; }
+
+            var canvas = document.createElement('canvas');
+            canvas.width = iw;
+            canvas.height = ih;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(loader, 0, 0);
+
+            var bb = detectBBox(canvas, ctx);
+            var bw = bb.right - bb.left + 1;
+            var bh = bb.bottom - bb.top + 1;
+
+            // 콘텐츠가 너무 작거나(전체 흰색) 거의 전체면 트리밍 건너뜀
+            if (bw < 20 || bh < 20) { resolve(false); return; }
+            // 잘라낸 영역이 원본의 90% 이상이면 의미 있는 차이가 없으므로 패스
+            if (bw / iw >= 0.9 && bh / ih >= 0.9) { resolve(false); return; }
+
+            // 약간의 여백(최소 4px) 추가
+            var pad = 6;
+            var sx = Math.max(0, bb.left - pad);
+            var sy = Math.max(0, bb.top - pad);
+            var sw = Math.min(iw - sx, bw + pad * 2);
+            var sh = Math.min(ih - sy, bh + pad * 2);
+
+            var out = document.createElement('canvas');
+            out.width = sw;
+            out.height = sh;
+            var octx = out.getContext('2d');
+            octx.drawImage(loader, sx, sy, sw, sh, 0, 0, sw, sh);
+
+            imgEl.src = out.toDataURL('image/png');
+            imgEl.classList.add('trimmed');
+            resolve(true);
+          } catch (err) {
+            console.warn('trim error', err);
+            resolve(false);
+          }
+        };
+        loader.onerror = function () { resolve(false); };
+        loader.src = imgEl.src;
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+
+  function runTrim() {
+    var imgs = document.querySelectorAll('.problem-body img');
+    // 동시에 여러 개를 처리하면 메모리 부담이 크므로 직렬 처리
+    (function next(i) {
+      if (i >= imgs.length) return;
+      var img = imgs[i];
+      // 이미 로드된 이미지면 즉시, 아직이면 onload 후에
+      if (img.complete && img.naturalWidth) {
+        trimImage(img).then(function () { next(i + 1); });
+      } else {
+        img.addEventListener('load', function onload() {
+          img.removeEventListener('load', onload);
+          trimImage(img).then(function () { next(i + 1); });
+        });
+        img.addEventListener('error', function onerror() {
+          img.removeEventListener('error', onerror);
+          next(i + 1);
+        });
+      }
+    })(0);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runTrim);
+  } else {
+    runTrim();
+  }
+})();
+</script>
 </body></html>`;
 
     const w = window.open('', '_blank');
