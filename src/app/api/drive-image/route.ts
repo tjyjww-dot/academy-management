@@ -74,7 +74,9 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': cached.contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        // s-maxage 추가 → Vercel Edge CDN 이 1년간 캐시 보유. 동일 fileId 요청은 함수 호출 없이 CDN 에서 즉시 응답됨.
+        // stale-while-revalidate 로 캐시 만료 직전에도 즉시 응답하면서 백그라운드에서 갱신.
+        'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable',
         'Access-Control-Allow-Origin': '*',
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'X-Drive-Image-Cache': 'HIT',
@@ -118,7 +120,9 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        // s-maxage 추가 → Vercel Edge CDN 이 1년간 캐시 보유. 동일 fileId 요청은 함수 호출 없이 CDN 에서 즉시 응답됨.
+        // stale-while-revalidate 로 캐시 만료 직전에도 즉시 응답하면서 백그라운드에서 갱신.
+        'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable',
         'Access-Control-Allow-Origin': '*',
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'X-Drive-Image-Cache': 'MISS',
