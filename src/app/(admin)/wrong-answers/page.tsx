@@ -79,6 +79,16 @@ function seededShuffle<T>(array: T[], seed: string): T[] {
   return arr;
 }
 
+/**
+ * 테스트 항목들을 PDF 출력 / 채점 화면 / 결과 배지에서 모두 동일한 순서로
+ * 보여주기 위한 함수. Prisma 가 nested include 에서 순서를 보장하지 않을 수
+ * 있으므로 먼저 item.id 로 결정론적 정렬을 한 뒤 seededShuffle 적용.
+ */
+function orderTestItems<T extends { id: string }>(items: T[], testId: string): T[] {
+  const sorted = [...items].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return seededShuffle(sorted, testId);
+}
+
 /* ============================================================
    Main Page Component
    ============================================================ */
@@ -147,7 +157,7 @@ export default function WrongAnswersPage() {
   // 채점 화면의 문제 순서 — PDF 출력과 동일한 순서를 보장하기 위해 seededShuffle 사용
   const gradingItemsOrdered = useMemo(() => {
     if (!gradingTest) return [];
-    return seededShuffle(gradingTest.items, gradingTest.id);
+    return orderTestItems(gradingTest.items, gradingTest.id);
   }, [gradingTest]);
 
   // Filter classroom for answers/tests tabs
@@ -803,7 +813,8 @@ export default function WrongAnswersPage() {
 
   const generateTestPDF = (test: WrongAnswerTestRecord) => {
     // 시드 기반 셔플 — test.id 로 고정. 채점 모달과 동일한 순서 보장.
-    const shuffled = seededShuffle(test.items, test.id);
+    // (orderTestItems = id 정렬 후 seededShuffle, 모든 화면에서 동일 순서)
+    const shuffled = orderTestItems(test.items, test.id);
 
     // Build problem entries with image URLs
     const problems = shuffled.map((item, idx) => {
@@ -2564,7 +2575,7 @@ ${pages.map((pageProblems, pageIdx) => {
                         </div>
                         {graded && (
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {test.items.map(item => {
+                            {orderTestItems(test.items, test.id).map(item => {
                               // null = 미채점 (회색) · true = 정답 (초록) · false = 오답 (빨강)
                               const isUngradedItem = item.isCorrect == null;
                               const bg = isUngradedItem
