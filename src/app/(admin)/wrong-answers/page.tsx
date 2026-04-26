@@ -1000,37 +1000,46 @@ export default function WrongAnswersPage() {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* 문제 영역 — 콘텐츠 크기에 맞춰 자동 확장 (min 35mm ~ max 95mm).
+     큰 그림/긴 문제는 답란을 줄여서라도 본문이 크게 보이도록 한다.
+     모든 콘텐츠는 좌상단 정렬. */
   .problem-body {
-    flex: 0 0 50mm;
-    padding: 4px;
+    flex: 0 0 auto;
+    min-height: 35mm;
+    max-height: 95mm;
+    padding: 5px 6px 4px 8px;
     border-bottom: 1.5px dashed #bbb;
-    text-align: center;
+    text-align: left;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
     overflow: hidden;
   }
   .problem-body img {
     max-width: 100%;
-    max-height: 100%;
+    max-height: 95mm;
     object-fit: contain;
-    /* 자동 여백 잘라내기 후에는 셀에 꽉 차게 보이도록 width: 100% 강제 */
+    object-position: left top;
     transition: opacity 120ms ease;
   }
+  /* 자동 여백 트리밍 적용 후엔 가로폭을 꽉 채워 작은 그림도 크게 보이도록 */
   .problem-body img.trimmed {
     width: 100%;
-    height: 100%;
+    height: auto;
+    max-height: 95mm;
     object-fit: contain;
+    object-position: left top;
   }
   .problem-body .no-img {
     color: #bbb;
     font-size: 11px;
   }
 
-  /* 풀이 공간 — 페이지 남은 공간을 모두 차지 */
+  /* 풀이 공간 — 페이지 남은 공간을 차지하되 최소 22mm 보장.
+     문제 본문이 95mm 까지 커져도 답쓰는 공간이 유지되도록. */
   .answer-area {
-    flex: 1;
-    min-height: 0;
+    flex: 1 1 auto;
+    min-height: 22mm;
     padding: 7px 11px 6px;
     position: relative;
     font-size: 11px;
