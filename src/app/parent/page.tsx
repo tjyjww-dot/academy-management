@@ -18,6 +18,12 @@ export default function ParentPage() {
   const [counselType, setCounselType] = useState<'PHONE' | 'VISIT'>('PHONE');
   const [counselDesc, setCounselDesc] = useState('');
   const [counselSubmitting, setCounselSubmitting] = useState(false);
+  // 결석/지각 사전 통보
+  const [absenceDate, setAbsenceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [absenceType, setAbsenceType] = useState<'ABSENT' | 'LATE'>('LATE');
+  const [absenceReason, setAbsenceReason] = useState('');
+  const [absenceSubmitting, setAbsenceSubmitting] = useState(false);
+  const [recentAbsences, setRecentAbsences] = useState<any[]>([]);
   const [wrongAnswers, setWrongAnswers] = useState<any[]>([]);
   const [waStats, setWaStats] = useState<any>(null);
   const [expandedWA, setExpandedWA] = useState<Set<string>>(new Set());
@@ -110,6 +116,64 @@ export default function ParentPage() {
     }
   };
 
+  // 결석/지각 탭 진입 시 자동 조회
+  useEffect(() => {
+    if (tab === 'absence' && data?.students?.[0]) {
+      fetchAbsenceHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, data?.students?.[0]?.id]);
+
+  const fetchAbsenceHistory = async () => {
+    try {
+      const res = await fetch('/api/parent/absence-notice');
+      if (res.ok) {
+        const list = await res.json();
+        setRecentAbsences(Array.isArray(list) ? list : []);
+      }
+    } catch {}
+  };
+
+  const submitAbsenceNotice = async () => {
+    if (!data?.students?.[0]) return;
+    if (absenceSubmitting) return;
+    if (!absenceReason.trim()) {
+      alert('사유를 입력해주세요.');
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(absenceDate)) {
+      alert('날짜를 선택해주세요.');
+      return;
+    }
+    setAbsenceSubmitting(true);
+    try {
+      const res = await fetch('/api/parent/absence-notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: data.students[0].id,
+          date: absenceDate,
+          noticeType: absenceType,
+          reason: absenceReason.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert('등록 실패: ' + (e?.error || '잠시 후 다시 시도해주세요.'));
+        return;
+      }
+      alert(absenceType === 'ABSENT' ? '결석 통보가 학원에 전달되었습니다.' : '지각 통보가 학원에 전달되었습니다.');
+      setAbsenceReason('');
+      setAbsenceType('LATE');
+      setAbsenceDate(new Date().toISOString().slice(0, 10));
+      await fetchAbsenceHistory();
+    } catch {
+      alert('등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setAbsenceSubmitting(false);
+    }
+  };
+
   const handleLogout = async () => {
     if (typeof window !== 'undefined') localStorage.removeItem('auth-token');
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -170,6 +234,7 @@ export default function ParentPage() {
     { id: 'wrongAnswers', label: '오답' },
     { id: 'homework',     label: '숙제' },
     { id: 'video',        label: '수업영상' },
+    { id: 'absence',      label: '결석/지각' },
     { id: 'counsel',      label: '상담' },
   ];
 
@@ -701,6 +766,174 @@ export default function ParentPage() {
                     </a>
                   );
                 })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 결석 / 지각 사전 통보 */}
+        {tab === 'absence' && (
+          <>
+            <SectionHeader eyebrow="ABSENCE" title="결석 · 지각 통보" />
+            <Card padding="md" elevation="sh1">
+              {/* 유형 세그먼트 토글 — LATE / ABSENT */}
+              <div
+                className="flex gap-1 p-1 mb-4"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-btn)',
+                }}
+                role="tablist"
+                aria-label="통보 유형"
+              >
+                {(
+                  [
+                    { key: 'LATE',   icon: '⏰', label: '지각',   hint: '늦게 도착할 예정' },
+                    { key: 'ABSENT', icon: '✕',  label: '결석',   hint: '출석하지 못함' },
+                  ] as const
+                ).map((t) => {
+                  const active = absenceType === t.key;
+                  const activeColor = t.key === 'ABSENT'
+                    ? 'var(--color-danger, #C53030)'
+                    : 'var(--color-warn, #C99A3B)';
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onPointerDown={() => hapticSelection()}
+                      onClick={() => setAbsenceType(t.key)}
+                      className="press press-subtle flex-1 py-3 text-center transition-colors"
+                      style={{
+                        background: active ? 'var(--color-surface)' : 'transparent',
+                        color: active ? activeColor : 'var(--color-mute)',
+                        borderRadius: 'calc(var(--radius-btn) - 2px)',
+                        boxShadow: active ? '0 1px 2px rgba(14,14,12,0.06)' : undefined,
+                        minHeight: 44,
+                      }}
+                    >
+                      <div style={{ fontSize: 18, lineHeight: 1 }} aria-hidden>{t.icon}</div>
+                      <div className="text-h3 mt-1" style={{ fontSize: 14 }}>{t.label}</div>
+                      <div className="text-caption mt-0.5" style={{ fontSize: 11 }}>{t.hint}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 날짜 선택 */}
+              <label className="text-eyebrow block mb-1.5" style={{ color: 'var(--color-mute)' }}>날짜</label>
+              <input
+                type="date"
+                value={absenceDate}
+                onChange={(e) => setAbsenceDate(e.target.value)}
+                className="w-full text-body outline-none mb-3"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-btn)',
+                  padding: '12px 14px',
+                  color: 'var(--color-ink)',
+                  minHeight: 44,
+                }}
+              />
+
+              {/* 사유 입력 */}
+              <label className="text-eyebrow block mb-1.5" style={{ color: 'var(--color-mute)' }}>사유</label>
+              <textarea
+                value={absenceReason}
+                onChange={e => setAbsenceReason(e.target.value)}
+                placeholder={
+                  absenceType === 'ABSENT'
+                    ? '예: 가족 여행으로 결석합니다 / 병원 진료'
+                    : '예: 학교 행사로 30분 정도 늦습니다'
+                }
+                rows={4}
+                className="w-full text-body resize-none transition-all outline-none"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-btn)',
+                  padding: '12px 14px',
+                  color: 'var(--color-ink)',
+                }}
+              />
+
+              <Button
+                variant="primary"
+                className="w-full mt-4"
+                disabled={absenceSubmitting}
+                onClick={submitAbsenceNotice}
+                style={{
+                  background: absenceType === 'ABSENT'
+                    ? 'var(--color-danger, #C53030)'
+                    : 'var(--color-warn, #C99A3B)',
+                }}
+              >
+                {absenceSubmitting
+                  ? '등록 중...'
+                  : absenceType === 'ABSENT' ? '결석 통보하기' : '지각 통보하기'}
+              </Button>
+              <p
+                className="text-caption mt-2 text-center"
+                style={{ fontSize: 11.5, color: 'var(--color-mute)' }}
+              >
+                등록 후 학원에서 자동으로 출결에 반영됩니다.
+              </p>
+            </Card>
+
+            {/* 최근 통보 내역 */}
+            <div className="pt-2" />
+            <SectionHeader eyebrow="HISTORY" title="최근 통보 내역" />
+            {recentAbsences.length === 0 ? (
+              <Card padding="md" elevation="sh1">
+                <p className="text-caption text-center" style={{ color: 'var(--color-mute)', padding: '14px 0' }}>
+                  아직 통보 내역이 없습니다.
+                </p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {recentAbsences.map((n: any) => (
+                  <Card key={n.id} padding="md" elevation="sh1">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full"
+                            style={{
+                              background: n.noticeType === 'ABSENT'
+                                ? 'var(--color-danger-bg, rgba(197,48,48,0.10))'
+                                : 'var(--color-warn-bg, rgba(201,154,59,0.12))',
+                              color: n.noticeType === 'ABSENT'
+                                ? 'var(--color-danger, #C53030)'
+                                : 'var(--color-warn, #C99A3B)',
+                              minWidth: 38,
+                            }}
+                          >
+                            {n.noticeType === 'ABSENT' ? '결석' : '지각'}
+                          </span>
+                          <span className="text-h3" style={{ fontSize: 14 }}>{n.date}</span>
+                          {n.status === 'ACKNOWLEDGED' && (
+                            <span
+                              className="text-caption px-1.5 py-0.5 rounded"
+                              style={{
+                                fontSize: 10.5,
+                                background: 'var(--color-info-bg)',
+                                color: 'var(--color-accent)',
+                              }}
+                            >
+                              확인됨
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-caption mt-1" style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                          {n.reason}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
             )}
           </>

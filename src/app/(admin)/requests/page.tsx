@@ -109,6 +109,9 @@ export default function RequestsPage() {
   const [counselingSubmitSuccess, setCounselingSubmitSuccess] = useState('');
   const [recentCounseling, setRecentCounseling] = useState<CounselingItem[]>([]);
 
+  /* 결석/지각 사전 통보 */
+  const [absenceNotices, setAbsenceNotices] = useState<any[]>([]);
+
   const teachers = useMemo(
     () => users.filter((u) => u.role === 'TEACHER' || u.role === 'ADMIN'),
     [users]
@@ -138,7 +141,34 @@ export default function RequestsPage() {
     fetchSentRequests();
     fetchReceivedRequests();
     fetchRecentCounseling();
+    fetchAbsenceNotices();
   }, []);
+
+  const fetchAbsenceNotices = async () => {
+    try {
+      const res = await fetch('/api/absence-notices');
+      if (res.ok) {
+        const data = await res.json();
+        setAbsenceNotices(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('absence notices fetch failed', e);
+    }
+  };
+
+  const ackAbsenceNotice = async (id: string) => {
+    try {
+      hapticMedium();
+      const res = await fetch('/api/absence-notices', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'ACKNOWLEDGED' }),
+      });
+      if (res.ok) {
+        await fetchAbsenceNotices();
+      }
+    } catch {}
+  };
 
   /* ───── 학생 검색 (debounce) ───── */
   useEffect(() => {
@@ -905,6 +935,117 @@ export default function RequestsPage() {
       {/* ───── 받은 요청 ───── */}
       {activeTab === 'received' && (
         <div className="anim-tab-in space-y-6">
+          {/* 결석/지각 사전 통보 (학부모 발신) */}
+          {(() => {
+            const pendingAbs = absenceNotices.filter(n => n.status !== 'ACKNOWLEDGED');
+            const ackedAbs = absenceNotices.filter(n => n.status === 'ACKNOWLEDGED').slice(0, 5);
+            return (
+              <>
+                <div
+                  className="rounded-lg"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                >
+                  <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <h2 className="text-[17px] font-bold" style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}>
+                      🕒 결석 · 지각 통보 ({pendingAbs.length})
+                    </h2>
+                    <p className="text-[12px] mt-0.5" style={{ color: 'var(--color-mute)' }}>
+                      학부모가 미리 알린 결석·지각 내용입니다. 출결 메모에 자동 반영되었습니다.
+                    </p>
+                  </div>
+                  <div className="p-5">
+                    {pendingAbs.length === 0 ? (
+                      <p className="text-center text-[13px] py-6" style={{ color: 'var(--color-mute)' }}>
+                        대기 중인 결석/지각 통보가 없습니다.
+                      </p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {pendingAbs.map((n) => {
+                          const isAbsent = n.noticeType === 'ABSENT';
+                          const teacherNames = (n.student?.enrollments || [])
+                            .map((e: any) => e.classroom?.teacher?.name)
+                            .filter(Boolean)
+                            .join(', ');
+                          const classNames = (n.student?.enrollments || [])
+                            .map((e: any) => e.classroom?.name)
+                            .filter(Boolean)
+                            .join(', ');
+                          return (
+                            <div
+                              key={n.id}
+                              className="rounded-lg p-4"
+                              style={{
+                                background: isAbsent
+                                  ? 'rgba(197, 48, 48, 0.06)'
+                                  : 'rgba(201, 154, 59, 0.10)',
+                                border: `1px solid ${isAbsent ? '#F5C2C2' : '#E7D58E'}`,
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span
+                                      className="text-[11px] px-2 py-0.5 rounded-full font-bold"
+                                      style={{
+                                        background: isAbsent ? 'var(--color-danger, #C53030)' : 'var(--color-warn, #C99A3B)',
+                                        color: '#fff',
+                                      }}
+                                    >
+                                      {isAbsent ? '결석' : '지각'}
+                                    </span>
+                                    <span className="text-[14px] font-bold" style={{ color: 'var(--color-ink)' }}>
+                                      {n.student?.name || '-'}
+                                    </span>
+                                    <span className="text-[12.5px]" style={{ color: 'var(--color-ink-2, #444)' }}>
+                                      · {n.date}
+                                    </span>
+                                    {classNames && (
+                                      <span className="text-[11.5px]" style={{ color: 'var(--color-mute)' }}>
+                                        ({classNames}{teacherNames ? ` / ${teacherNames}` : ''})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[13px] mb-1" style={{ color: 'var(--color-ink-2, #333)', lineHeight: 1.55 }}>
+                                    {n.reason}
+                                  </p>
+                                  <p className="text-[11.5px]" style={{ color: 'var(--color-mute)' }}>
+                                    {n.createdByName || '학부모'} · {formatDate(n.createdAt)}
+                                  </p>
+                                </div>
+                                <button
+                                  onPointerDown={() => hapticMedium()}
+                                  onClick={() => ackAbsenceNotice(n.id)}
+                                  className="press press-subtle px-3 py-1.5 text-[12.5px] font-semibold rounded-lg whitespace-nowrap shrink-0"
+                                  style={{ background: 'var(--color-success, #0E8A3B)', color: '#fff' }}
+                                >
+                                  확인
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {ackedAbs.length > 0 && (
+                      <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+                        <p className="text-[11.5px] mb-2" style={{ color: 'var(--color-mute)' }}>
+                          최근 확인 완료 ({ackedAbs.length})
+                        </p>
+                        <div className="space-y-1">
+                          {ackedAbs.map(n => (
+                            <div key={n.id} className="text-[12px]" style={{ color: 'var(--color-mute)' }}>
+                              {n.noticeType === 'ABSENT' ? '결석' : '지각'} · {n.student?.name} · {n.date} — {n.reason.length > 30 ? n.reason.slice(0, 30) + '…' : n.reason}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+
           <div
             className="rounded-lg"
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}

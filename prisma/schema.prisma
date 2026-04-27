@@ -28,6 +28,7 @@ model User {
   studentProfile     Student?
   memos           Memo[]   @relation("memoAuthor")
   testPapers       TestPaper[]
+  absenceNotices     AbsenceNotice[]
 }
 
 model Student {
@@ -63,6 +64,27 @@ model Student {
   examPreps                ExamPrep[]
   studentTestPapers        TestPaper[] @relation("StudentTestPapers")
   examScores               ExamScore[]
+  absenceNotices           AbsenceNotice[]
+}
+
+/// 결석/지각 사전 통보 — 학부모가 학원에 미리 알리는 결석·지각 요청.
+/// 생성 시 자동으로 해당 날짜의 모든 출결 레코드(반별)에 status·remarks 가 반영됨.
+model AbsenceNotice {
+  id         String   @id @default(cuid())
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  String
+  parent     User?    @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  parentId   String?
+  date       String   // YYYY-MM-DD
+  noticeType String   // "ABSENT" | "LATE"
+  reason     String
+  status     String   @default("PENDING") // PENDING | ACKNOWLEDGED
+  createdByName String?  // 학부모/학생 이름 (UI 표시용)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([date])
 }
 
 /// 내신점수 — 중1~중3, 1·2학기, 중간/기말 = 학생당 최대 12개 행.
