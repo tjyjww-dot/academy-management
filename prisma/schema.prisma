@@ -62,6 +62,27 @@ model Student {
   wrongAnswerTests         WrongAnswerTest[]
   examPreps                ExamPrep[]
   studentTestPapers        TestPaper[] @relation("StudentTestPapers")
+  examScores               ExamScore[]
+}
+
+/// 내신점수 — 중1~중3, 1·2학기, 중간/기말 = 학생당 최대 12개 행.
+/// 한 행에 국영수과 4과목 점수가 함께 저장됨.
+model ExamScore {
+  id        String   @id @default(cuid())
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  grade     Int      // 1=중1, 2=중2, 3=중3
+  semester  Int      // 1=1학기, 2=2학기
+  examType  String   // "MIDTERM"=중간고사, "FINAL"=기말고사
+  korean    Float?   // 국어
+  english   Float?   // 영어
+  math      Float?   // 수학
+  science   Float?   // 과학
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, grade, semester, examType])
+  @@index([studentId])
 }
 
 model ParentStudent {

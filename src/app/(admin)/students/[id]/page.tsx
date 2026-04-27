@@ -63,6 +63,82 @@ export default function StudentDetailPage() {
   };
   const [attendanceMonth, setAttendanceMonth] = useState(() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); });
 
+  // 내신점수 — 12개 슬롯 (중1~중3 × 1·2학기 × 중간/기말)
+  type ExamSlot = {
+    grade: number;
+    semester: number;
+    examType: 'MIDTERM' | 'FINAL';
+    korean: number | null;
+    english: number | null;
+    math: number | null;
+    science: number | null;
+  };
+  const [examScores, setExamScores] = useState<ExamSlot[]>([]);
+  const [examEditing, setExamEditing] = useState(false);
+  const [examEditValues, setExamEditValues] = useState<Record<string, Record<string, string>>>({});
+  const [examSaving, setExamSaving] = useState(false);
+  const [examMessage, setExamMessage] = useState('');
+
+  const examSlotKey = (g: number, s: number, t: string) => `${g}-${s}-${t}`;
+
+  const fetchExamScores = async () => {
+    try {
+      const res = await fetch(`/api/students/${studentId}/exam-scores`);
+      if (res.ok) {
+        const data = await res.json();
+        setExamScores(data);
+        // 편집 버퍼 초기화
+        const buf: Record<string, Record<string, string>> = {};
+        for (const s of data as ExamSlot[]) {
+          buf[examSlotKey(s.grade, s.semester, s.examType)] = {
+            korean: s.korean == null ? '' : String(s.korean),
+            english: s.english == null ? '' : String(s.english),
+            math: s.math == null ? '' : String(s.math),
+            science: s.science == null ? '' : String(s.science),
+          };
+        }
+        setExamEditValues(buf);
+      }
+    } catch (err) {
+      console.error('내신점수 조회 실패:', err);
+    }
+  };
+
+  const saveExamScores = async () => {
+    setExamSaving(true);
+    setExamMessage('');
+    try {
+      const scores = examScores.map(s => {
+        const k = examSlotKey(s.grade, s.semester, s.examType);
+        const v = examEditValues[k] || {};
+        return {
+          grade: s.grade,
+          semester: s.semester,
+          examType: s.examType,
+          korean: v.korean === '' ? null : Number(v.korean),
+          english: v.english === '' ? null : Number(v.english),
+          math: v.math === '' ? null : Number(v.math),
+          science: v.science === '' ? null : Number(v.science),
+        };
+      });
+      const res = await fetch(`/api/students/${studentId}/exam-scores`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scores }),
+      });
+      if (!res.ok) throw new Error('저장 실패');
+      setExamMessage('저장되었습니다.');
+      setExamEditing(false);
+      await fetchExamScores();
+      setTimeout(() => setExamMessage(''), 2000);
+    } catch (e) {
+      setExamMessage('저장 실패');
+      setTimeout(() => setExamMessage(''), 3000);
+    } finally {
+      setExamSaving(false);
+    }
+  };
+
   const fetchStudent = async () => {
     try {
       setLoading(true);
@@ -108,6 +184,7 @@ export default function StudentDetailPage() {
     fetchStudent();
     fetchGradeStats();
     fetchCounselingRecords();
+    fetchExamScores();
   }, [studentId]);
 
   
@@ -243,7 +320,15 @@ export default function StudentDetailPage() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
-              <p className="text-gray-600 text-lg mt-2">학번: {student.studentNumber}</p>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-gray-600 text-base mt-2">
+                <span>학번: <span className="font-medium text-gray-900">{student.studentNumber}</span></span>
+                <span className="text-gray-400">|</span>
+                <span>
+                  등록일: <span className="font-medium text-gray-900">
+                    {new Date(student.registrationDate).toLocaleDateString('ko-KR')}
+                  </span>
+                </span>
+              </div>
             </div>
             <button
               onClick={() => {
@@ -421,7 +506,7 @@ export default function StudentDetailPage() {
           <div className="border-b flex">
             {[
               { id: 'counseling', label: '상담내역' },
-              { id: 'basic', label: '기본정보' },
+              { id: 'examScores', label: '내신점수' },
               { id: 'classes', label: '수강반' },
               { id: 'grades', label: '성적' },
               { id: 'attendance', label: '출결' },
@@ -441,61 +526,136 @@ export default function StudentDetailPage() {
           </div>
 
           <div className="p-6">
-            {activeTab === 'basic' && (
+            {activeTab === 'examScores' && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">기본정보</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">이름:</span>
-                    <span className="font-medium text-gray-900">{student.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">학번:</span>
-                    <span className="font-medium text-gray-900">{student.studentNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">상태:</span>
-                    <span className="font-medium text-gray-900">
-                      {statusMap[student.status] || student.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">등록일:</span>
-                    <span className="font-medium text-gray-900">
-                      {new Date(student.registrationDate).toLocaleDateString('ko-KR')}
-                    </span>
-                  </div>
-                  {student.status === 'WITHDRAWN' && (
-                    <>
-                      <div className="border-t pt-3 mt-3">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">퇴원일:</span>
-                          <span className="font-medium text-gray-900">
-                            {student.withdrawalDate
-                              ? new Date(student.withdrawalDate).toLocaleDateString('ko-KR')
-                              : '-'}
-                          </span>
-                        </div>
-                      </div>
-                      {student.withdrawalReason && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">퇴원 사유:</span>
-                          <span className="font-medium text-gray-900 text-right max-w-xs">
-                            {student.withdrawalReason}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">보호자:</span>
-                    <span className="font-medium text-gray-900">
-                      {student.parentStudents.length > 0
-                        ? student.parentStudents.map((ps) => ps.parent.name).join(', ')
-                        : '-'}
-                    </span>
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                  <h3 className="text-lg font-semibold text-gray-900">내신점수</h3>
+                  <div className="flex items-center gap-2">
+                    {examMessage && (
+                      <span className="text-sm text-green-600 font-medium">{examMessage}</span>
+                    )}
+                    {!examEditing ? (
+                      <button
+                        onClick={() => setExamEditing(true)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                      >
+                        점수 입력 / 수정
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setExamEditing(false); fetchExamScores(); }}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium"
+                          disabled={examSaving}
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={saveExamScores}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium disabled:opacity-50"
+                          disabled={examSaving}
+                        >
+                          {examSaving ? '저장 중…' : '저장'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {/* 한눈에 보기 — 학년별 그룹, 각 학년에 4시험 (1중/1기/2중/2기), 각 시험에 4과목 */}
+                <div className="space-y-4">
+                  {[1, 2, 3].map(gradeNum => {
+                    const slotsOfGrade = examScores.filter(s => s.grade === gradeNum);
+                    return (
+                      <div key={gradeNum} className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                          <span className="text-sm font-bold text-gray-800">중{gradeNum}</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-white border-b border-gray-200 text-gray-500">
+                                <th className="px-3 py-2 text-left font-medium w-32">시험</th>
+                                <th className="px-3 py-2 text-center font-medium">국어</th>
+                                <th className="px-3 py-2 text-center font-medium">영어</th>
+                                <th className="px-3 py-2 text-center font-medium">수학</th>
+                                <th className="px-3 py-2 text-center font-medium">과학</th>
+                                <th className="px-3 py-2 text-center font-medium bg-blue-50 text-blue-700">평균</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[
+                                { semester: 1, examType: 'MIDTERM', label: '1학기 중간' },
+                                { semester: 1, examType: 'FINAL',   label: '1학기 기말' },
+                                { semester: 2, examType: 'MIDTERM', label: '2학기 중간' },
+                                { semester: 2, examType: 'FINAL',   label: '2학기 기말' },
+                              ].map(({ semester, examType, label }) => {
+                                const slot = slotsOfGrade.find(s => s.semester === semester && s.examType === examType);
+                                const k = examSlotKey(gradeNum, semester, examType);
+                                const buf = examEditValues[k] || { korean: '', english: '', math: '', science: '' };
+                                const subjects: ('korean' | 'english' | 'math' | 'science')[] = ['korean', 'english', 'math', 'science'];
+
+                                // 평균 계산 (입력값 우선, 미입력은 제외)
+                                const values = subjects.map(sub => {
+                                  if (examEditing) {
+                                    const v = buf[sub];
+                                    return v === '' ? null : Number(v);
+                                  } else {
+                                    return slot ? (slot[sub] ?? null) : null;
+                                  }
+                                });
+                                const validValues = values.filter((v): v is number => v != null && Number.isFinite(v));
+                                const avg = validValues.length > 0
+                                  ? (validValues.reduce((a, b) => a + b, 0) / validValues.length)
+                                  : null;
+
+                                return (
+                                  <tr key={k} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                                    <td className="px-3 py-2 font-medium text-gray-700">{label}</td>
+                                    {subjects.map(sub => (
+                                      <td key={sub} className="px-2 py-1.5 text-center">
+                                        {examEditing ? (
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step={0.5}
+                                            value={buf[sub] ?? ''}
+                                            onChange={(e) => setExamEditValues(prev => ({
+                                              ...prev,
+                                              [k]: { ...(prev[k] || {}), [sub]: e.target.value },
+                                            }))}
+                                            className="w-16 px-1 py-1 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="-"
+                                          />
+                                        ) : (
+                                          <span className={`font-medium tabular-nums ${
+                                            slot && slot[sub] != null ? 'text-gray-900' : 'text-gray-300'
+                                          }`}>
+                                            {slot && slot[sub] != null ? slot[sub] : '-'}
+                                          </span>
+                                        )}
+                                      </td>
+                                    ))}
+                                    <td className="px-3 py-2 text-center bg-blue-50/50 text-blue-700 font-bold tabular-nums">
+                                      {avg != null ? avg.toFixed(1) : '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!examEditing && (
+                  <p className="text-xs text-gray-500 mt-3">
+                    * 점수는 0–100 범위로 입력합니다. 빈 칸은 미응시로 처리되고 평균 계산에서 제외됩니다.
+                  </p>
+                )}
               </div>
             )}
 
